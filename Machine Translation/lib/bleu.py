@@ -113,6 +113,7 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4,
     return (bleu, precisions, bp, ratio, translation_length, reference_length)
 
 if __name__=='__main__':
+
     reference = [['this', 'is', 'small', 'test']]
     candidate = ['this', 'is', 'a', 'test']
 

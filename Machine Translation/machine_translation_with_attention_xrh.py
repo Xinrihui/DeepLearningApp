@@ -19,6 +19,9 @@ import numpy as np
 from lib.nmt_utils import *
 from lib.utils_xrh import *
 
+from sklearn.model_selection import train_test_split
+
+from lib.bleu import *
 
 class BasicMachineTranslation:
     """
@@ -34,7 +37,6 @@ class BasicMachineTranslation:
     """
 
     def model_implementation_naive(self, Tx, Ty, machine_vocab, human_vocab, Xoh, Yoh, m):
-
         # 对于 attention 模块, 使用全局的 网络层(Keras Layers) 对象，以在多个 model 中共享权重
         repeator = RepeatVector(Tx)
         concatenator = Concatenate(axis=2)
@@ -157,7 +159,8 @@ class MachineTranslation:
 
     """
 
-    def __init__(self, Tx, Ty, n_a, n_s, machine_vocab, inv_machine_vocab, human_vocab,model_path='models/lstm_seq2seq_attention.h5'):
+    def __init__(self, Tx, Ty, n_a, n_s, machine_vocab, inv_machine_vocab, human_vocab,
+                 model_path='models/lstm_seq2seq_attention.h5'):
         """
         模型初始化
 
@@ -381,20 +384,20 @@ class MachineTranslation:
         a, forward_h, forward_c, backward_h, backward_c = self.pre_activation_LSTM_cell(
             inputs=X)  # shape of a : (m,Tx, 2*n_a)
 
-        # 最后一个时间步的 隐藏状态向量
+        # encoder 最后一个时间步的 隐藏状态向量
         s = self.concatenate_s([forward_h, backward_h])  # shape of s:  (m, n_a+n_a) = (m,128)
-        # 最后一个时间步的 细胞状态向量
+        # encoder 最后一个时间步的 细胞状态向量
         c = self.concatenate_c([forward_c, backward_c])
 
         context = self.model_one_step_attention(inputs=[a, s])  # shape of context :  (m, 1, 128)
 
         outputs = [context, s, c]
 
-        model = Model(inputs=[X], outputs=outputs) # 生成计算图(模型)
+        model = Model(inputs=[X], outputs=outputs)  # 生成计算图(模型)
 
         return model
 
-    def __inference_onestep_decoder_model(self,n_s):
+    def __inference_onestep_decoder_model(self, n_s):
         """
         推理过程中 解耦后的 一个时间步的 decoder
 
@@ -431,7 +434,7 @@ class MachineTranslation:
 
         outputs = [s, c, out]  # 输出 s c out 作为下一个时间步使用
 
-        model = Model(inputs=[context0, s0, c0, pred0], outputs=outputs) # 生成计算图(模型)
+        model = Model(inputs=[context0, s0, c0, pred0], outputs=outputs)  # 生成计算图(模型)
 
         return model
 
@@ -472,7 +475,7 @@ class MachineTranslation:
 
         for timestep in range(Ty):
 
-            print('timestep :', timestep)
+            # print('timestep :', timestep)
 
             onestep_decoder = self.__inference_onestep_decoder_model(n_s)
             s, c, out = onestep_decoder.predict([context, s, c, pred])
@@ -480,15 +483,16 @@ class MachineTranslation:
             # s 最后一个时间步的隐藏状态向量 shape (m, n_s)
             # c 最后一个时间步的细胞状态向量 shape (m, n_s)
 
-            print ('out: \n',out) # shape:(3, 11)
+            # print('out: \n', out)  # shape:(3, 11)
 
             # 每次都对 3个相同的样本（k=3）进行 推理，但是每一个 样本对应的 pred 不同 ；
             # beamsearch 中，每一个时间步都会根据上一步的 onestep_decoder 输出结果中 选择最好的k个, 输入此时间步的 onestep_decoder
 
             if timestep == 0:
 
-                out_top_K = ArrayUtils.partition_topk_array(out, k) # shape:(3,3) 每一行为 k 个标号, 表示从每个样本的11个分类中选出概率最大的 3个 类别
-                print('out_top_K: \n', out_top_K)
+                out_top_K = ArrayUtils.partition_topk_array(out,
+                                                            k)  # shape:(3,3) 每一行为 k 个标号, 表示从每个样本的11个分类中选出概率最大的 3个 类别
+                # print('out_top_K: \n', out_top_K)
 
                 top_K_indices = out_top_K
 
@@ -511,11 +515,12 @@ class MachineTranslation:
 
             else:
 
-                out_top_K = ArrayUtils.whole_topk_array(out, k)  # shape:(3, 2) 找出 out (shape (3,11)) 中33 个元素中的k个最大的元素的标号(位置)
+                out_top_K = ArrayUtils.whole_topk_array(out,
+                                                        k)  # shape:(3, 2) 找出 out (shape (3,11)) 中33 个元素中的k个最大的元素的标号(位置)
                 # out shape:(3, 11)
 
                 r = out_top_K
-                print('r: \n', r)
+                # print('r: \n', r)
                 #   [[1 1]
                 #    [0 1]
                 #    [2 1]]  # topk 的元素在out中的标号为 [2,1], 代表 第2个输入的pred 所输出的11个分类中的第1个类别
@@ -525,7 +530,7 @@ class MachineTranslation:
                 #  [1]
                 #  [3]]
 
-                rt = np.zeros((k, timestep + 1),dtype=np.int32)  # 这一步 会在上一步 已有的解码序列的基础上 增加1个 解码位
+                rt = np.zeros((k, timestep + 1), dtype=np.int32)  # 这一步 会在上一步 已有的解码序列的基础上 增加1个 解码位
 
                 for i in range(k):
                     rt[i, :] = np.concatenate((r_pre[r[i][0]], [r[i][1]]), axis=0)
@@ -549,13 +554,15 @@ class MachineTranslation:
 
                 pred = one_hot_permute
 
-            print('decoder_result: \n', decoder_result)
+            # print('decoder_result: \n', decoder_result)
 
         return decoder_result
 
     def inference(self, example):
         """
         使用训练好的模型进行推理
+
+        推理采用 beamsearch
 
         :param example: 样本序列
         :return:
@@ -572,34 +579,86 @@ class MachineTranslation:
         # print(all_configs['output_layers'])
         # print(all_configs['layers'][11])
 
-
         source = np.array(string_to_int(example, self.Tx, self.human_vocab))
-        source_oh = np.array(list(map(lambda x: to_categorical(x, num_classes=self.human_vocab_size ), source)))
 
+        source_oh = ArrayUtils.one_hot_array(source, nb_classes=self.human_vocab_size)
+
+        # beamsearch 的窗口大小
         k = 3
+
         source_oh = source_oh.reshape(1, source_oh.shape[0], source_oh.shape[1])
         # print(source_oh.shape)
         source_oh = np.repeat(source_oh, k, axis=0)
-        # print(source_oh.shape) #(3, 30, 37) m=3 一个样本 复制为三个输入模型进行推理
+        # print(source_oh.shape) #(3, 30, 37) m=k=3 将一个样本复制为3个, 输入模型进行推理
 
-        decoder_result = self.__inference_beamsearch(source_oh=source_oh, Tx=self.Tx, Ty=self.Ty, n_s=self.n_s, human_vocab_size=self.human_vocab_size, machine_vocab_size=self.machine_vocab_size, k=k)
+        decoder_result = self.__inference_beamsearch(source_oh=source_oh, Tx=self.Tx, Ty=self.Ty, n_s=self.n_s,
+                                                     human_vocab_size=self.human_vocab_size,
+                                                     machine_vocab_size=self.machine_vocab_size, k=k)
+
+        candidates = []
 
         for prediction in decoder_result:
-            output = int_to_string(prediction, self.inv_machine_vocab)
-            print("source:", example)
-            print("output:", ''.join(output))
+            output = ''.join(int_to_string(prediction, self.inv_machine_vocab))
 
+            # print("source:", example)
+            # print("output:", output)
 
-    def evaluate(self):
+            candidates.append(output)
 
-        pass
+        return candidates
 
+    def evaluate(self, source_list, reference_list):
+        """
+        使用 bleu 对翻译结果进行评价
+
+        :param source_list: 待翻译的句子的列表
+        :param reference_list: 对照语料, 人工翻译的句子列表
+
+        :return: average_bleu_score : 所有 source 的最佳翻译结果的平均分数 ;
+                 best_result_list : 所有 source 的最佳翻译结果
+
+                 best_result = (max_bleu_score, source, reference, best_candidate)
+
+        """
+
+        bleu_score_list = np.zeros(len(source_list))
+        best_result_list = []
+
+        for i in range(len(source_list)):
+
+            source = source_list[i] # "3rd of March 2002"
+            reference = reference_list[i] # "2002-03-03"
+
+            candidates = self.inference(source) #  ['2002-03-03', '0002-03-03', '1002-03-03']
+
+            max_bleu_score = 0 # 最佳分数
+            best_candidate = None # 最好的翻译结果
+
+            for candidate in candidates: # 遍历所有的 candidate, 找到 分数最高的
+
+                bleu_score = compute_bleu([reference.split('-')], candidate.split('-'))[0]
+                # 对 reference 进行切分(分隔符为 '-' ) ,结果为 ['2002','03','03']
+
+                if bleu_score > max_bleu_score:
+                    max_bleu_score = bleu_score
+                    best_candidate = candidate
+
+            bleu_score_list[i] = max_bleu_score
+
+            best_result = (max_bleu_score, source, reference, best_candidate)
+
+            print('i:{}, best_result:{}'.format(i,best_result))
+
+            best_result_list.append(best_result)
+
+        average_bleu_score = np.average(bleu_score_list)
+
+        return average_bleu_score, best_result_list
 
 
 class Test:
 
     def test_BasicMachineTranslation(self):
-
         # 配置 TensorFlow 在跑程序的时候不让程序占满 GPU 内存
         # physical_devices = tf.config.list_physical_devices('GPU')
         # tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
@@ -641,7 +700,6 @@ class Test:
         #                             human_vocab=human_vocab, Xoh=Xoh, Yoh=Yoh, m=m)
 
     def test_MachineTranslation(self):
-
         m = 10000  # 数据集中的样本总数
         dataset, human_vocab, machine_vocab, inv_machine_vocab = load_dataset(m)
 
@@ -659,10 +717,13 @@ class Test:
         print(human_vocab)
         print(machine_vocab)
 
+        # 划分训练集和测试集
+        train_dataset, test_dataset = train_test_split(dataset, test_size=0.2, random_state=1024)
+
         Tx = 30
         Ty = 10
-        X, Y, Xoh, Yoh = preprocess_data(dataset, human_vocab, machine_vocab, Tx, Ty)
-        # X 为待翻译的日期, Y 为翻译后的标准化的日期
+        X, Y, Xoh, Yoh = preprocess_data(train_dataset, human_vocab, machine_vocab, Tx, Ty)
+        # X 为待翻译的日期(字符以标号表示), Y 为翻译后的标准化的日期(字符以标号表示)
         # Xoh 为 X 的 one-hot 化表示 , Yoh 为 Y 的 one-hot 化表示
 
         print("X.shape:", X.shape)
@@ -671,14 +732,24 @@ class Test:
         print("Yoh.shape:", Yoh.shape)
 
         mt = MachineTranslation(Tx=Tx, Ty=Ty, n_a=64, n_s=128, machine_vocab=machine_vocab,
-                                   inv_machine_vocab=inv_machine_vocab, human_vocab=human_vocab)
+                                inv_machine_vocab=inv_machine_vocab, human_vocab=human_vocab)
 
-        # mt.fit(Xoh=Xoh, Yoh=Yoh, m=m)
+        # mt.fit(Xoh=Xoh, Yoh=Yoh, m=8000)
 
-        mt.inference("3rd of March 2002")
+        example = "3rd of March 2002"
+        candidates = mt.inference(example)
 
+        print("source:", example) # 待翻译的句子
+        print("candidates: \n", candidates) # 模型翻译的句子列表
 
+        test_dataset_arr = np.array(test_dataset[:20])
 
+        X_test = test_dataset_arr[:, 0] # 待翻译的日期
+        Y_test = test_dataset_arr[:, 1] # 翻译后的日期
+
+        average_bleu_score, best_result_list = mt.evaluate(X_test,Y_test)
+
+        print('average_bleu_score:',average_bleu_score)
 
 
 if __name__ == '__main__':
