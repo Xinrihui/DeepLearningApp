@@ -35,16 +35,19 @@ def _get_ngrams(segment, max_order):
       with a count of how many times each n-gram occurred.
     """
     ngram_counts = collections.Counter()
+    # max_order = 2 只统计 segment 中不同的 1-gram 和 2-gram 的出现的次数
     for order in range(1, max_order + 1):
         for i in range(0, len(segment) - order + 1):
             ngram = tuple(segment[i:i + order])
             ngram_counts[ngram] += 1
+
     return ngram_counts
 
 
-def compute_bleu(reference_corpus, translation_corpus, max_order=4,
+def compute_bleu_corpus(reference_corpus, translation_corpus, max_order=4,
                  smooth=False):
-    """Computes BLEU score of translated segments against one or more references.
+    """
+    Computes BLEU score of translated segments against one or more references.
     Args:
       reference_corpus: list of lists of references for each translation. Each
           reference should be tokenized into a list of tokens.
@@ -56,19 +59,22 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4,
       3-Tuple with the BLEU score, n-gram precisions, geometric mean of n-gram
       precisions and brevity penalty.
     """
+
     matches_by_order = [0] * max_order
     possible_matches_by_order = [0] * max_order
     reference_length = 0
     translation_length = 0
-    for (references, translation) in zip(reference_corpus,
-                                         translation_corpus):
+
+    for (references, translation) in zip(reference_corpus,translation_corpus):
+
         reference_length += min(len(r) for r in references)
         translation_length += len(translation)
 
         merged_ref_ngram_counts = collections.Counter()
-        for reference in references:
-            merged_ref_ngram_counts |= _get_ngrams(reference, max_order)
 
+        for reference in references:
+
+            merged_ref_ngram_counts |= _get_ngrams(reference, max_order)
 
         # merged_ref_ngram_counts |= collections.Counter(references)
 
@@ -76,8 +82,10 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4,
         # translation_ngram_counts =collections.Counter(translation_corpus)
 
         overlap = translation_ngram_counts & merged_ref_ngram_counts
+        # matches_by_order 记录所有 translation 和 reference 能匹配上的 1-gram 和 2-gram 的个数
         for ngram in overlap:
             matches_by_order[len(ngram) - 1] += overlap[ngram]
+        # possible_matches 记录 translation 的 1-gram 和 2-gram 的个数
         for order in range(1, max_order + 1):
             possible_matches = len(translation) - order + 1
             if possible_matches > 0:
@@ -96,9 +104,13 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4,
                 precisions[i] = 0.0
 
     if min(precisions) > 0:
+
         p_log_sum = sum((1. / max_order) * math.log(p) for p in precisions)
+        # 几何平均数
         geo_mean = math.exp(p_log_sum)
+
     else:
+
         geo_mean = 0
 
     ratio = (float(translation_length) / reference_length) if reference_length > 0 else 0.0
@@ -114,10 +126,15 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4,
 
 if __name__=='__main__':
 
-    reference = [['this', 'is', 'small', 'test']]
-    candidate = ['this', 'is', 'a', 'test']
+    # reference = [[['this', 'is', 'small', 'test'], ['this', 'is', 'the', 'test']]]
+    # candidate = [['this', 'is', 'a', 'test']]
 
-    score = compute_bleu(reference, candidate)
+    reference = [[['the', 'cat', 'is', 'on', 'the', 'mat'],
+                  ['there', 'is', 'a', 'cat', 'on', 'the', 'mat']
+                  ]]
+    candidate = [['the', 'cat', 'the', 'cat', 'on', 'the', 'mat']]
+
+    score = compute_bleu_corpus(reference, candidate, max_order=2)
     print(score)
 
     # words = [

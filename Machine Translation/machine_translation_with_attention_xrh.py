@@ -8,20 +8,16 @@ from tensorflow.keras.layers import Bidirectional, Concatenate, Dot, Input, LSTM
 from tensorflow.keras.layers import RepeatVector, Dense, Lambda, Softmax, Reshape
 
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Model
-import tensorflow.keras.backend as K
-
-from tensorflow.keras.utils import plot_model
-
-import numpy as np
 
 from lib.nmt_utils import *
 from lib.utils_xrh import *
 
 from sklearn.model_selection import train_test_split
 
-from lib.bleu import *
+from lib.bleu_xrh import *
+
+from nltk.translate.bleu_score import sentence_bleu,corpus_bleu
 
 class BasicMachineTranslation:
     """
@@ -631,15 +627,27 @@ class MachineTranslation:
 
             candidates = self.inference(source) #  ['2002-03-03', '0002-03-03', '1002-03-03']
 
-            max_bleu_score = 0 # 最佳分数
+            max_bleu_score = float('-inf') # 最佳分数
             best_candidate = None # 最好的翻译结果
+
+            reference_arr = reference.split('-')
+            # 对 reference 切分(分隔符为 '-' )为   ['2002','03','03']
 
             for candidate in candidates: # 遍历所有的 candidate, 找到 分数最高的
 
-                bleu_score = compute_bleu([reference.split('-')], candidate.split('-'))[0]
-                # 对 reference 进行切分(分隔符为 '-' ) ,结果为 ['2002','03','03']
+                candidate_arr = candidate.split('-')
+                # 对 candidate 切分(分隔符为 '-' )为   ['2002','03','03']
+
+                bleu_score = BleuScore.compute_bleu_corpus([[reference_arr]], [candidate_arr], N=2)[0]
+
+                # bleu_score = corpus_bleu([[reference_arr]], [candidate_arr], weights=(0.5, 0.5, 0, 0))
+
+                # 因为 reference_arr 的长度为3 , 很容易导致 3-gram-precision=0,
+                # 根据 bleu 计算公式 log(0) -> -inf, 导致bleu=0;
+                # weights=(0.5, 0.5, 0, 0) 表示 只考虑 1-gram-precision 和 2-gram-precision 的对数加权和
 
                 if bleu_score > max_bleu_score:
+
                     max_bleu_score = bleu_score
                     best_candidate = candidate
 
@@ -700,6 +708,7 @@ class Test:
         #                             human_vocab=human_vocab, Xoh=Xoh, Yoh=Yoh, m=m)
 
     def test_MachineTranslation(self):
+
         m = 10000  # 数据集中的样本总数
         dataset, human_vocab, machine_vocab, inv_machine_vocab = load_dataset(m)
 
@@ -736,11 +745,12 @@ class Test:
 
         # mt.fit(Xoh=Xoh, Yoh=Yoh, m=8000)
 
-        example = "3rd of March 2002"
+        example = "december 21 1978"
         candidates = mt.inference(example)
 
         print("source:", example) # 待翻译的句子
         print("candidates: \n", candidates) # 模型翻译的句子列表
+        #  ['9987-12-21', '1988-12-21', '2987-12-21']
 
         test_dataset_arr = np.array(test_dataset[:20])
 
@@ -749,7 +759,7 @@ class Test:
 
         average_bleu_score, best_result_list = mt.evaluate(X_test,Y_test)
 
-        print('average_bleu_score:',average_bleu_score)
+        print('average_bleu_score:', average_bleu_score)
 
 
 if __name__ == '__main__':
