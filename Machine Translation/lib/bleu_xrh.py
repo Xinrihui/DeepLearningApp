@@ -61,7 +61,19 @@ class BleuScore:
         语料库中有多个 机器翻译后的句子, 每一个机器翻译后的句子对应多条人工翻译的记录
 
         :param reference_corpus: 平行语料库人工翻译的记录
+        eg.
+        [
+         [['1990', '09', '23'],],
+         [['1990', '09', '23'],],
+         [['1990', '09', '23'],]
+        ]
+
         :param candidate_corpus: 机器的翻译结果
+        eg.
+        [['1990', '09', '23'],
+         ['2990', '09', '23'],
+         ['9990', '09', '23']]
+
         :param N: N_gram 的长度上限
         :param weight: n_gram 对应的 precision 在计算 bleu 时的权重
         :return: bleu 分数
@@ -131,7 +143,7 @@ class BleuScore:
 
             modified_n_gram_precision = modified_n_gram_precision_list[i][1:]
 
-            bleu_score = BP*np.exp(np.sum(weight*np.log(modified_n_gram_precision)))
+            bleu_score = BP*np.exp(np.dot(weight, np.log(modified_n_gram_precision)))
 
             bleu_score_list.append(bleu_score)
 

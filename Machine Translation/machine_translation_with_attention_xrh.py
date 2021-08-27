@@ -19,6 +19,8 @@ from lib.bleu_xrh import *
 
 from nltk.translate.bleu_score import sentence_bleu,corpus_bleu
 
+from deprecated import deprecated
+
 class BasicMachineTranslation:
     """
     基于 LSTM + seq2seq + attention 的翻译模型
@@ -603,7 +605,8 @@ class MachineTranslation:
 
         return candidates
 
-    def evaluate(self, source_list, reference_list):
+    @deprecated(version='1.0', reason="You should use another function")
+    def evaluate_deprecated(self, source_list, reference_list):
         """
         使用 bleu 对翻译结果进行评价
 
@@ -652,6 +655,52 @@ class MachineTranslation:
                     best_candidate = candidate
 
             bleu_score_list[i] = max_bleu_score
+
+            best_result = (max_bleu_score, source, reference, best_candidate)
+
+            print('i:{}, best_result:{}'.format(i,best_result))
+
+            best_result_list.append(best_result)
+
+        average_bleu_score = np.average(bleu_score_list)
+
+        return average_bleu_score, best_result_list
+
+    def evaluate(self, source_list, reference_list):
+        """
+        使用 bleu 对翻译结果进行评价
+
+        :param source_list: 待翻译的句子的列表
+        :param reference_list: 对照语料, 人工翻译的句子列表
+
+        :return: average_bleu_score : 所有 source 的最佳翻译结果的平均分数 ;
+                 best_result_list : 所有 source 的最佳翻译结果
+
+                 best_result = (max_bleu_score, source, reference, best_candidate)
+
+        """
+
+        bleu_score_list = np.zeros(len(source_list))
+        best_result_list = []
+
+        for i in range(len(source_list)):
+
+            source = source_list[i] # "3rd of March 2002"
+            reference = reference_list[i] # "2002-03-03"
+
+            candidates = self.inference(source) #  ['2002-03-03', '0002-03-03', '1002-03-03']
+
+            reference_arr = reference.split('-')
+            # 对 reference 切分(分隔符为 '-' )为   ['2002','03','03']
+
+            candidate_arr_list = [candidate.split('-') for candidate in candidates]
+
+            candidates_bleu_score = BleuScore.compute_bleu_corpus( [[reference_arr]]*len(candidates), candidate_arr_list, N=2)
+
+            max_bleu_score = np.max(candidates_bleu_score)
+            best_idx = np.argmax(candidates_bleu_score)
+            bleu_score_list[i] = max_bleu_score
+            best_candidate = candidates[best_idx]
 
             best_result = (max_bleu_score, source, reference, best_candidate)
 

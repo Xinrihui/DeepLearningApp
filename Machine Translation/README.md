@@ -1,7 +1,7 @@
 
 # 机器翻译模型(Machine Translation)
 
-## 1.基于 LSTM + seq2seq + attention 的机器翻译模型
+## 1.使用 Keras 实现基于 LSTM + seq2seq + attention 的机器翻译模型
 
 ### 1.1 模型设计
 
