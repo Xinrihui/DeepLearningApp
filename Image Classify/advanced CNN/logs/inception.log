@@ -1,0 +1,109 @@
+E:\anaconda\python.exe "E:\python package\python-project\统计学习方法\DeepLearningApp\Image Classify\advanced CNN\Inseption_Network_xrh.py"
+2021-09-16 19:29:09.778844: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cudart64_102.dll
+X_train:  (49000, 32, 32, 3)
+y_train:  (49000,)
+X_val:  (1000, 32, 32, 3)
+y_val:  (1000,)
+X_test:  (1000, 32, 32, 3)
+y_test:  (1000,)
+2021-09-16 19:29:16.115660: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library nvcuda.dll
+2021-09-16 19:29:16.149895: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1561] Found device 0 with properties:
+pciBusID: 0000:01:00.0 name: GeForce GTX 1050 computeCapability: 6.1
+coreClock: 1.493GHz coreCount: 5 deviceMemorySize: 2.00GiB deviceMemoryBandwidth: 104.43GiB/s
+2021-09-16 19:29:16.150575: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cudart64_102.dll
+2021-09-16 19:29:16.157621: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cublas64_10.dll
+2021-09-16 19:29:16.163649: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cufft64_10.dll
+2021-09-16 19:29:16.166330: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library curand64_10.dll
+2021-09-16 19:29:16.173296: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cusolver64_10.dll
+2021-09-16 19:29:16.177752: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cusparse64_10.dll
+2021-09-16 19:29:16.190199: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cudnn64_7.dll
+2021-09-16 19:29:16.191457: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1703] Adding visible gpu devices: 0
+2021-09-16 19:29:16.203247: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x205c68249c0 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
+2021-09-16 19:29:16.203846: I tensorflow/compiler/xla/service/service.cc:176]   StreamExecutor device (0): Host, Default Version
+2021-09-16 19:29:16.205067: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1561] Found device 0 with properties:
+pciBusID: 0000:01:00.0 name: GeForce GTX 1050 computeCapability: 6.1
+coreClock: 1.493GHz coreCount: 5 deviceMemorySize: 2.00GiB deviceMemoryBandwidth: 104.43GiB/s
+2021-09-16 19:29:16.205690: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cudart64_102.dll
+2021-09-16 19:29:16.206006: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cublas64_10.dll
+2021-09-16 19:29:16.206316: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cufft64_10.dll
+2021-09-16 19:29:16.206628: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library curand64_10.dll
+2021-09-16 19:29:16.207250: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cusolver64_10.dll
+2021-09-16 19:29:16.207624: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cusparse64_10.dll
+2021-09-16 19:29:16.208007: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cudnn64_7.dll
+2021-09-16 19:29:16.209102: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1703] Adding visible gpu devices: 0
+2021-09-16 19:29:17.773550: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1102] Device interconnect StreamExecutor with strength 1 edge matrix:
+2021-09-16 19:29:17.773908: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1108]      0
+2021-09-16 19:29:17.774112: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1121] 0:   N
+2021-09-16 19:29:17.775147: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1247] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:0 with 1337 MB memory) -> physical GPU (device: 0, name: GeForce GTX 1050, pci bus id: 0000:01:00.0, compute capability: 6.1)
+2021-09-16 19:29:17.779799: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x20601efccc0 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+2021-09-16 19:29:17.780229: I tensorflow/compiler/xla/service/service.cc:176]   StreamExecutor device (0): GeForce GTX 1050, Compute Capability 6.1
+Epoch 1/30
+2021-09-16 19:29:20.753047: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cublas64_10.dll
+2021-09-16 19:29:21.056453: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library cudnn64_7.dll
+2021-09-16 19:29:22.031640: W tensorflow/stream_executor/gpu/redzone_allocator.cc:314] Internal: Invoking GPU asm compilation is supported on Cuda non-Windows platforms only
+Relying on driver to perform ptx compilation.
+Modify $PATH to customize ptxas location.
+This message will be only logged once.
+96/96 [==============================] - 8s 85ms/step - loss: 1.3417 - accuracy: 0.5191
+Epoch 2/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.9442 - accuracy: 0.6655
+Epoch 3/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.7529 - accuracy: 0.7335
+Epoch 4/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.6147 - accuracy: 0.7849
+Epoch 5/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.4946 - accuracy: 0.8277
+Epoch 6/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.3997 - accuracy: 0.8613
+Epoch 7/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.3131 - accuracy: 0.8928
+Epoch 8/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.2316 - accuracy: 0.9227
+Epoch 9/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.1843 - accuracy: 0.9384
+Epoch 10/30
+96/96 [==============================] - 7s 72ms/step - loss: 0.1348 - accuracy: 0.9559
+Epoch 11/30
+96/96 [==============================] - 7s 72ms/step - loss: 0.1111 - accuracy: 0.9638
+Epoch 12/30
+96/96 [==============================] - 7s 71ms/step - loss: 0.0948 - accuracy: 0.9697
+Epoch 13/30
+96/96 [==============================] - 7s 72ms/step - loss: 0.0759 - accuracy: 0.9756
+Epoch 14/30
+96/96 [==============================] - 7s 73ms/step - loss: 0.0724 - accuracy: 0.9770
+Epoch 15/30
+96/96 [==============================] - 7s 73ms/step - loss: 0.0616 - accuracy: 0.9804
+Epoch 16/30
+96/96 [==============================] - 7s 73ms/step - loss: 0.0521 - accuracy: 0.9833
+Epoch 17/30
+96/96 [==============================] - 7s 74ms/step - loss: 0.0542 - accuracy: 0.9825
+Epoch 18/30
+96/96 [==============================] - 7s 77ms/step - loss: 0.0410 - accuracy: 0.9874
+Epoch 19/30
+96/96 [==============================] - 7s 75ms/step - loss: 0.0370 - accuracy: 0.9888
+Epoch 20/30
+96/96 [==============================] - 7s 74ms/step - loss: 0.0326 - accuracy: 0.9895
+Epoch 21/30
+96/96 [==============================] - 7s 77ms/step - loss: 0.0582 - accuracy: 0.9797
+Epoch 22/30
+96/96 [==============================] - 7s 76ms/step - loss: 0.0850 - accuracy: 0.9694
+Epoch 23/30
+96/96 [==============================] - 7s 75ms/step - loss: 0.0644 - accuracy: 0.9770
+Epoch 24/30
+96/96 [==============================] - 7s 75ms/step - loss: 0.0449 - accuracy: 0.9854
+Epoch 25/30
+96/96 [==============================] - 7s 76ms/step - loss: 0.0195 - accuracy: 0.9949
+Epoch 26/30
+96/96 [==============================] - 8s 79ms/step - loss: 0.0103 - accuracy: 0.9977
+Epoch 27/30
+96/96 [==============================] - 7s 77ms/step - loss: 0.0031 - accuracy: 0.9998
+Epoch 28/30
+96/96 [==============================] - 7s 77ms/step - loss: 8.8903e-04 - accuracy: 1.0000
+Epoch 29/30
+96/96 [==============================] - 7s 76ms/step - loss: 5.2742e-04 - accuracy: 1.0000
+Epoch 30/30
+96/96 [==============================] - 7s 77ms/step - loss: 4.0855e-04 - accuracy: 1.0000
+save model dir:models/Inception.h5 complete
+test accuracy : 0.773
+
+Process finished with exit code 0

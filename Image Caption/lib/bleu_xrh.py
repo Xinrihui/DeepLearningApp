@@ -8,6 +8,8 @@ import numpy as np
 from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
 
 
+
+
 class BleuScore:
     """
     评价指标 Bleu
@@ -83,7 +85,7 @@ class BleuScore:
               计算 bleu 时设置 N_gram 的长度上限为 2( 仅考虑 1-gram, 2-gram 的加权和)
 
         :param weight: n_gram 对应的 precision 在计算 bleu 时的权重
-        :return: bleu_score_list: 所有 candidate 的 bleu 分数列表
+        :return: bleu 分数
 
         """
 

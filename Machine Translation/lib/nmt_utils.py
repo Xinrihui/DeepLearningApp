@@ -141,45 +141,6 @@ def int_to_string(ints, inv_vocab):
     l = [inv_vocab[i] for i in ints]
     return l
 
-
-EXAMPLES = ['3 May 1979', '5 Apr 09', '20th February 2016', 'Wed 10 Jul 2007']
-
-def run_example(model, input_vocabulary, inv_output_vocabulary, text):
-    encoded = string_to_int(text, TIME_STEPS, input_vocabulary)
-    prediction = model.predict(np.array([encoded]))
-    prediction = np.argmax(prediction[0], axis=-1)
-    return int_to_string(prediction, inv_output_vocabulary)
-
-def run_examples(model, input_vocabulary, inv_output_vocabulary, examples=EXAMPLES):
-    predicted = []
-    for example in examples:
-        predicted.append(''.join(run_example(model, input_vocabulary, inv_output_vocabulary, example)))
-        print('input:', example)
-        print('output:', predicted[-1])
-    return predicted
-
-
-def softmax(x, axis=1):
-    """Softmax activation function.
-    # Arguments
-        x : Tensor.
-        axis: Integer, axis along which the softmax normalization is applied.
-    # Returns
-        Tensor, output of softmax transformation.
-    # Raises
-        ValueError: In case `dim(x) == 1`.
-    """
-    ndim = K.ndim(x)
-    if ndim == 2:
-        return K.softmax(x)
-    elif ndim > 2:
-        e = K.exp(x - K.max(x, axis=axis, keepdims=True))
-        s = K.sum(e, axis=axis, keepdims=True)
-        return e / s
-    else:
-        raise ValueError('Cannot apply softmax to a tensor that is 1D')
-        
-
 def plot_attention_map(model, input_vocabulary, inv_output_vocabulary, text, n_s = 128, num = 6, Tx = 30, Ty = 10):
     """
     Plot the attention map.

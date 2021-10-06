@@ -67,7 +67,7 @@ class BasicMachineTranslation:
         # ref: https://keras.io/api/layers/recurrent_layers/lstm/#lstm-class
         # ref: https://keras.io/api/layers/recurrent_layers/bidirectional/
         post_activation_LSTM_cell = LSTM(n_s, return_state=True)
-        output_layer = Dense(len(machine_vocab), activation=softmax)
+        output_layer = Dense(len(machine_vocab), activation='softmax')
 
         def model(Tx, Ty, n_a, n_s, human_vocab_size):
             """
@@ -140,7 +140,7 @@ class MachineTranslation:
     """
     基于 LSTM + seq2seq + attention 的翻译模型
 
-    对比 BasicMachineTranslation 改进如下:
+    对比 class BasicMachineTranslation 改进如下:
 
     1. 面向对象实现
     2. 更改了 attention 机制
@@ -153,7 +153,10 @@ class MachineTranslation:
     Author: xrh
     Date: 2019-12-16
 
-    ref: https://github.com/enggen/Deep-Learning-Coursera
+    ref:
+    1.https://github.com/enggen/Deep-Learning-Coursera
+    2.论文 Neural machine translation by jointly learning to align and translate
+
 
     """
 
@@ -212,7 +215,7 @@ class MachineTranslation:
         self.concatenate_context = Concatenate()
 
         self.post_activation_LSTM_cell = LSTM(self.n_s, return_state=True, name='decoder_lstm')
-        self.output_layer = Dense(len(self.machine_vocab), activation=softmax, name='decoder_output')
+        self.output_layer = Dense(len(self.machine_vocab), activation='softmax', name='decoder_output')
 
         self.lambda_argmax = Lambda(TensorUtils.argmax_tensor, arguments={'axis': -1}, name='argmax_tensor')
         self.lambda_one_hot = Lambda(TensorUtils.one_hot_tensor, arguments={'num_classes': len(self.machine_vocab)},
@@ -332,18 +335,19 @@ class MachineTranslation:
 
         return model
 
-    def fit(self, Xoh, Yoh, m, epoch_num=120, batch_size=2048):
+    def fit(self, Xoh, Yoh, epoch_num=120, batch_size=2048):
         """
         训练模型
 
         :param Xoh: 输入序列 (one-hot化)
         :param Yoh: 输出序列 (one-hot化)
-        :param m: 训练样本总数
         :param epoch_num: 模型训练的 epoch 个数,  一般训练集所有的样本模型都见过一遍才算一个 epoch
         :param batch_size: 选择 min-Batch梯度下降时, 每一次输入模型的样本个数 (默认 = 2048)
 
         :return:
         """
+
+        m = np.shape(Xoh)[0] # 训练样本总数
 
         model = self.__encoder_decoder_model(self.Tx, self.Ty, self.human_vocab_size)
 
@@ -560,7 +564,6 @@ class MachineTranslation:
         """
         使用训练好的模型进行推理
 
-        推理采用 beamsearch
 
         :param example: 样本序列
         :return:
@@ -670,6 +673,14 @@ class MachineTranslation:
         """
         使用 bleu 对翻译结果进行评价
 
+        1.推理时采用 beamsearch (窗口大小 k = 3), 我们取 bleu 得分最高的作为此样本的预测序列
+
+        2.词元(term)的粒度
+        (1) '1990-09-23' 使用分隔符 '-' 切分为 3个 term ['1990','09','23'],
+            计算 bleu 时设置 N_gram 的长度上限为 2(仅仅考虑 1-gram, 2-gram)
+
+        (2) '1978-12-21' 切分为 10个 term ['1', '9', '7', '8', '-', '1', '2', '-', '2', '1']
+
         :param source_list: 待翻译的句子的列表
         :param reference_list: 对照语料, 人工翻译的句子列表
 
@@ -690,12 +701,14 @@ class MachineTranslation:
 
             candidates = self.inference(source) #  ['2002-03-03', '0002-03-03', '1002-03-03']
 
-            reference_arr = reference.split('-')
-            # 对 reference 切分(分隔符为 '-' )为   ['2002','03','03']
+            # reference_arr = reference.split('-')
+            # 使用分隔符为 '-', 对 reference 切分为  ['2002','03','03']
+            # candidate_arr_list = [candidate.split('-')for candidate in candidates]
 
-            candidate_arr_list = [candidate.split('-') for candidate in candidates]
+            reference_arr = list(reference)
+            candidate_arr_list = [list(candidate) for candidate in candidates]
 
-            candidates_bleu_score = BleuScore.compute_bleu_corpus( [[reference_arr]]*len(candidates), candidate_arr_list, N=2)
+            candidates_bleu_score = BleuScore.compute_bleu_corpus( [[reference_arr]]*len(candidates), candidate_arr_list, N=4)
 
             max_bleu_score = np.max(candidates_bleu_score)
             best_idx = np.argmax(candidates_bleu_score)
@@ -792,7 +805,7 @@ class Test:
         mt = MachineTranslation(Tx=Tx, Ty=Ty, n_a=64, n_s=128, machine_vocab=machine_vocab,
                                 inv_machine_vocab=inv_machine_vocab, human_vocab=human_vocab)
 
-        # mt.fit(Xoh=Xoh, Yoh=Yoh, m=8000)
+        # mt.fit(Xoh=Xoh, Yoh=Yoh, epoch_num=200, batch_size=2048)
 
         example = "december 21 1978"
         candidates = mt.inference(example)
@@ -801,10 +814,10 @@ class Test:
         print("candidates: \n", candidates) # 模型翻译的句子列表
         #  ['9987-12-21', '1988-12-21', '2987-12-21']
 
-        test_dataset_arr = np.array(test_dataset[:20])
+        test_dataset_arr = np.array(test_dataset[:200])  # 测试数据全部跑一遍太慢了
 
-        X_test = test_dataset_arr[:, 0] # 待翻译的日期
-        Y_test = test_dataset_arr[:, 1] # 翻译后的日期
+        X_test = test_dataset_arr[:, 0]  # 待翻译的日期
+        Y_test = test_dataset_arr[:, 1]  # 翻译后的日期
 
         average_bleu_score, best_result_list = mt.evaluate(X_test,Y_test)
 
