@@ -5,9 +5,11 @@
 
 ## 1. 机器翻译(Machine Translation)
 
-## 2. 词向量(word2vec)
+## 2. 图片描述(Image Caption)
 
-## 3. 命名实体识别(NER)
+## 3. 图片分类(Image Classify)
+
+## 4. 命名实体识别(NER)
 
 
 

@@ -163,6 +163,17 @@ epoch_num = 50
 batch_size = 64
 decay=0.01
 
+candidates:  
+['A man and a woman are walking towards a potato chip truck . <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> . <END> <NULL> .', 
+'A white dog is biting a black dog on the floor . <END> <NULL> . <END> <NULL> . <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END>', 
+'A young boy is playing in a yard with a green ball . <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL>', 
+'Two women in black are standing in front of a crowd of people . <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END>',
+'A man in a black shirt and jeans is standing in front of a rock wall . <END> <NULL> <END> <NULL> <END> <NULL> . <END> <NULL> <END> <NULL> .',
+'A group of men are playing rugby . <END> <NULL> <END> <NULL> <END> <NULL> . <END> <NULL> <END> <NULL> <END> <NULL> . <END> <NULL> <END> <NULL> . <END> <NULL>',
+ 'A hockey player in a red uniform is guarding the goal . <END> <NULL> . <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> . <END> <NULL> <END> <NULL> <END>', 
+ 'A girl in a pink dress is running through a field of grass . <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> . <END> <NULL> <END> <NULL>', 
+ 'A little girl in a pink dress is holding a camera . <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> <END> <NULL> . <END> <NULL> <END> <NULL>', 
+ 'A man in a red shirt is riding a unicycle . <END> <NULL> . <END> <NULL> . <END> <NULL> . <END> <NULL> . <END> <NULL> . <END> <NULL> .']
 
 reference:  [
 ['<START> A boy holds a red bucket up to a pony . <END>', '<START> A man feeding a horse wearing a blue strapped blanket . <END>', '<START> A man holds feed for a horse in a blue blanket . <END>', '<START> A young boy is feeding a horse some hay from an orange bucket . <END>', '<START> Grey horse wearing blue cover eating from a orange bucket held by a person in a green shirt . <END>'],
@@ -175,4 +186,6 @@ reference:  [
 ['<START> A girl in a purple tutu dances in the yard . <END>', '<START> A little girl in a puffy purple skirt dances in a park . <END>', '<START> A young girl twirls her fluffy purple skirt . <END>', '<START> Little girl is spinning around on the grass in a flowing purple skirt . <END>', '<START> The little girl has a purple dress on . <END>'],
 ['<START> A baby and a toddler are smiling whilst playing in a nursery . <END>', '<START> A baby in a bouncy seat and a standing boy surrounded by toys . <END>', '<START> A baby in a walker and an older child nearby . <END>', '<START> A young boy and his baby brother get excited about picture taking . <END>', '<START> Two little boys are smiling and laughing while one is standing and one is in a bouncy seat . <END>'],
 ['<START> A bicyclist does tricks on a lime green bike . <END>', '<START> A man dressed in black rides a green bike . <END>', '<START> A man performs a stoppie trick on his BMX green bicycle with no hands . <END>', '<START> Man on green bicycle performing a trick on one wheel . <END>', '<START> The man is doing a trick on his green bike . <END>']]
+
+bleu_score:{'1-garm': 0.5373025248915398, '2-garm': 0.3228842877393273}
 
