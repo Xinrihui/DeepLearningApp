@@ -1,7 +1,7 @@
 
-# 图片描述的生成(Image Caption) 
+# 图片描述的生成 (Image Caption) 
 
-## 1.基于 LSTM 的图片描述
+## 1.使用 Keras 实现基于 LSTM 的图片描述模型
 
 ### 1.1 模型设计
 

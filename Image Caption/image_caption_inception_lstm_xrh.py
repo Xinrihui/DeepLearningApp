@@ -423,7 +423,7 @@ class Test:
         candidates = image_caption_infer.inference(batch_image_feature)
 
         print('candidates: ', candidates[:10])
-        print('reference: ', references[:10])
+        print('references: ', references[:10])
 
         evaluate_obj = Evaluate()
 
