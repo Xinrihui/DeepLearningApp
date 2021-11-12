@@ -619,7 +619,7 @@ class Test:
 
         process_obj = DataPreprocess()
 
-        process_obj.do_mian(cnn_batch_size=8, n_vocab=8500)
+        process_obj.do_mian(cnn_batch_size=32, n_vocab=8868)
 
     def test_FlickerDataset(self):
 
@@ -657,7 +657,6 @@ class Test:
         dataset_obj = FlickerDataset(mode='infer')
 
         print(list(dataset_obj.test_image_caption_dict.items())[0])
-
 
         print('word a index: ', dataset_obj.vocab.map_word_to_id('a'))
 

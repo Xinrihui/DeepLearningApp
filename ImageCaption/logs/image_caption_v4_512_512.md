@@ -2,6 +2,7 @@
 
 ### 1.1 数据集参数
     
+    word_index length: 8868
     max_caption_length:37
     
     tokenizer:

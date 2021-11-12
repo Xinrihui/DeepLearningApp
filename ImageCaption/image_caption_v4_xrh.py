@@ -226,16 +226,16 @@ class ImageCaptionV4:
         model_names = checkpoint_models_path + 'model.{epoch:02d}-{val_loss:.4f}.h5'
 
         # 模型持久化: 若某次 epcho 模型在 验证集上的损失比之前的最小损失小, 则将模型作为最佳模型持久化
-        model_checkpoint = ModelCheckpoint(model_names, monitor='val_loss', verbose=1, save_best_only=True)
+        model_checkpoint = ModelCheckpoint(model_names, monitor='val_loss', verbose=1, save_best_only=False)
 
         # 早停: 在验证集上, 损失经过 patience 次的迭代后, 仍然没有下降则暂停训练
-        early_stop = EarlyStopping('val_loss', patience=5)
+        early_stop = EarlyStopping('val_loss', patience=10)
 
         # optimizer = tf.keras.optimizers.Adam(learning_rate=4e-4)
 
         optimizer = 'rmsprop'
 
-        self.model_train.compile(loss='sparse_categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+        self.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
 
         # Final callbacks
         callbacks = [model_checkpoint, early_stop, tensor_board]
@@ -628,7 +628,7 @@ class TestV3:
         n_h = 512
 
         # 词表大小
-        n_vocab = 8500
+        n_vocab = 8868
 
         N_train = 32360  # 训练集样本个数
         N_valid = 8095  # 验证集样本个数
@@ -684,7 +684,7 @@ class TestV3:
         n_h = 512
 
         # 词表大小
-        n_vocab = 8500
+        n_vocab = 8868
 
         N_train = 32360  # 训练集样本个数
         N_valid = 8095  # 验证集样本个数
@@ -695,9 +695,9 @@ class TestV3:
 
         # 2.模型推理
 
-        model_path = 'models/image_caption_attention_model.h5'
+        # model_path = 'models/image_caption_attention_model.h5'
 
-        # model_path = 'models/cache/model.13-1.0153.hdf5'
+        model_path = 'models/cache/model.09-1.7151.h5'
 
         image_caption_infer = ImageCaptionV4(train_seq_length=train_seq_length,
                                        infer_seq_length=infer_seq_length,
@@ -757,7 +757,7 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training()
+    # test.test_training()
 
-    # test.test_evaluating()
+    test.test_evaluating()
 
