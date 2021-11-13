@@ -46,6 +46,7 @@ class DataPreprocess:
         :param  tensor_int_type: 操作系统不同, windows 选择 tf.int32 , linux 选择 tf.int64
 
         """
+
         self.cache_data_dir = os.path.join(base_dir, cache_data_folder)
         self.tokenizer_path = os.path.join(self.cache_data_dir, tokenizer_file)
 
@@ -53,6 +54,10 @@ class DataPreprocess:
 
         self.caption_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr8k.token.txt')
         self.image_folder_dir = os.path.join(base_dir, 'Flicker8k/Flicker8k_Dataset/')
+
+        self.train_image_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr_8k.trainImages.txt')
+        self.valid_image_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr_8k.devImages.txt')
+        self.test_image_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr_8k.testImages.txt')
 
         self.dataset_dir = os.path.join(base_dir, 'cache_data/train_dataset.json')
         self.image_caption_dict_dir = os.path.join(base_dir, 'cache_data/image_caption_dict.bin')
@@ -88,6 +93,27 @@ class DataPreprocess:
 
         # 删除 数字 字符
         self.remove_digits_re = re.compile(r'\s[0-9]+\s')
+
+    def load_image_name(self, image_file_path):
+        """
+        导入文件中的图片的名字
+
+        :param image_file_path: 文件路径
+        :return:
+        """
+        with open(image_file_path) as file:
+
+            line_list = file.readlines()
+
+            image_name_list = []
+
+            for line in line_list:
+
+                name = line.rstrip("\n")
+
+                image_name_list.append(os.path.join(self.image_folder_dir, name))
+
+        return image_name_list
 
     def load_captions_data(self, clean_punctuation=True, clean_digits=True, lowercase=True):
         """
@@ -364,12 +390,27 @@ class DataPreprocess:
         train_caption_dict = {
             img_name: caption_dict[img_name] for img_name in all_images[:train_size]
         }
-        validation_caption_dict = {
+        valid_caption_dict = {
             img_name: caption_dict[img_name] for img_name in all_images[train_size:]
         }
 
-        return train_caption_dict, validation_caption_dict
+        return train_caption_dict, valid_caption_dict
 
+    def train_val_test_split(self, caption_dict, train_images, valid_images, test_images):
+
+        train_caption_dict = {
+            img_name: caption_dict[img_name] for img_name in train_images
+        }
+
+        valid_caption_dict = {
+            img_name: caption_dict[img_name] for img_name in valid_images
+        }
+
+        test_caption_dict = {
+            img_name: caption_dict[img_name] for img_name in test_images
+        }
+
+        return train_caption_dict, valid_caption_dict, test_caption_dict
 
     def __map_func(sefl, image_path, caption_in):
         """
@@ -475,16 +516,16 @@ class DataPreprocess:
 
         return image_caption_dict
 
-    def do_mian(self, cnn_batch_size, n_vocab):
+    def do_mian_split_random(self, cnn_batch_size, n_vocab):
         """
         数据集预处理的主流程
+
+        将数据集随机划分为 训练集和验证集
 
         :param cnn_batch_size:
         :param n_vocab:
         :return:
         """
-
-        np.random.seed(1)  # 设置随机数种子
 
         caption_dict, text_data = self.load_captions_data(lowercase=True, clean_digits=True)
 
@@ -509,6 +550,43 @@ class DataPreprocess:
         valid_dataset = self.tf_data_pipline(valid_caption_vector_dict, do_persist=True, dataset_file='valid_image_tensor_caption.bin')
 
         test_image_caption_dict = self.build_image_caption_dict(valid_caption_dict, do_persist=True, image_caption_dict_file='test_image_caption_dict.bin')
+
+    def do_mian_split_default(self, cnn_batch_size, n_vocab):
+        """
+        数据集预处理的主流程
+
+        按照标准的划分方法 将数据集划分为 训练集, 验证集, 和测试集
+
+        :param cnn_batch_size:
+        :param n_vocab:
+        :return:
+        """
+
+        caption_dict, text_data = self.load_captions_data(lowercase=True, clean_digits=True)
+
+        image_path_list = list(caption_dict.keys())
+
+        self.image_embedding_VGG16(image_path_list, batch_num=cnn_batch_size)
+
+        caption_vector_pad, max_length, tokenizer = self.tokenize_corpus(text_data, n_vocab=n_vocab)
+
+        caption_vector_dict = self.build_caption_vector_dict(image_path_list, caption_dict, caption_vector_pad)
+
+        train_image_list = self.load_image_name(self.train_image_file_dir)
+        valid_image_list = self.load_image_name(self.valid_image_file_dir)
+        test_image_list = self.load_image_name(self.test_image_file_dir)
+
+        # 图片路径到标记化后的句子的字典
+        train_caption_vector_dict, valid_caption_vector_dict, test_caption_vector_dict = self.train_val_test_split(caption_vector_dict, train_image_list, valid_image_list, test_image_list)
+
+        train_caption_dict, valid_caption_dict, test_caption_dict = self.train_val_test_split(caption_dict,  train_image_list, valid_image_list, test_image_list)
+
+        train_dataset = self.tf_data_pipline(train_caption_vector_dict, do_persist=True, dataset_file='train_image_tensor_caption.bin')
+        valid_dataset = self.tf_data_pipline(valid_caption_vector_dict, do_persist=True, dataset_file='valid_image_tensor_caption.bin')
+
+        valid_image_caption_dict = self.build_image_caption_dict(valid_caption_dict, do_persist=True, image_caption_dict_file='valid_image_caption_dict.bin')
+        test_image_caption_dict = self.build_image_caption_dict(test_caption_dict, do_persist=True, image_caption_dict_file='test_image_caption_dict.bin')
+
 
 class Vocab:
 
@@ -569,7 +647,8 @@ class FlickerDataset:
                  tokenizer_file='tokenizer.bin',
                  train_dataset_file='train_image_tensor_caption.bin',
                  valid_dataset_file='valid_image_tensor_caption.bin',
-                 image_caption_dict_file='test_image_caption_dict.bin',
+                 valid_image_caption_dict_file='valid_image_caption_dict.bin',
+                 test_image_caption_dict_file='test_image_caption_dict.bin',
                  mode='train'):
         """
 
@@ -585,11 +664,6 @@ class FlickerDataset:
 
         self.tokenizer_path = os.path.join(self.cache_data_dir, tokenizer_file)
 
-        # 读取词典
-        # with open(self.tokenizer_path, 'rb') as f:
-        #     save_dict = pickle.load(f)
-        # self.tokenizer = save_dict['tokenizer']
-
         self.vocab = Vocab(self.tokenizer_path)
 
         if mode == 'train':
@@ -603,14 +677,22 @@ class FlickerDataset:
             # 测试数据
             self.valid_dataset = tf.data.experimental.load(valid_dataset_path)
 
-        elif mode == 'infer':
+            valid_image_caption_dict_path = os.path.join(self.cache_data_dir, valid_image_caption_dict_file)
 
-            image_caption_dict_path = os.path.join(self.cache_data_dir, image_caption_dict_file)
-
-            with open(image_caption_dict_path, 'rb') as f:
+            with open(valid_image_caption_dict_path, 'rb') as f:
                 save_dict = pickle.load(f)
 
-            self.image_caption_dict = save_dict['image_caption_dict']
+            self.valid_image_caption_dict = save_dict['image_caption_dict']
+
+
+        elif mode == 'infer':
+
+            test_image_caption_dict_path = os.path.join(self.cache_data_dir, test_image_caption_dict_file)
+
+            with open(test_image_caption_dict_path, 'rb') as f:
+                save_dict = pickle.load(f)
+
+            self.test_image_caption_dict = save_dict['image_caption_dict']
 
 
 class Test:
@@ -619,7 +701,11 @@ class Test:
 
         process_obj = DataPreprocess()
 
-        process_obj.do_mian(cnn_batch_size=32, n_vocab=8868)
+        # process_obj.do_mian_split_random(cnn_batch_size=32, n_vocab=8868)
+
+        process_obj.do_mian_split_default(cnn_batch_size=4, n_vocab=8868)
+
+
 
     def test_FlickerDataset(self):
 
@@ -670,6 +756,6 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess()
+    # test.test_DataPreprocess()
 
-    # test.test_FlickerDataset()
+    test.test_FlickerDataset()

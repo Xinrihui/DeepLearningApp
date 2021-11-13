@@ -331,16 +331,23 @@ class ImageCaptionV4:
         # 查看会话管理可知需要8GB显存
         history = self.model_train.fit(
             x=train_dataset_prefetch,
-            #steps_per_epoch=N_trian // batch_size,
             epochs=epoch_num,
             validation_data=valid_dataset_prefetch,
-            #validation_steps=N_valid // batch_size,
             verbose=1,
             callbacks=callbacks)
 
- # 请注意，数据集会在每个周期结束时重置，因此可以在下一个周期重复使用。
- # 如果您只想在来自此数据集的特定数量批次上进行训练，则可以传递 steps_per_epoch 参数，此参数可以指定在继续下一个周期之前，模型应使用此数据集运行多少训练步骤。
+ # 数据集会在每个周期结束时重置，因此可以在下一个周期重复使用。
+ # 如果只想在来自此数据集的特定数量批次上进行训练，则可以传递 steps_per_epoch 参数，此参数可以指定在继续下一个周期之前，模型应使用此数据集运行多少训练步骤。
  # 如果执行此操作，则不会在每个周期结束时重置数据集，而是会继续绘制接下来的批次。数据集最终将用尽数据（除非它是无限循环的数据集）。
+
+        # history = self.model_train.fit(
+        #     x=train_dataset_prefetch.repeat(),
+        #     steps_per_epoch=N_trian // batch_size,
+        #     epochs=epoch_num,
+        #     validation_data=valid_dataset_prefetch.repeat(),
+        #     validation_steps=N_valid // batch_size,
+        #     verbose=1,
+        #     callbacks=callbacks)
 
         # 将训练好的模型保存到文件
         self.model_train.save(self.model_path)
@@ -686,7 +693,7 @@ class TestV3:
 
         dataset_obj = FlickerDataset(base_dir='dataset/', mode='train')
 
-        infer_dataset_obj = FlickerDataset(base_dir='dataset/', mode='infer')
+        # infer_dataset_obj = FlickerDataset(base_dir='dataset/', mode='infer')
 
         # 2. 训练模型
 
@@ -710,8 +717,11 @@ class TestV3:
         # 词表大小
         n_vocab = 8868
 
-        N_train = 32360  # 训练集样本个数
-        N_valid = 8095  # 验证集样本个数
+        # N_train = 32360  # 训练集样本个数
+        # N_valid = 8095  # 验证集样本个数
+
+        N_train = 30000  # 训练集样本个数
+        N_valid = 5000  # 验证集样本个数
 
         print('model architecture param:')
         print('n_h:{}, n_embedding:{}, n_vocab:{}, train_seq_length:{}, infer_seq_length:{}'.format(n_h, n_embedding, n_vocab, train_seq_length, infer_seq_length))
@@ -735,7 +745,7 @@ class TestV3:
         epoch_num = 20
 
         image_caption.fit(train_dataset=dataset_obj.train_dataset, valid_dataset=dataset_obj.valid_dataset,
-                          valid_image_caption_dict=infer_dataset_obj.image_caption_dict,
+                          valid_image_caption_dict=dataset_obj.valid_image_caption_dict,
                           N_trian=N_train, N_valid=N_valid,
                           epoch_num=epoch_num, batch_size=batch_size)
 
@@ -767,9 +777,6 @@ class TestV3:
         # 词表大小
         n_vocab = 8868
 
-        N_train = 32360  # 训练集样本个数
-        N_valid = 8095  # 验证集样本个数
-
         print('model architecture param:')
         print('n_h:{}, n_embedding:{}, n_vocab:{}, train_seq_length:{}, infer_seq_length:{}'.format(n_h, n_embedding, n_vocab, train_seq_length, infer_seq_length))
         print('-------------------------')
@@ -791,13 +798,13 @@ class TestV3:
                                        use_pretrain=True
                                        )
 
-        test_image_caption_dict = dataset_obj.image_caption_dict
+        test_image_caption_dict = dataset_obj.test_image_caption_dict
 
         image_dir_list = list(test_image_caption_dict.keys())
 
-        m = 1619  # 测试数据集的图片个数
+        # m = 1619  # 测试数据集的图片个数
 
-        image_dirs = image_dir_list[:m]
+        image_dirs = image_dir_list[:]
 
         print('test image num:{}'.format(len(image_dirs)))
 
@@ -838,7 +845,7 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training()
+    test.test_training()
 
-    test.test_evaluating()
+    # test.test_evaluating()
 
