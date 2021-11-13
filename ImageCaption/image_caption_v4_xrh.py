@@ -23,6 +23,17 @@ from lib.tf_data_utils_xrh import *
 # import keras_tuner as kt
 
 
+class CheckoutCallbak(keras.callbacks.Callback):
+
+    def __init__(self, model, checkpoint_models_path):
+        keras.callbacks.Callback.__init__(self)
+        self.model_to_save = model
+        self.checkpoint_models_path = checkpoint_models_path
+
+    def on_epoch_end(self, epoch, logs=None):
+        fmt = self.checkpoint_models_path + 'model.%02d-%.4f.h5'
+        self.model_to_save.save(fmt % (epoch, logs['val_loss']))
+
 class ImageCaptionV4:
     """
 
@@ -214,9 +225,7 @@ class ImageCaptionV4:
 
             return tf.reduce_mean(loss_)
 
-
         checkpoint_models_path = 'models/cache/'
-
 
         # Callbacks
         # 在根目录下运行 tensorboard --logdir ./logs
@@ -226,7 +235,9 @@ class ImageCaptionV4:
         model_names = checkpoint_models_path + 'model.{epoch:02d}-{val_loss:.4f}.h5'
 
         # 模型持久化: 若某次 epcho 模型在 验证集上的损失比之前的最小损失小, 则将模型作为最佳模型持久化
-        model_checkpoint = ModelCheckpoint(model_names, monitor='val_loss', verbose=1, save_best_only=False)
+        # model_checkpoint = ModelCheckpoint(model_names, monitor='val_loss', verbose=1, save_best_only=False)
+
+        model_checkpoint = CheckoutCallbak(self.model_train, checkpoint_models_path)
 
         # 早停: 在验证集上, 损失经过 patience 次的迭代后, 仍然没有下降则暂停训练
         early_stop = EarlyStopping('val_loss', patience=10)
@@ -585,16 +596,6 @@ class infer_LSTM_Decoder(Layer):
         return outputs
 
 
-class MyCbk(keras.callbacks.Callback):
-    
-    def __init__(self, model, checkpoint_models_path):
-        keras.callbacks.Callback.__init__(self)
-        self.model_to_save = model
-        self.checkpoint_models_path = checkpoint_models_path
-
-    def on_epoch_end(self, epoch, logs=None):
-        fmt = self.checkpoint_models_path + 'model.%02d-%.4f.h5'
-        self.model_to_save.save(fmt % (epoch, logs['val_loss']))
 
 
 
@@ -757,7 +758,7 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training()
+    test.test_training()
 
-    test.test_evaluating()
+    # test.test_evaluating()
 
