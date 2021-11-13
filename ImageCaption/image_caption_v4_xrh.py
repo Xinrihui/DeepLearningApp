@@ -112,9 +112,9 @@ class ImageCaptionV4:
     1. 实现了 soft-attention
 
     2. 使用 inceptionV3 的倒数第 2层的特征图 shape(8,8,2048)  作为图片的 embedding
-       使用 VGG-16 的倒数第 6层的特征图 shape(8,8,2048)  作为图片的 embedding
+       使用 VGG-16 的倒数第 6层的特征图 shape(14,14,512)  作为图片的 embedding
 
-    4. 实现了双重注意力机制
+    4. 实现了双重注意力机制和正则化
 
     5. 实现了基于 bleu score 的训练早停
 
@@ -125,7 +125,7 @@ class ImageCaptionV4:
     ref:
     1. Show, Attend and Tell: Neural Image Caption Generation with Visual Attention
     2. https://tensorflow.google.cn/tutorials/text/image_captioning
-    3. https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning
+    3. https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning(训练细节)
 
     """
 

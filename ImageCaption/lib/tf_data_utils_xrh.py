@@ -337,6 +337,52 @@ class DataPreprocess:
                 path_of_feature = p.numpy().decode("utf-8")  # 以文件的形式缓存在图片所在的目录下, 每一张图片对应一个同名的特征向量文件
                 np.save(path_of_feature, bf.numpy())
 
+    def image_embedding_VGG19(self, image_path_list, batch_num=8):
+        """
+        使用预训练的 CNN 对图片进行映射
+
+        :param image_path_list:
+        :param batch_num: 取决于 GPU的显存大小
+
+        :return:
+        """
+
+        def load_image(image_path):
+            img = tf.io.read_file(image_path)
+            img = tf.image.decode_jpeg(img, channels=3)
+            img = tf.image.resize(img, (224, 224))
+
+            img = tf.keras.applications.vgg19.preprocess_input(img)
+
+            return img, image_path
+
+        model = tf.keras.applications.vgg19.VGG19(weights='imagenet')
+
+        new_input = model.input
+        hidden_layer = model.layers[-6].output
+
+        print('the embedding layer output tensor: ', hidden_layer)
+
+        model_emb_pict = Model(new_input, hidden_layer)
+
+        image_dataset = tf.data.Dataset.from_tensor_slices(image_path_list)
+
+        image_dataset = image_dataset.map(
+            load_image, num_parallel_calls=tf.data.AUTOTUNE).batch(batch_num)
+
+        for img, path in tqdm(image_dataset):
+
+            batch_features = model_emb_pict(img)
+
+            batch_features = tf.reshape(batch_features,
+                                        (batch_features.shape[0], -1, batch_features.shape[
+                                            3]))  # 把向量拍平,  shape (None, 16, 16, 512) -> shape (None, 196, 512)
+
+            for bf, p in zip(batch_features, path):
+                path_of_feature = p.numpy().decode("utf-8")  # 以文件的形式缓存在图片所在的目录下, 每一张图片对应一个同名的特征向量文件
+                np.save(path_of_feature, bf.numpy())
+
+
     def build_caption_vector_dict(self, image_path_list, caption_dict, caption_vector_pad):
         """
         制作 图片路径 到 标记化后的句子 的字典
@@ -566,7 +612,7 @@ class DataPreprocess:
 
         image_path_list = list(caption_dict.keys())
 
-        self.image_embedding_VGG16(image_path_list, batch_num=cnn_batch_size)
+        self.image_embedding_VGG19(image_path_list, batch_num=cnn_batch_size)
 
         caption_vector_pad, max_length, tokenizer = self.tokenize_corpus(text_data, n_vocab=n_vocab)
 
@@ -756,6 +802,6 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DataPreprocess()
+    test.test_DataPreprocess()
 
-    test.test_FlickerDataset()
+    # test.test_FlickerDataset()
