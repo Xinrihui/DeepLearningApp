@@ -610,7 +610,7 @@ class FlickerDataset:
             with open(image_caption_dict_path, 'rb') as f:
                 save_dict = pickle.load(f)
 
-            self.test_image_caption_dict = save_dict['image_caption_dict']
+            self.image_caption_dict = save_dict['image_caption_dict']
 
 
 class Test:

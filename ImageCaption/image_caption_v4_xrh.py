@@ -23,16 +23,85 @@ from lib.tf_data_utils_xrh import *
 # import keras_tuner as kt
 
 
-class CheckoutCallbak(keras.callbacks.Callback):
+class CheckoutCallback(keras.callbacks.Callback):
+    """
+    回调函数, 实现在每一次 epoch 后 checkout 训练好的模型,
+    并且计算在验证集上的 bleu 分数
 
-    def __init__(self, model, checkpoint_models_path):
+    """
+
+    def __init__(self, model_train, model_infer, vocab_obj, batch_size, valid_image_caption_dict, checkpoint_models_path):
+
         keras.callbacks.Callback.__init__(self)
-        self.model_to_save = model
+
+        self.model_train = model_train
+        self.model_infer = model_infer
+        self.vocab_obj = vocab_obj
+
+        self.batch_image_feature, self.references = self.prepare_valid_data(batch_size, valid_image_caption_dict)
+
+        self.evaluate_obj = Evaluate()
+
         self.checkpoint_models_path = checkpoint_models_path
 
+    def prepare_valid_data(self, batch_size, valid_image_caption_dict):
+        """
+        返回 图片的 embedding 向量 和 图片对应的 caption
+
+        :param batch_size:
+        :param valid_image_caption_dict:
+        :return:
+        """
+
+        image_dir_list = list(valid_image_caption_dict.keys())
+
+        image_dirs = image_dir_list[:]
+
+        print('valid image num:{}'.format(len(image_dirs)))
+
+        image_feature = np.array(
+            [list(valid_image_caption_dict[image_dir]['feature']) for image_dir in image_dirs])
+
+        references = [valid_image_caption_dict[image_dir]['caption'] for image_dir in image_dirs]
+
+        image_feature_datset = tf.data.Dataset.from_tensor_slices(image_feature)
+
+        batch_image_feature = image_feature_datset.batch(batch_size).repeat()
+
+        return batch_image_feature, references
+
+    def inference_bleu(self):
+        """
+        使用验证数据集进行推理, 并计算 bleu
+
+        :return:
+        """
+
+        # batch_image_feature: 图片向量 shape (N_batch,n_image_feature)
+        preds = self.model_infer.predict(self.batch_image_feature)
+
+        decode_result = np.array(preds)  # shape (N_batch, infer_seq_length)
+
+        candidates = []
+        for prediction in decode_result:
+            output = ' '.join([self.vocab_obj.map_id_to_word(i) for i in prediction])
+            candidates.append(output)
+
+        bleu_score, _ = self.evaluate_obj.evaluate_bleu(self.references, candidates)
+
+        print('bleu_score:{}'.format(bleu_score))
+
+
     def on_epoch_end(self, epoch, logs=None):
+
+        # checkout 模型
         fmt = self.checkpoint_models_path + 'model.%02d-%.4f.h5'
-        self.model_to_save.save(fmt % (epoch, logs['val_loss']))
+        self.model_train.save(fmt % (epoch, logs['val_loss']))
+
+        # 计算 bleu 分数
+        self.inference_bleu()
+
+
 
 class ImageCaptionV4:
     """
@@ -181,7 +250,7 @@ class ImageCaptionV4:
 
         return model
 
-    def fit(self, train_dataset, valid_dataset, epoch_num=20,
+    def fit(self, train_dataset, valid_dataset, valid_image_caption_dict, epoch_num=20,
             N_trian=32360, N_valid = 8095,
             batch_size=128, buffer_size=2000,
             ):
@@ -190,6 +259,7 @@ class ImageCaptionV4:
 
         :param train_dataset: 训练数据生成器
         :param valid_dataset: 验证数据生成器
+        :param valid_image_caption_dict: 验证数据的字典, 用于计算 bleu
 
         :param epoch_num: 模型训练的 epoch 个数,  一般训练集所有的样本模型都见过一遍才算一个 epoch
         :param batch_size: 选择 min-Batch梯度下降时, 每一次输入模型的样本个数 (默认 = 128)
@@ -237,7 +307,10 @@ class ImageCaptionV4:
         # 模型持久化: 若某次 epcho 模型在 验证集上的损失比之前的最小损失小, 则将模型作为最佳模型持久化
         # model_checkpoint = ModelCheckpoint(model_names, monitor='val_loss', verbose=1, save_best_only=False)
 
-        model_checkpoint = CheckoutCallbak(self.model_train, checkpoint_models_path)
+        model_checkpoint_with_eval = CheckoutCallback(model_train=self.model_train, model_infer=self.model_infer,
+                                                      vocab_obj=self.vocab_obj, batch_size=batch_size,
+                                                      valid_image_caption_dict=valid_image_caption_dict,
+                                                      checkpoint_models_path=checkpoint_models_path)
 
         # 早停: 在验证集上, 损失经过 patience 次的迭代后, 仍然没有下降则暂停训练
         early_stop = EarlyStopping('val_loss', patience=10)
@@ -249,7 +322,7 @@ class ImageCaptionV4:
         self.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
 
         # Final callbacks
-        callbacks = [model_checkpoint, early_stop, tensor_board]
+        callbacks = [model_checkpoint_with_eval, early_stop, tensor_board]
 
         #  N_train : 训练样本总数
         #  N_valid : 验证样本总数
@@ -608,6 +681,7 @@ class TestV3:
 
         dataset_obj = FlickerDataset(base_dir='dataset/', mode='train')
 
+        infer_dataset_obj = FlickerDataset(base_dir='dataset/', mode='infer')
 
         # 2. 训练模型
 
@@ -656,6 +730,7 @@ class TestV3:
         epoch_num = 20
 
         image_caption.fit(train_dataset=dataset_obj.train_dataset, valid_dataset=dataset_obj.valid_dataset,
+                          valid_image_caption_dict=infer_dataset_obj.image_caption_dict,
                           N_trian=N_train, N_valid=N_valid,
                           epoch_num=epoch_num, batch_size=batch_size)
 
@@ -711,7 +786,7 @@ class TestV3:
                                        use_pretrain=True
                                        )
 
-        test_image_caption_dict = dataset_obj.test_image_caption_dict
+        test_image_caption_dict = dataset_obj.image_caption_dict
 
         image_dir_list = list(test_image_caption_dict.keys())
 
