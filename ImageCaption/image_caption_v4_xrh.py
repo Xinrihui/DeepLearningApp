@@ -66,7 +66,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         image_feature_datset = tf.data.Dataset.from_tensor_slices(image_feature)
 
-        batch_image_feature = image_feature_datset.batch(batch_size).repeat()
+        batch_image_feature = image_feature_datset.batch(batch_size)
 
         return batch_image_feature, references
 
@@ -89,6 +89,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         bleu_score, _ = self.evaluate_obj.evaluate_bleu(self.references, candidates)
 
+        print()
         print('bleu_score:{}'.format(bleu_score))
 
 
@@ -329,13 +330,17 @@ class ImageCaptionV4:
 
         # 查看会话管理可知需要8GB显存
         history = self.model_train.fit(
-            x=train_dataset_prefetch.repeat(),
-            steps_per_epoch=N_trian // batch_size,
+            x=train_dataset_prefetch,
+            #steps_per_epoch=N_trian // batch_size,
             epochs=epoch_num,
-            validation_data=valid_dataset_prefetch.repeat(),
-            validation_steps=N_valid // batch_size,
+            validation_data=valid_dataset_prefetch,
+            #validation_steps=N_valid // batch_size,
             verbose=1,
             callbacks=callbacks)
+
+ # 请注意，数据集会在每个周期结束时重置，因此可以在下一个周期重复使用。
+ # 如果您只想在来自此数据集的特定数量批次上进行训练，则可以传递 steps_per_epoch 参数，此参数可以指定在继续下一个周期之前，模型应使用此数据集运行多少训练步骤。
+ # 如果执行此操作，则不会在每个周期结束时重置数据集，而是会继续绘制接下来的批次。数据集最终将用尽数据（除非它是无限循环的数据集）。
 
         # 将训练好的模型保存到文件
         self.model_train.save(self.model_path)
@@ -773,7 +778,7 @@ class TestV3:
 
         # model_path = 'models/image_caption_attention_model.h5'
 
-        model_path = 'models/cache/model.09-1.7151.h5'
+        model_path = 'models/cache/model.04-1.7290.h5'
 
         image_caption_infer = ImageCaptionV4(train_seq_length=train_seq_length,
                                        infer_seq_length=infer_seq_length,
@@ -833,7 +838,7 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training()
+    # test.test_training()
 
-    # test.test_evaluating()
+    test.test_evaluating()
 
