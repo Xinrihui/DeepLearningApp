@@ -376,6 +376,42 @@ class ImageCaptionV4:
 
         return candidates
 
+class OutputLayer(Layer):
+    """
+    输出层
+
+    参考论文 Show, Attend and Tell: Neural Image Caption Generation with Visual Attention
+    3.1.2. DECODER: LONG SHORT-TERM MEMORY NETWORK
+    公式(2)
+
+    """
+
+    def __init__(self, n_embedding, n_vocab):
+
+        super(OutputLayer, self).__init__()
+
+        self.dense_L_h_layer = Dense(n_embedding)
+        self.dense_L_z_layer = Dense(n_embedding)
+        self.dense_L_o_layer = Dense(n_vocab, activation='softmax')
+
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'dense_L_h_layer': self.dense_L_h_layer,
+            'dense_L_z_layer': self.dense_L_z_layer,
+            'dense_L_o_layer': self.dense_L_o_layer
+        })
+        return config
+
+    def call(self, h, z, y_emb):
+
+        out = self.dense_L_o_layer(
+            y_emb + self.dense_L_h_layer(h) + self.dense_L_z_layer(z))  # shape (N_batch, n_vocab)
+
+        # out = tf.nn.softmax(out, axis=-1)
+
+        return out
+
 
 class OneStepAttention(Layer):
     """
@@ -480,11 +516,11 @@ class trian_LSTM_Decoder(Layer):
 
         self.lstm_layer = LSTM(self.n_h, return_state=True)
 
-        # self.max_out_layer = Dense(self.n_h, activation='relu')
-
         self.dropout_layer = Dropout(0.5)
 
-        self.fc_out_layer = Dense(self.n_vocab, activation='softmax')
+        # self.fc_out_layer = Dense(self.n_vocab, activation='softmax')
+
+        self.fc_out_layer = OutputLayer(n_embedding, n_vocab)
 
     def get_config(self):
         config = super().get_config().copy()
@@ -501,7 +537,6 @@ class trian_LSTM_Decoder(Layer):
             'one_step_attention_layer': self.one_step_attention_layer,
             'beta_gate': self.beta_gate,
             'lstm_layer': self.lstm_layer,
-            # 'max_out_layer': self.max_out_layer,
             'dropout_layer': self.dropout_layer,
             'fc_out_layer': self.fc_out_layer,
 
@@ -546,13 +581,13 @@ class trian_LSTM_Decoder(Layer):
 
             out_lstm, h, c = self.lstm_layer(inputs=context, initial_state=[h, c])  # 输入 context 只有1个时间步
 
-            # max_out = self.max_out_layer(inputs=(tf.concat([h, z, tf.squeeze(batch_token_embbeding, axis=1)], axis=-1) ) )  # shape (N_batch, n_vocab)
-            # h shape (N_batch, n_h), z shape (N_batch, n_h)
-            # batch_token_embbeding shape (N_batch, 1, n_embedding) -> shape (N_batch, n_embedding)
-
             h_dropout = self.dropout_layer(h)
 
-            out = self.fc_out_layer(h_dropout)  # shape (N_batch, n_vocab)
+            # out = self.fc_out_layer(h_dropout)  # shape (N_batch, n_vocab)
+
+            out = self.fc_out_layer(h=h_dropout, z=z, y_emb=tf.squeeze(batch_token_embbeding, axis=1))
+            # h shape (N_batch, n_h), z shape (N_batch, n_h)
+            # batch_token_embbeding shape (N_batch, 1, n_embedding) -> shape (N_batch, n_embedding)
 
             outs.append(out)  # shape (infer_seq_length, N_batch, n_vocab)
 
@@ -595,8 +630,6 @@ class infer_LSTM_Decoder(Layer):
         self.beta_gate = self.train_decoder_obj.beta_gate
         self.lstm_layer = self.train_decoder_obj.lstm_layer
 
-        # self.max_out_layer = self.train_decoder_obj.max_out_layer
-
         self.dropout_layer = self.train_decoder_obj.dropout_layer
         self.fc_out_layer = self.train_decoder_obj.fc_out_layer
 
@@ -615,7 +648,6 @@ class infer_LSTM_Decoder(Layer):
             'one_step_attention_layer': self.one_step_attention_layer,
             'beta_gate': self.beta_gate,
             'lstm_layer': self.lstm_layer,
-            # 'max_out_layer': self.max_out_layer,
             'dropout_layer': self.dropout_layer,
             'fc_out_layer': self.fc_out_layer,
 
@@ -639,6 +671,7 @@ class infer_LSTM_Decoder(Layer):
         outs = []
 
         for t in range(self.infer_seq_length):
+
             batch_token_embbeding = self.embedding_layer(batch_token)  # shape (N_batch, 1, n_embedding)
 
             #             print('batch_token_embbeding:', batch_token_embbeding)
@@ -660,13 +693,16 @@ class infer_LSTM_Decoder(Layer):
 
             out_lstm, h, c = self.lstm_layer(inputs=context, initial_state=[h, c])  # 输入 context 只有1个时间步
 
-            # max_out = self.max_out_layer(inputs=(tf.concat([h, z, tf.squeeze(batch_token_embbeding, axis=1)], axis=-1) ) )  # shape (N_batch, n_vocab)
-
             h_dropout = self.dropout_layer(h)
 
-            out_fc = self.fc_out_layer(h_dropout)
+            # out_fc = self.fc_out_layer(h_dropout)
 
-            #             print('out_fc:', out_fc)
+            out_fc = self.fc_out_layer(h=h_dropout, z=z, y_emb=tf.squeeze(batch_token_embbeding, axis=1))
+            # h shape (N_batch, n_h), z shape (N_batch, n_h)
+            # batch_token_embbeding shape (N_batch, 1, n_embedding) -> shape (N_batch, n_embedding)
+
+
+            #print('out_fc:', out_fc)
 
             max_idx = tf.math.argmax(out_fc, axis=1)  # shape (N_batch, )
 
@@ -741,7 +777,7 @@ class TestV3:
                                        )
         # use_pretrain=True: 在已有的模型参数基础上, 进行更进一步的训练
 
-        batch_size = 128
+        batch_size = 256
         epoch_num = 20
 
         image_caption.fit(train_dataset=dataset_obj.train_dataset, valid_dataset=dataset_obj.valid_dataset,
