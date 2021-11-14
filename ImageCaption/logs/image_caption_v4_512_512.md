@@ -2,6 +2,8 @@
 
 ### 1.1 数据集参数
     
+    Flicker8k 数据集
+    
     word_index length: 8868
     max_caption_length:37
     
