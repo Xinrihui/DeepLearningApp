@@ -132,7 +132,7 @@ class ImageCaptionV4:
     def __init__(self, train_seq_length, infer_seq_length,
                  n_h, n_image_feature, n_embedding, n_vocab,
                  vocab_obj,
-                 dropout_rates=(0.5),
+                 dropout_rates=(0.5,),
                  _null_str='<NULL>',
                  _start_str='<START>',
                  _end_str='<END>',
@@ -208,9 +208,9 @@ class ImageCaptionV4:
 
         self.encoder = CNN_Encoder(self.n_embedding)
 
-        self.trian_decoder = trian_LSTM_Decoder(self.infer_seq_length, self.n_embedding, self.n_h, self.n_vocab)
+        self.trian_decoder = trian_LSTM_Decoder(infer_seq_length=self.infer_seq_length, n_embedding=self.n_embedding, n_h=self.n_h, n_vocab=self.n_vocab, dropout_rates=self.dropout_rates)
 
-        self.infer_decoder = infer_LSTM_Decoder(self.trian_decoder, self._start)
+        self.infer_decoder = infer_LSTM_Decoder(train_decoder_obj=self.trian_decoder, _start=self._start)
 
 
     def train_model(self):
@@ -496,7 +496,7 @@ class trian_LSTM_Decoder(Layer):
     """
 
 
-    def __init__(self, infer_seq_length, n_embedding, n_h, n_vocab, lambda_alpha=1.0):
+    def __init__(self, infer_seq_length, n_embedding, n_h, n_vocab, dropout_rates=(0.5,), lambda_alpha=1.0):
 
         super(trian_LSTM_Decoder, self).__init__()
 
@@ -516,7 +516,7 @@ class trian_LSTM_Decoder(Layer):
 
         self.lstm_layer = LSTM(self.n_h, return_state=True)
 
-        self.dropout_layer = Dropout(0.5)
+        self.dropout_layer = Dropout(dropout_rates[0])
 
         self.fc_out_layer = Dense(self.n_vocab, activation='softmax')
 
@@ -753,6 +753,8 @@ class TestV3:
         # 词表大小
         n_vocab = 8868
 
+        dropout_rates = (0.8,)
+
         # N_train = 32360  # 训练集样本个数
         # N_valid = 8095  # 验证集样本个数
 
@@ -772,6 +774,7 @@ class TestV3:
                                        n_embedding=n_embedding,
                                        n_vocab=n_vocab,
                                        vocab_obj=dataset_obj.vocab,
+                                       dropout_rates=dropout_rates,
                                        model_path=model_path,
                                        use_pretrain=False
                                        )
@@ -813,6 +816,8 @@ class TestV3:
         # 词表大小
         n_vocab = 8868
 
+        dropout_rates = (0.8,)
+
         print('model architecture param:')
         print('n_h:{}, n_embedding:{}, n_vocab:{}, train_seq_length:{}, infer_seq_length:{}'.format(n_h, n_embedding, n_vocab, train_seq_length, infer_seq_length))
         print('-------------------------')
@@ -821,7 +826,7 @@ class TestV3:
 
         # model_path = 'models/image_caption_attention_model.h5'
 
-        model_path = 'models/cache/model.08-1.2417.h5'
+        model_path = 'models/cache/model.13-1.2755.h5'
 
         image_caption_infer = ImageCaptionV4(train_seq_length=train_seq_length,
                                        infer_seq_length=infer_seq_length,
@@ -830,6 +835,7 @@ class TestV3:
                                        n_embedding=n_embedding,
                                        n_vocab=n_vocab,
                                        vocab_obj=dataset_obj.vocab,
+                                       dropout_rates=dropout_rates,
                                        model_path=model_path,
                                        use_pretrain=True
                                        )
@@ -881,7 +887,7 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training()
+    # test.test_training()
 
-    # test.test_evaluating()
+    test.test_evaluating()
 
