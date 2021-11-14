@@ -97,8 +97,9 @@ class DataPreprocess:
 
         self.remove_chars_re = re.compile('[%s]' % re.escape(remove_chars))
 
-        # 删除数字
-        self.remove_digits_re = re.compile(r'[0-9]+')
+        # 删除数字字符
+        # eg. 'avc 10 abc-10' -> 'avc  abc-10'
+        self.remove_digits_re = re.compile(r'\s[0-9]+\s')
 
 
 

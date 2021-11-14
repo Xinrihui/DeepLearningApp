@@ -37,7 +37,7 @@ class DataPreprocess:
     """
 
     def __init__(self,
-                 base_dir='../dataset/',
+                 base_dir='../dataset/Flicker8k',
                  _null_str='<NULL>',
                  _start_str='<START>',
                  _end_str='<END>',
@@ -52,8 +52,8 @@ class DataPreprocess:
 
         """
 
-        self.caption_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr8k.token.txt')
-        self.image_folder_dir = os.path.join(base_dir, 'Flicker8k/Flicker8k_Dataset/')
+        self.caption_file_dir = os.path.join(base_dir, 'Flickr8k.token.txt')
+        self.image_folder_dir = os.path.join(base_dir, 'Flicker8k_Dataset/')
 
         self.dataset_dir = os.path.join(base_dir, 'cache_data/train_dataset.json')
         self.image_caption_dict_dir = os.path.join(base_dir, 'cache_data/image_caption_dict.bin')
@@ -345,7 +345,7 @@ class DataPreprocess:
         max_sentence_length = vocab_obj.get_max_sentence_length(text_data)
         print('max_sentence_length: {}'.format(max_sentence_length))
 
-        cache_data_base_dir = '../dataset/cache_data/'
+        cache_data_base_dir = '../dataset/Flicker8k/cache_data/'
 
         print('embedding the picture...')
 
@@ -416,7 +416,7 @@ class BuildVocab:
                        _start_str='<START>',
                        _end_str='<END>',
                        _unk_str='<UNK>',
-                 vocab_path='../dataset/cache_data/vocab.bin', load_vocab_dict=True, freq_threshold=0,
+                 vocab_path='../dataset/Flicker8k/cache_data/vocab.bin', load_vocab_dict=True, freq_threshold=0,
                  text_data=None):
         """
         :param  _null_str: 空字符

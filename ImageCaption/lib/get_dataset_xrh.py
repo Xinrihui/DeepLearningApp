@@ -116,7 +116,7 @@ class BatchDataGenerator:
 
     """
 
-    def __init__(self, Type='train', dataset_dir='dataset/cache_data/{}_dataset.json'):
+    def __init__(self, Type='train', dataset_dir='../dataset/Flicker8k/cache_data/{}_dataset.json'):
 
         self.dataset_dir = dataset_dir.format(Type)
 
@@ -232,7 +232,7 @@ class FlickerDataset:
 
     """
 
-    def __init__(self, base_dir='../dataset/', mode='train', use_PCA=False):
+    def __init__(self, base_dir='../dataset/Flicker8k', mode='train', use_PCA=False):
         """
 
         :param base_dir: 数据集的根路径
@@ -351,8 +351,8 @@ if __name__ == '__main__':
 
     test = Test()
 
-    test.test_FlickerDataset()
+    # test.test_FlickerDataset()
 
-    # test.test_BatchDataGenerator()
+    test.test_BatchDataGenerator()
 
 

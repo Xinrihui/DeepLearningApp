@@ -26,7 +26,7 @@ class DataPreprocess:
     """
 
     def __init__(self,
-                 base_dir='../dataset/',
+                 base_dir='../dataset/Flicker8k',
                  cache_data_folder='cache_data',
                  tokenizer_file='tokenizer.bin',
                  _null_str='<NULL>',
@@ -52,12 +52,12 @@ class DataPreprocess:
 
         self.tensor_int_type = tensor_int_type
 
-        self.caption_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr8k.token.txt')
-        self.image_folder_dir = os.path.join(base_dir, 'Flicker8k/Flicker8k_Dataset/')
+        self.caption_file_dir = os.path.join(base_dir, 'Flickr8k.token.txt')
+        self.image_folder_dir = os.path.join(base_dir, 'Flicker8k_Dataset/')
 
-        self.train_image_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr_8k.trainImages.txt')
-        self.valid_image_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr_8k.devImages.txt')
-        self.test_image_file_dir = os.path.join(base_dir, 'Flicker8k/Flickr_8k.testImages.txt')
+        self.train_image_file_dir = os.path.join(base_dir, 'Flickr_8k.trainImages.txt')
+        self.valid_image_file_dir = os.path.join(base_dir, 'Flickr_8k.devImages.txt')
+        self.test_image_file_dir = os.path.join(base_dir, 'Flickr_8k.testImages.txt')
 
         self.dataset_dir = os.path.join(base_dir, 'cache_data/train_dataset.json')
         self.image_caption_dict_dir = os.path.join(base_dir, 'cache_data/image_caption_dict.bin')
@@ -613,7 +613,7 @@ class DataPreprocess:
         image_path_list = list(caption_dict.keys())
 
         # self.image_embedding_VGG19(image_path_list, batch_num=cnn_batch_size)
-        self.image_embedding_InceptionV3(image_path_list, batch_num=cnn_batch_size)
+        # self.image_embedding_InceptionV3(image_path_list, batch_num=cnn_batch_size)
 
         caption_vector_pad, max_length, tokenizer = self.tokenize_corpus(text_data, n_vocab=n_vocab)
 
@@ -689,7 +689,7 @@ class FlickerDataset:
 
     """
     def __init__(self,
-                 base_dir='../dataset/',
+                 base_dir='../dataset/Flicker8k',
                  cache_data_folder='cache_data',
                  tokenizer_file='tokenizer.bin',
                  train_dataset_file='train_image_tensor_caption.bin',
@@ -803,6 +803,6 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess()
+    # test.test_DataPreprocess()
 
-    # test.test_FlickerDataset()
+    test.test_FlickerDataset()
