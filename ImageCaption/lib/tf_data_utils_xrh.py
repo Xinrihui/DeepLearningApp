@@ -249,7 +249,7 @@ class DataPreprocess:
         return caption_vector_pad, max_length, tokenizer
 
 
-    def image_embedding_InceptionV3(self, image_path_list):
+    def image_embedding_InceptionV3(self, image_path_list, batch_num=8):
         """
         使用预训练的 CNN 对图片进行映射
 
@@ -278,7 +278,7 @@ class DataPreprocess:
         image_dataset = tf.data.Dataset.from_tensor_slices(image_path_list)
 
         image_dataset = image_dataset.map(
-            load_image, num_parallel_calls=tf.data.AUTOTUNE).batch(16)
+            load_image, num_parallel_calls=tf.data.AUTOTUNE).batch(batch_num)
 
         for img, path in tqdm(image_dataset):
 
@@ -612,7 +612,8 @@ class DataPreprocess:
 
         image_path_list = list(caption_dict.keys())
 
-        self.image_embedding_VGG19(image_path_list, batch_num=cnn_batch_size)
+        # self.image_embedding_VGG19(image_path_list, batch_num=cnn_batch_size)
+        self.image_embedding_InceptionV3(image_path_list, batch_num=cnn_batch_size)
 
         caption_vector_pad, max_length, tokenizer = self.tokenize_corpus(text_data, n_vocab=n_vocab)
 
@@ -749,7 +750,7 @@ class Test:
 
         # process_obj.do_mian_split_random(cnn_batch_size=32, n_vocab=8868)
 
-        process_obj.do_mian_split_default(cnn_batch_size=4, n_vocab=8868)
+        process_obj.do_mian_split_default(cnn_batch_size=32, n_vocab=8868)
 
 
 

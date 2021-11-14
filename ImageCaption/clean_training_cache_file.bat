@@ -14,7 +14,7 @@ del /f /s /q .\logs\train\*
 del /f /s /q .\logs\validation\*
 
 :: 开启 tensorboard
-tensorboard --logdir ./logs
+:: tensorboard --logdir ./logs
 
 :: 查找进程  tasklist|findstr "tensorboard"
 

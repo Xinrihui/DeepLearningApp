@@ -518,9 +518,9 @@ class trian_LSTM_Decoder(Layer):
 
         self.dropout_layer = Dropout(0.5)
 
-        # self.fc_out_layer = Dense(self.n_vocab, activation='softmax')
+        self.fc_out_layer = Dense(self.n_vocab, activation='softmax')
 
-        self.fc_out_layer = OutputLayer(n_embedding, n_vocab)
+        # self.fc_out_layer = OutputLayer(n_embedding, n_vocab)
 
     def get_config(self):
         config = super().get_config().copy()
@@ -583,9 +583,9 @@ class trian_LSTM_Decoder(Layer):
 
             h_dropout = self.dropout_layer(h)
 
-            # out = self.fc_out_layer(h_dropout)  # shape (N_batch, n_vocab)
+            out = self.fc_out_layer(h_dropout)  # shape (N_batch, n_vocab)
 
-            out = self.fc_out_layer(h=h_dropout, z=z, y_emb=tf.squeeze(batch_token_embbeding, axis=1))
+            # out = self.fc_out_layer(h=h_dropout, z=z, y_emb=tf.squeeze(batch_token_embbeding, axis=1))
             # h shape (N_batch, n_h), z shape (N_batch, n_h)
             # batch_token_embbeding shape (N_batch, 1, n_embedding) -> shape (N_batch, n_embedding)
 
@@ -695,9 +695,9 @@ class infer_LSTM_Decoder(Layer):
 
             h_dropout = self.dropout_layer(h)
 
-            # out_fc = self.fc_out_layer(h_dropout)
+            out_fc = self.fc_out_layer(h_dropout)
 
-            out_fc = self.fc_out_layer(h=h_dropout, z=z, y_emb=tf.squeeze(batch_token_embbeding, axis=1))
+            # out_fc = self.fc_out_layer(h=h_dropout, z=z, y_emb=tf.squeeze(batch_token_embbeding, axis=1))
             # h shape (N_batch, n_h), z shape (N_batch, n_h)
             # batch_token_embbeding shape (N_batch, 1, n_embedding) -> shape (N_batch, n_embedding)
 
@@ -734,12 +734,12 @@ class TestV3:
         # 2. 训练模型
 
         # Feature Map 的维度
-        # n_image_feature = 2048
-        n_image_feature = 512
+        n_image_feature = 2048
+        # n_image_feature = 512
 
         # Feature Map 的像素点的个数(论文中的 L), 即编码器的长度
-        # train_seq_length = 64
-        train_seq_length = 196
+        train_seq_length = 64
+        # train_seq_length = 196
 
         # caption 的长度 -1 , 即解码器的长度
         infer_seq_length = 36
@@ -778,7 +778,7 @@ class TestV3:
         # use_pretrain=True: 在已有的模型参数基础上, 进行更进一步的训练
 
         batch_size = 256
-        epoch_num = 20
+        epoch_num = 15
 
         image_caption.fit(train_dataset=dataset_obj.train_dataset, valid_dataset=dataset_obj.valid_dataset,
                           valid_image_caption_dict=dataset_obj.valid_image_caption_dict,
@@ -794,12 +794,12 @@ class TestV3:
         dataset_obj = FlickerDataset(base_dir='dataset/', mode='infer')
 
         # Feature Map 的维度
-        # n_image_feature = 2048
-        n_image_feature = 512
+        n_image_feature = 2048
+        # n_image_feature = 512
 
         # Feature Map 的像素点的个数(论文中的 L), 即编码器的长度
-        # train_seq_length = 64
-        train_seq_length = 196
+        train_seq_length = 64
+        # train_seq_length = 196
 
         # caption 的长度 -1 , 即解码器的长度
         infer_seq_length = 36
@@ -821,7 +821,7 @@ class TestV3:
 
         # model_path = 'models/image_caption_attention_model.h5'
 
-        model_path = 'models/cache/model.04-1.7290.h5'
+        model_path = 'models/cache/model.08-1.2417.h5'
 
         image_caption_infer = ImageCaptionV4(train_seq_length=train_seq_length,
                                        infer_seq_length=infer_seq_length,
