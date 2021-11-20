@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 
-from build_dataset_xrh import *
+from lib.build_dataset_xrh import *
 
 from tensorflow.keras.utils import Sequence
 

@@ -31,18 +31,6 @@ class Evaluate:
         self._end_str = _end_str
         self._unk_str = _unk_str
 
-        # 删除标点符号
-        # remove_chars = string.punctuation  # !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
-
-        # 需要删除的标点符号, 包含中文符号
-        remove_chars = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
-
-        remove_chars = remove_chars.replace("<", "")  # 不能删除 '<' , 因为 <START> 要作为一个单词
-        remove_chars = remove_chars.replace(">", "")
-
-        remove_chars = remove_chars.replace("'", "")  # 不删除 '
-
-        self.remove_chars_re = re.compile('[%s]' % re.escape(remove_chars))
 
         # 需要删除的控制词
         self.remove_word_re = re.compile(
@@ -89,9 +77,6 @@ class Evaluate:
             # 删除 控制词
             candidate = self.remove_word_re.sub(' ', candidate)
 
-            # 删除 标点符号
-            candidate = self.remove_chars_re.sub(' ', candidate)
-
             candidate_split = candidate.split()
 
             candidates_arr.append(candidate_split)
@@ -104,9 +89,6 @@ class Evaluate:
 
                 # 删除 控制词
                 reference = self.remove_word_re.sub(' ', reference)
-
-                # 删除 标点符号
-                reference = self.remove_chars_re.sub(' ', reference)
 
                 reference_split = reference.split()
 
