@@ -290,7 +290,7 @@ class MachineTranslation:
         return tf.reduce_mean(loss_)
 
     def fit_tf_data(self, train_dataset, valid_dataset, valid_source_target_dict, epoch_num=20,
-            batch_size=128, buffer_size=2000,
+            batch_size=256, buffer_size=10000,
             ):
         """
         使用内置方法训练模型
@@ -312,9 +312,6 @@ class MachineTranslation:
         # tf.data 的数据混洗,分批和预取
         # Shuffle and batch
         train_dataset_batch = train_dataset.shuffle(buffer_size).batch(batch_size)
-
-        # 将 source 反转
-
         train_dataset_prefetch = train_dataset_batch.prefetch(
             buffer_size=tf.data.AUTOTUNE)  # 要预取的元素数量应等于（或大于）单个训练步骤 epoch 消耗的批次数量
 
@@ -339,7 +336,7 @@ class MachineTranslation:
                                                       checkpoint_models_path=checkpoint_models_path)
 
         # 早停: 在验证集上, 损失经过 patience 次的迭代后, 仍然没有下降则暂停训练
-        early_stop = EarlyStopping('val_loss', patience=10)
+        early_stop = EarlyStopping('val_loss', patience=5)
 
         # optimizer = tf.keras.optimizers.Adam(learning_rate=4e-4)
 
@@ -456,7 +453,10 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         # 1. 数据集的预处理, 运行 tf_data_utils_xrh.py 中的 DataPreprocess -> do_mian()
 
-        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', reverse_source=False, mode='train')
+        # dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', cache_data_folder='cache_small_data', reverse_source=False, mode='train')
+
+        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', cache_data_folder='cache_data', reverse_source=True, mode='train')
+
 
         # 2. 训练模型
 
@@ -500,12 +500,14 @@ class Test_WMT14_Eng_Ge_Dataset:
                                  )
         # use_pretrain=True: 在已有的模型参数基础上, 进行更进一步的训练
 
-        batch_size = 256
-        epoch_num = 15
+        batch_size = 512
+        buffer_size = 10000
+
+        epoch_num = 10
 
         trainer.fit_tf_data(train_dataset=dataset_obj.train_dataset, valid_dataset=dataset_obj.valid_dataset,
                           valid_source_target_dict=dataset_obj.valid_source_target_dict,
-                          epoch_num=epoch_num, batch_size=batch_size)
+                          epoch_num=epoch_num, batch_size=batch_size, buffer_size=buffer_size)
 
 
 
@@ -513,7 +515,9 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         # 1. 数据集的预处理, 运行 tf_data_utils_xrh.py 中的 DataPreprocess -> do_mian()
 
-        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', reverse_source=False, mode='infer')
+        # dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', cache_data_folder='cache_small_data', reverse_source=True, mode='infer')
+
+        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', cache_data_folder='cache_data', reverse_source=True, mode='infer')
 
         # 2. 训练模型
 

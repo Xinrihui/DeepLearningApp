@@ -67,13 +67,13 @@ class DataPreprocess:
 
         self.tensor_int_type = tensor_int_type
 
-
-        # self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
-        # self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
+        # 标准训练数据集
+        self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
+        self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
 
         # 小的训练集用于测试
-        self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
-        self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
+        # self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
+        # self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
 
         self.valid_source_corpus_dir = os.path.join(base_dir, 'newstest2013.en')
         self.valid_target_corpus_dir = os.path.join(base_dir, 'newstest2013.de')
@@ -302,7 +302,7 @@ class DataPreprocess:
 
         for source, vector, target in zip(source_text, source_vector, target_text):
 
-                key = source.numpy()
+                key = source.numpy().decode('utf-8')
                 source_target_dict[key] = {}
 
                 source_vec = vector.numpy()
@@ -311,7 +311,7 @@ class DataPreprocess:
                     source_vec = source_vec[::-1]
 
                 source_target_dict[key]['vector'] = source_vec
-                source_target_dict[key]['target'] = [target.numpy()]
+                source_target_dict[key]['target'] = [target.numpy().decode('utf-8')]
 
         if do_persist:
 
@@ -538,12 +538,12 @@ class WMT14_Eng_Ge_Dataset:
         preffix = ''
 
         if reverse_source:
-            preffix = 'reverse'
+            preffix = 'reverse_'
 
         if mode == 'train':
 
-            train_dataset_path = os.path.join(self.cache_data_dir, '{}_{}'.format(preffix, train_dataset_file))
-            valid_dataset_path = os.path.join(self.cache_data_dir, '{}_{}'.format(preffix, valid_dataset_file))
+            train_dataset_path = os.path.join(self.cache_data_dir, '{}{}'.format(preffix, train_dataset_file))
+            valid_dataset_path = os.path.join(self.cache_data_dir, '{}{}'.format(preffix, valid_dataset_file))
 
             # 训练数据
             self.train_dataset = tf.data.experimental.load(train_dataset_path)
@@ -551,7 +551,7 @@ class WMT14_Eng_Ge_Dataset:
             # 验证数据
             self.valid_dataset = tf.data.experimental.load(valid_dataset_path)
 
-            valid_source_target_dict_path = os.path.join(self.cache_data_dir, '{}_{}'.format(preffix, valid_source_target_dict_file))
+            valid_source_target_dict_path = os.path.join(self.cache_data_dir, '{}{}'.format(preffix, valid_source_target_dict_file))
 
             with open(valid_source_target_dict_path, 'rb') as f:
                 save_dict = pickle.load(f)
@@ -561,7 +561,7 @@ class WMT14_Eng_Ge_Dataset:
 
         elif mode == 'infer':
 
-            test_source_target_dict_path = os.path.join(self.cache_data_dir, '{}_{}'.format(preffix, test_source_target_dict_file))
+            test_source_target_dict_path = os.path.join(self.cache_data_dir, '{}{}'.format(preffix, test_source_target_dict_file))
 
             with open(test_source_target_dict_path, 'rb') as f:
                 save_dict = pickle.load(f)
@@ -573,7 +573,9 @@ class Test:
 
     def test_DataPreprocess(self):
 
-        process_obj = DataPreprocess()
+        # process_obj = DataPreprocess(cache_data_folder='cache_small_data')
+
+        process_obj = DataPreprocess(cache_data_folder='cache_data')
 
         process_obj.do_mian(batch_size=256, n_vocab_source=50000, n_vocab_target=50000, max_seq_length=50)
 
@@ -581,7 +583,10 @@ class Test:
 
     def test_WMT14_Eng_Ge_Dataset(self):
 
-        dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True,mode='train')
+        # dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_small_data', mode='train')
+
+        dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_data', mode='train')
+
 
         # 查看 1 个批次的数据
         for batch_feature, batch_label in tqdm(dataset_obj.train_dataset.take(1)):
@@ -601,7 +606,10 @@ class Test:
             print(target_out)
 
 
-        dataset_obj = WMT14_Eng_Ge_Dataset(mode='infer')
+        # dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_small_data', mode='infer')
+
+        dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_data', mode='infer')
+
 
         print('test_source_target_dict: ')
         print(list(dataset_obj.test_source_target_dict.items())[0])
@@ -632,6 +640,6 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DataPreprocess()
+    test.test_DataPreprocess()
 
     test.test_WMT14_Eng_Ge_Dataset()
