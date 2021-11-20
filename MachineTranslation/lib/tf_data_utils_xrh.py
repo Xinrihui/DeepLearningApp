@@ -68,11 +68,12 @@ class DataPreprocess:
         self.tensor_int_type = tensor_int_type
 
 
-        self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
-        self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
+        # self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
+        # self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
 
-        # self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
-        # self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
+        # 小的训练集用于测试
+        self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
+        self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
 
         self.valid_source_corpus_dir = os.path.join(base_dir, 'newstest2013.en')
         self.valid_target_corpus_dir = os.path.join(base_dir, 'newstest2013.de')
@@ -233,12 +234,15 @@ class DataPreprocess:
         return  text_vector_dataset, tokenizer, vocab_list
 
 
-    def tf_data_pipline(self, source_vector, target_vector, do_persist=False, dataset_file=None):
+    def tf_data_pipline(self, source_vector, target_vector, reverse_source=True, do_persist=False, dataset_file=None):
         """
         利用 tf.data 数据流水线 建立数据集,
 
         :param source_vector:
         :param target_vector:
+        :param reverse_source: 是否将源句子反转
+        :param do_persist:
+        :param dataset_file:
 
         :return:
         """
@@ -250,6 +254,9 @@ class DataPreprocess:
         # 输入 和 输出的 target 要错开一位
         target_out = target_vector.map(lambda batch_text: batch_text[:, 1:], num_parallel_calls=tf.data.AUTOTUNE)
         target_in = target_vector.map(lambda batch_text: batch_text[:, :-1], num_parallel_calls=tf.data.AUTOTUNE)
+
+        if reverse_source:  # 将源句子反转
+            source_vector = source_vector.map(lambda batch_text: batch_text[:, ::-1], num_parallel_calls=tf.data.AUTOTUNE)
 
         # 特征和标签分开, 之后再合并
         features_dataset = tf.data.Dataset.zip((source_vector, target_in))
@@ -265,7 +272,7 @@ class DataPreprocess:
         return dataset
 
 
-    def build_source_target_dict(self, source_text, source_vector, target_text, do_persist=False, source_target_dict_file=None):
+    def build_source_target_dict(self, source_text, source_vector, target_text, reverse_source=True, do_persist=False, source_target_dict_file=None):
         """
 
         1.待翻译的源语句会对应多个人工翻译的标准句子, 因此需要组合源语句和目标语句, 并返回组合后的字典
@@ -273,6 +280,7 @@ class DataPreprocess:
         :param source_text:
         :param source_vector:
         :param target_text:
+        :param reverse_source: 是否将源句子反转
         :param do_persist: 将结果持久化到磁盘
         :param source_target_dict_file:
 
@@ -286,15 +294,23 @@ class DataPreprocess:
               }
         """
 
+        source_text = source_text.unbatch()
+        source_vector = source_vector.unbatch()
+        target_text = target_text.unbatch()
+
         source_target_dict = {}
 
-        for batch_source, batch_vector, batch_target in zip(source_text, source_vector, target_text):
-
-            for source, vector, target in zip(batch_source, batch_vector, batch_target):
+        for source, vector, target in zip(source_text, source_vector, target_text):
 
                 key = source.numpy()
                 source_target_dict[key] = {}
-                source_target_dict[key]['vector'] = vector.numpy()
+
+                source_vec = vector.numpy()
+
+                if reverse_source:
+                    source_vec = source_vec[::-1]
+
+                source_target_dict[key]['vector'] = source_vec
                 source_target_dict[key]['target'] = [target.numpy()]
 
         if do_persist:
@@ -336,7 +352,9 @@ class DataPreprocess:
         vocab_target = Vocab(build=True, vocab_list=vocab_target_list, _unk_str=self._unk_str, vocab_path=os.path.join(self.cache_data_dir, 'vocab_target.bin'))
 
         # 训练数据集
-        train_dataset = self.tf_data_pipline(train_source_vector, train_target_vector, do_persist=True, dataset_file='train_dataset.bin')
+        train_dataset = self.tf_data_pipline(train_source_vector, train_target_vector, reverse_source=False, do_persist=True, dataset_file='train_dataset.bin')
+        reverse_train_dataset = self.tf_data_pipline(train_source_vector, train_target_vector, reverse_source=True, do_persist=True, dataset_file='reverse_train_dataset.bin')
+
 
         # 2.验证数据处理
         print('preprocess the valid dataset...')
@@ -347,14 +365,18 @@ class DataPreprocess:
         valid_source = self.preprocess_corpus(valid_source_text, batch_size=batch_size)
         valid_target = self.preprocess_corpus(valid_target_text, batch_size=batch_size)
 
-        valid_source_vector = valid_source.map(lambda text: tokenizer_source(text))
-        valid_target_vector = valid_target.map(lambda text: tokenizer_target(text))
+        valid_source_vector = valid_source.map(lambda batch_text: tokenizer_source(batch_text))
+        valid_target_vector = valid_target.map(lambda batch_text: tokenizer_target(batch_text))
 
         # 验证数据集
-        valid_dataset = self.tf_data_pipline(valid_source_vector, valid_target_vector, do_persist=True, dataset_file='valid_dataset.bin')
+        valid_dataset = self.tf_data_pipline(valid_source_vector, valid_target_vector, reverse_source=False, do_persist=True, dataset_file='valid_dataset.bin')
+        reverse_valid_dataset = self.tf_data_pipline(valid_source_vector, valid_target_vector, reverse_source=False, do_persist=True, dataset_file='reverse_valid_dataset.bin')
+
 
         # 验证数据 source_target_dict
-        self.build_source_target_dict(valid_source, valid_source_vector, valid_target, do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
+        self.build_source_target_dict(valid_source, valid_source_vector, valid_target, reverse_source=False, do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
+        self.build_source_target_dict(valid_source, valid_source_vector, valid_target, reverse_source=True, do_persist=True, source_target_dict_file='reverse_valid_source_target_dict.bin')
+
 
         # 3.测试数据处理
 
@@ -366,10 +388,11 @@ class DataPreprocess:
         test_source = self.preprocess_corpus(test_source_text, batch_size=batch_size)
         test_target = self.preprocess_corpus(test_target_text, batch_size=batch_size)
 
-        test_source_vector = test_source.map(lambda text: tokenizer_source(text))
+        test_source_vector = test_source.map(lambda batch_text: tokenizer_source(batch_text))
 
         # 测试数据 source_target_dict
-        self.build_source_target_dict(test_source, test_source_vector, test_target,  do_persist=True, source_target_dict_file='test_source_target_dict.bin')
+        self.build_source_target_dict(test_source, test_source_vector, test_target, reverse_source=False, do_persist=True, source_target_dict_file='test_source_target_dict.bin')
+        self.build_source_target_dict(test_source, test_source_vector, test_target, reverse_source=True, do_persist=True, source_target_dict_file='reverse_test_source_target_dict.bin')
 
 
 class Vocab:
@@ -478,13 +501,19 @@ class WMT14_Eng_Ge_Dataset:
     def __init__(self,
                  base_dir='../dataset/WMT-14-English-Germa',
                  cache_data_folder='cache_data',
+
                  vocab_source_file='vocab_source.bin',
                  vocab_target_file='vocab_target.bin',
+
                  train_dataset_file='train_dataset.bin',
                  valid_dataset_file='valid_dataset.bin',
+
                  valid_source_target_dict_file='valid_source_target_dict.bin',
                  test_source_target_dict_file='test_source_target_dict.bin',
-                 mode='train'):
+
+                 reverse_source=True,
+                 mode='train'
+                 ):
         """
 
         :param base_dir: 数据集的根路径
@@ -495,6 +524,7 @@ class WMT14_Eng_Ge_Dataset:
         :param valid_dataset_file:
         :param valid_source_target_dict_file:
         :param test_source_target_dict_file:
+        :param reverse_source: 是否将源句子反转
         :param mode: 当前处在的模式, 可以选择
                     'train' - 训练模式
                     'infer' - 推理模式
@@ -505,10 +535,15 @@ class WMT14_Eng_Ge_Dataset:
         self.vocab_source = Vocab(os.path.join(self.cache_data_dir, vocab_source_file), build=False)
         self.vocab_target = Vocab(os.path.join(self.cache_data_dir, vocab_target_file), build=False)
 
+        preffix = ''
+
+        if reverse_source:
+            preffix = 'reverse'
+
         if mode == 'train':
 
-            train_dataset_path = os.path.join(self.cache_data_dir, train_dataset_file)
-            valid_dataset_path = os.path.join(self.cache_data_dir, valid_dataset_file)
+            train_dataset_path = os.path.join(self.cache_data_dir, '{}_{}'.format(preffix, train_dataset_file))
+            valid_dataset_path = os.path.join(self.cache_data_dir, '{}_{}'.format(preffix, valid_dataset_file))
 
             # 训练数据
             self.train_dataset = tf.data.experimental.load(train_dataset_path)
@@ -516,7 +551,7 @@ class WMT14_Eng_Ge_Dataset:
             # 验证数据
             self.valid_dataset = tf.data.experimental.load(valid_dataset_path)
 
-            valid_source_target_dict_path = os.path.join(self.cache_data_dir, valid_source_target_dict_file)
+            valid_source_target_dict_path = os.path.join(self.cache_data_dir, '{}_{}'.format(preffix, valid_source_target_dict_file))
 
             with open(valid_source_target_dict_path, 'rb') as f:
                 save_dict = pickle.load(f)
@@ -526,7 +561,7 @@ class WMT14_Eng_Ge_Dataset:
 
         elif mode == 'infer':
 
-            test_source_target_dict_path = os.path.join(self.cache_data_dir, test_source_target_dict_file)
+            test_source_target_dict_path = os.path.join(self.cache_data_dir, '{}_{}'.format(preffix, test_source_target_dict_file))
 
             with open(test_source_target_dict_path, 'rb') as f:
                 save_dict = pickle.load(f)
@@ -546,7 +581,7 @@ class Test:
 
     def test_WMT14_Eng_Ge_Dataset(self):
 
-        dataset_obj = WMT14_Eng_Ge_Dataset(mode='train')
+        dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True,mode='train')
 
         # 查看 1 个批次的数据
         for batch_feature, batch_label in tqdm(dataset_obj.train_dataset.take(1)):
@@ -597,6 +632,6 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess()
+    # test.test_DataPreprocess()
 
     test.test_WMT14_Eng_Ge_Dataset()

@@ -312,6 +312,9 @@ class MachineTranslation:
         # tf.data 的数据混洗,分批和预取
         # Shuffle and batch
         train_dataset_batch = train_dataset.shuffle(buffer_size).batch(batch_size)
+
+        # 将 source 反转
+
         train_dataset_prefetch = train_dataset_batch.prefetch(
             buffer_size=tf.data.AUTOTUNE)  # 要预取的元素数量应等于（或大于）单个训练步骤 epoch 消耗的批次数量
 
@@ -453,7 +456,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         # 1. 数据集的预处理, 运行 tf_data_utils_xrh.py 中的 DataPreprocess -> do_mian()
 
-        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', mode='train')
+        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', reverse_source=False, mode='train')
 
         # 2. 训练模型
 
@@ -510,7 +513,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         # 1. 数据集的预处理, 运行 tf_data_utils_xrh.py 中的 DataPreprocess -> do_mian()
 
-        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', mode='infer')
+        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir='dataset/WMT-14-English-Germa', reverse_source=False, mode='infer')
 
         # 2. 训练模型
 
