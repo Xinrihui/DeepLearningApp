@@ -69,12 +69,12 @@ class DataPreprocess:
         self.tensor_int_type = tensor_int_type
 
         # 标准训练数据集
-        self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
-        self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
+        # self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
+        # self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
 
         # 小的训练集用于测试
-        # self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
-        # self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
+        self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
+        self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
 
         self.valid_source_corpus_dir = os.path.join(base_dir, 'newstest2013.en')
         self.valid_target_corpus_dir = os.path.join(base_dir, 'newstest2013.de')
@@ -148,8 +148,8 @@ class DataPreprocess:
         :return:
         """
 
-        # TODO: 不清楚效果
-        text = tf_text.normalize_utf8(text, 'NFKD')
+        # TODO: 不清楚效果, 加上有奇怪的 bug
+        # text = tf_text.normalize_utf8(text, 'NFKD')
 
         # 删除在各个语系外的字符
         text = tf.strings.regex_replace(text, self.remove_unk, ' ')
@@ -622,8 +622,14 @@ class Test:
         print('word [END] index: ', dataset_obj.vocab_target.map_word_to_id('[END]'))
         print('word [UNK] index: ', dataset_obj.vocab_target.map_word_to_id('[UNK]'))
         print('word [NULL] index: ', dataset_obj.vocab_target.map_word_to_id(''))
-        print('word -= index: ', dataset_obj.vocab_target.map_word_to_id('-='))
 
+        print('word nämlich index: ', dataset_obj.vocab_target.map_word_to_id('nämlich'))
+
+        print('word würden index: ', dataset_obj.vocab_target.map_word_to_id('würden'))
+
+        print('word üblich index: ', dataset_obj.vocab_target.map_word_to_id('üblich'))
+
+        print('word Ämter index: ', dataset_obj.vocab_target.map_word_to_id('Ämter'))
 
 
 
