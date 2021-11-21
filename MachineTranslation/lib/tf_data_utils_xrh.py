@@ -118,7 +118,7 @@ class DataPreprocess:
         self.remove_digits = r'^(\d+ )+|( \d+)+ |(\d+)$'
 
         # 删除特定的单词
-        self.remove_words = r'(##AT##-##AT##|&apos|&quot)'
+        self.remove_words = r'(##AT##-##AT##|&apos|&quot|„)'
 
     def load_corpus_data(self, corpus_file_dir):
         """
@@ -156,11 +156,11 @@ class DataPreprocess:
         :return:
         """
 
-        # Split accecented characters.
+        # TODO: 不清楚效果
         text = tf_text.normalize_utf8(text, 'NFKD')
 
         # 清除非打印字符
-        # text = tf.strings.regex_replace(text, self.remove_unk, ' ')
+        # text = tf.strings.regex_replace(text, self.remove_unk, ' ') # TODO: 报错
 
         # 清除指定单词
         text = tf.strings.regex_replace(text, self.remove_words, '')
