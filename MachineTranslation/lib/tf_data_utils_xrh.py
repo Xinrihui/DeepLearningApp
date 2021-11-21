@@ -6,6 +6,7 @@ from tqdm import tqdm
 import pickle
 import re
 from collections import *
+import string
 
 import tensorflow as tf
 
@@ -87,27 +88,18 @@ class DataPreprocess:
         self._end_str = _end_str
         self._unk_str = _unk_str
 
-        # 删除不在各个语言字典中的字符(非打印字符)
-        self.remove_unk = r'[^\u4e00-\u9fa5\u0030-\u0039\u0021-\u007e\u00C0-\u00FF]'
+        # 删除在各个语系外的字符
+        self.remove_unk = r'[^\p{Latin}|[:print:]]'
+        # \p{Latin} 匹配拉丁语系
+        # [[:print:]] 匹配打印字符 (≡ [A-Za-z0-9!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~] )
+        # ref
+        # [1] https://segmentfault.com/a/1190000021141670
+        # [2] https://github.com/google/re2/wiki/Syntax#perl
 
-        """
-        [^**]	表示不匹配此字符集中的任何一个字符
-        \u4e00-\u9fa5	汉字的unicode范围
-        \u0030-\u0039	数字的unicode范围
-        \u0041-\u005a	大写字母unicode范围
-        \u0061-\u007a	小写字母unicode范围
-        \u0021-\u007e   英文字母unicode范围(含数字与符号)
-        \u00C0-\u00FF   德文/法文的unicode范围
-        \uAC00-\uD7AF	韩文的unicode范围
-        \u3040-\u31FF	日文的unicode范围
-
-        """
-
-        # 需要删除的标点符号, 包含中文符号
-        punctuation = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~“”？，！【】（）、。：；’‘……￥·"""
-
+        # 需要删除的标点符号
+        punctuation = string.punctuation
         punctuation = punctuation.replace("'", "")  # 英语中有', 不删除 '
-        # punctuation = punctuation.replace("-", "")  #
+        punctuation = punctuation.replace("-", "")  #
 
         self.remove_punc = r'[%s]' % re.escape(punctuation)
 
@@ -118,7 +110,7 @@ class DataPreprocess:
         self.remove_digits = r'^(\d+ )+|( \d+)+ |(\d+)$'
 
         # 删除特定的单词
-        self.remove_words = r'(##AT##-##AT##|&apos|&quot|„)'
+        self.remove_words = r'(##AT##-##AT##|&apos|&quot)'
 
     def load_corpus_data(self, corpus_file_dir):
         """
@@ -159,8 +151,8 @@ class DataPreprocess:
         # TODO: 不清楚效果
         text = tf_text.normalize_utf8(text, 'NFKD')
 
-        # 清除非打印字符
-        # text = tf.strings.regex_replace(text, self.remove_unk, ' ') # TODO: 报错
+        # 删除在各个语系外的字符
+        text = tf.strings.regex_replace(text, self.remove_unk, ' ')
 
         # 清除指定单词
         text = tf.strings.regex_replace(text, self.remove_words, '')
