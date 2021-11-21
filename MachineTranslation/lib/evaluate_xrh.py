@@ -37,7 +37,7 @@ class Evaluate:
             r'{}|{}|{}'.format(self._null_str, self._start_str, self._end_str, self._unk_str))
 
 
-    def evaluate_bleu(self, references, candidates):
+    def evaluate_bleu(self, references, candidates, bleu_N=2):
         """
         使用 bleu 对翻译结果进行评价
 
@@ -63,6 +63,15 @@ class Evaluate:
              'racers ride their bikes <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL>',
 
             ]
+
+        :param bleu_N:
+
+              eg. bleu_N=2
+                计算 bleu-1 和  bleu-2 的分数
+
+              eg. bleu_N=4
+                计算 bleu-1,  bleu-2, bleu-3, bleu-4 的分数
+
         :return:
         """
 
@@ -100,10 +109,14 @@ class Evaluate:
         average_bleu_score_dict = {}
 
         # use xrh bleu
-        bleu_score_dict_list['1-garm'] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
-                                                              N=1)
-        bleu_score_dict_list['2-garm'] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
-                                                              N=2)
+
+        for n in range(1, bleu_N+1):
+
+            bleu_score_dict_list['{}-garm'.format(n)] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
+                                                                  N=n)
+
+            average_bleu_score_dict['{}-garm'.format(n)] = np.average(bleu_score_dict_list['{}-garm'.format(n)])
+
 
         # use nltk bleu
         # bleu_score_dict_list['1-garm'] = corpus_bleu(references_arr, candidates_arr,
@@ -111,7 +124,5 @@ class Evaluate:
         # bleu_score_dict_list['2-garm'] = corpus_bleu(references_arr, candidates_arr,
         #                                                weights=(0.5, 0.5, 0, 0))
 
-        average_bleu_score_dict['1-garm'] = np.average(bleu_score_dict_list['1-garm'])
-        average_bleu_score_dict['2-garm'] = np.average(bleu_score_dict_list['2-garm'])
 
         return average_bleu_score_dict, bleu_score_dict_list

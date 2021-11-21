@@ -500,7 +500,7 @@ class Test_WMT14_Eng_Ge_Dataset:
                                  )
         # use_pretrain=True: 在已有的模型参数基础上, 进行更进一步的训练
 
-        batch_size = 512
+        batch_size = 256
         buffer_size = 10000
 
         epoch_num = 10
@@ -549,9 +549,9 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         # 2.模型推理
 
-        # model_path = 'models/machine_translation_seq2seq_hid_1000_emb_1000.h5'
+        model_path = 'models/machine_translation_seq2seq_hid_1000_emb_1000.h5'
 
-        model_path = 'models/cache/model.13-1.2755.h5'
+        # model_path = 'models/cache/model.13-1.2755.h5'
 
         infer = MachineTranslation(encoder_length=encoder_length, decoder_length=decoder_length,
                                  n_h=n_h, n_embedding=n_embedding,
@@ -602,7 +602,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         evaluate_obj = Evaluate()
 
-        bleu_score, _ = evaluate_obj.evaluate_bleu(references, candidates)
+        bleu_score, _ = evaluate_obj.evaluate_bleu(references, candidates, bleu_N=4)
 
         print('bleu_score:{}'.format(bleu_score))
 
@@ -616,6 +616,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training()
+    # test.test_training()
 
-    # test.test_evaluating()
+    test.test_evaluating()
