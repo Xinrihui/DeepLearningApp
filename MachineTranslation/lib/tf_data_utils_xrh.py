@@ -370,7 +370,7 @@ class DataPreprocess:
 
         # 验证数据集
         valid_dataset = self.tf_data_pipline(valid_source_vector, valid_target_vector, reverse_source=False, do_persist=True, dataset_file='valid_dataset.bin')
-        reverse_valid_dataset = self.tf_data_pipline(valid_source_vector, valid_target_vector, reverse_source=False, do_persist=True, dataset_file='reverse_valid_dataset.bin')
+        reverse_valid_dataset = self.tf_data_pipline(valid_source_vector, valid_target_vector, reverse_source=True, do_persist=True, dataset_file='reverse_valid_dataset.bin')
 
 
         # 验证数据 source_target_dict

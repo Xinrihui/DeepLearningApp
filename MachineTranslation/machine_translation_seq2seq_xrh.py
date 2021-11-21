@@ -500,7 +500,7 @@ class Test_WMT14_Eng_Ge_Dataset:
                                  )
         # use_pretrain=True: 在已有的模型参数基础上, 进行更进一步的训练
 
-        batch_size = 256
+        batch_size = 512
         buffer_size = 10000
 
         epoch_num = 10
@@ -600,7 +600,10 @@ class Test_WMT14_Eng_Ge_Dataset:
         for i in range(0, 10):
             print(references[i])
 
-        evaluate_obj = Evaluate()
+        evaluate_obj = Evaluate(_null_str='',
+                                _start_str='[START]',
+                                _end_str='[END]',
+                                _unk_str='[UNK]')
 
         bleu_score, _ = evaluate_obj.evaluate_bleu(references, candidates, bleu_N=4)
 
