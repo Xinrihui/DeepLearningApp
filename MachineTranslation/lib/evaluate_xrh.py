@@ -14,12 +14,14 @@ class Evaluate:
     Date: 2021-9-26
 
     """
-    def __init__(self, _null_str='<NULL>',
+    def __init__(self, with_unk=True,
+                       _null_str='<NULL>',
                        _start_str='<START>',
                        _end_str='<END>',
                        _unk_str='<UNK>'):
         """
 
+        :param  with_unk: 是否保留 unk
         :param  _null_str: 空字符
         :param  _start_str: 句子的开始字符
         :param  _end_str: 句子的结束字符
@@ -31,11 +33,17 @@ class Evaluate:
         self._end_str = _end_str
         self._unk_str = _unk_str
 
+        if with_unk:  # 不删除 unk
 
-        # 需要删除的控制词
-        self.remove_word_re = re.compile(
-            r'{}|{}|{}'.format(self._null_str, self._start_str, self._end_str, self._unk_str))
+            # 需要删除的控制词
+            self.remove_word_re = re.compile(
+                r'{}|{}|{}'.format(self._null_str, self._start_str, self._end_str))
 
+        else:  # 删除 unk
+
+            # 需要删除的控制词
+            self.remove_word_re = re.compile(
+                r'{}|{}|{}|{}'.format(self._null_str, self._start_str, self._end_str, self._unk_str))
 
     def evaluate_bleu(self, references, candidates, bleu_N=2):
         """
@@ -84,7 +92,7 @@ class Evaluate:
         for candidate in candidates:  # 对待评价的候选句子进行清理
 
             # 删除 控制词
-            candidate = self.remove_word_re.sub(' ', candidate)
+            candidate = self.remove_word_re.sub('', candidate)
 
             candidate_split = candidate.split()
 
@@ -97,7 +105,7 @@ class Evaluate:
             for reference in reference_list:
 
                 # 删除 控制词
-                reference = self.remove_word_re.sub(' ', reference)
+                reference = self.remove_word_re.sub('', reference)
 
                 reference_split = reference.split()
 

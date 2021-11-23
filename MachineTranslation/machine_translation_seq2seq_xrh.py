@@ -38,6 +38,7 @@ class CheckoutCallback(keras.callbacks.Callback):
         self.batch_source_dataset, self.references = self.prepare_valid_data(batch_size, valid_source_target_dict)
 
         self.evaluate_obj = Evaluate(
+                                    with_unk=False,
                                     _null_str='',
                                     _start_str='[START]',
                                     _end_str='[END]',
@@ -596,7 +597,9 @@ class Test_WMT14_Eng_Ge_Dataset:
         for i in range(0, 10):
             print(references[i])
 
-        evaluate_obj = Evaluate(_null_str='',
+        evaluate_obj = Evaluate(
+                                 with_unk=False,
+                                _null_str='',
                                 _start_str='[START]',
                                 _end_str='[END]',
                                 _unk_str='[UNK]')

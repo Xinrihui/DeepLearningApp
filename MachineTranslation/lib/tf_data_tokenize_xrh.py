@@ -69,12 +69,12 @@ class DataPreprocess:
         self.tensor_int_type = tensor_int_type
 
         # 标准训练数据集
-        # self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
-        # self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
+        self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
+        self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
 
         # 小的训练集用于测试
-        self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
-        self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
+        # self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
+        # self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
 
         self.valid_source_corpus_dir = os.path.join(base_dir, 'newstest2013.en')
         self.valid_target_corpus_dir = os.path.join(base_dir, 'newstest2013.de')
@@ -133,7 +133,7 @@ class DataPreprocess:
                 sentence = line.rstrip("\n")
 
                 # 句子的左右端点统一补充 1个空格
-                sentence = " " + sentence + " "
+                # sentence = " " + sentence + " "
 
                 text_data.append(sentence)
 
