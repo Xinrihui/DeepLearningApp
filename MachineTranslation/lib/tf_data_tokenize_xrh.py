@@ -10,7 +10,7 @@ import string
 
 import tensorflow as tf
 
-from tensorflow.keras.layers import TextVectorization
+from tensorflow.keras.layers import TextVectorization, StringLookup
 
 # from tensorflow.keras.layers.experimental import preprocessing
 
@@ -148,8 +148,7 @@ class DataPreprocess:
         :return:
         """
 
-        # TODO: 不清楚效果, 加上有奇怪的 bug
-        # text = tf_text.normalize_utf8(text, 'NFKD')
+        text = tf_text.normalize_utf8(text)
 
         # 删除在各个语系外的字符
         text = tf.strings.regex_replace(text, self.remove_unk, ' ')
@@ -340,8 +339,8 @@ class DataPreprocess:
 
         # 建立字典
         print('build the vocab...')
-        vocab_source = Vocab(build=True, vocab_list=vocab_source_list, _unk_str=self._unk_str, vocab_path=os.path.join(self.cache_data_dir, 'vocab_source.bin'))
-        vocab_target = Vocab(build=True, vocab_list=vocab_target_list, _unk_str=self._unk_str, vocab_path=os.path.join(self.cache_data_dir, 'vocab_target.bin'))
+        vocab_source = Vocab(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.bin'))
+        vocab_target = Vocab(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.bin'))
 
         # 训练数据集
         train_dataset = self.tf_data_pipline(train_source_vector, train_target_vector, reverse_source=False, do_persist=True, dataset_file='train_dataset.bin')
@@ -389,25 +388,23 @@ class DataPreprocess:
 
 class Vocab:
 
-    def __init__(self, vocab_path, build=False, vocab_list=None, _unk_str='[UNK]'):
+    def __init__(self, vocab_list_path, vocab_list=None):
         """
         词典的初始化
 
         :param vocab_path: 词典持久化的路径
-        :param build: 是否建立新的词典
-        :param vocab_list:  建立新的词典时必填
-        :param _unk_str:
+        :param vocab_list:  (建立新的词典时必填)
+
         """
-        self._unk_str = _unk_str
-        self.vocab_path = vocab_path
-
-        if build:  # 建立新的词典
-
-            self.word_to_id, self.id_to_word = self.__build_vocab(vocab_list)
+        self.vocab_list_path = vocab_list_path
+        
+        if vocab_list is not None:  # 建立新的词典
+        
+            self.word_to_id, self.id_to_word, self.n_vocab = self.__build_vocab(vocab_list)
 
         else:  # 读取已有的词典
 
-            self.word_to_id, self.id_to_word = self.__load_vocab()
+            self.word_to_id, self.id_to_word, self.n_vocab = self.__load_vocab()
 
     def __build_vocab(self, vocab_list):
         """
@@ -416,20 +413,27 @@ class Vocab:
         :param vocab_list: ['', '[UNK]', '[START]', '[END]', '.', 'que', 'de', 'el', 'a', 'no']
         :return:
         """
+        n_vocab = len(vocab_list)  # 字典的长度
 
-        word_to_id = {word: idx for idx, word in enumerate(vocab_list)}
+        word_to_id = StringLookup(
+                    vocabulary=vocab_list,
+                    mask_token='',
+                    )
 
-        id_to_word = {idx: word for idx, word in enumerate(vocab_list)}
+        id_to_word = StringLookup(
+            vocabulary=vocab_list,
+            mask_token='',
+            invert=True)
 
         save_dict = {}
-        save_dict['word_to_id'] = word_to_id
-        save_dict['id_to_word'] = id_to_word
 
-        with open(self.vocab_path, 'wb') as f:
+        save_dict['vocab_list'] = vocab_list
+
+        with open(self.vocab_list_path, 'wb') as f:
 
             pickle.dump(save_dict, f)
 
-        return word_to_id, id_to_word
+        return word_to_id, id_to_word, n_vocab
 
 
     def __load_vocab(self):
@@ -440,13 +444,24 @@ class Vocab:
         :return:
         """
 
-        with open(self.vocab_path, 'rb') as f:
+        with open(self.vocab_list_path, 'rb') as f:
             save_dict = pickle.load(f)
 
-        word_to_id = save_dict['word_to_id']
-        id_to_word = save_dict['id_to_word']
+        vocab_list = save_dict['vocab_list']
 
-        return word_to_id, id_to_word
+        n_vocab = len(vocab_list)  # 字典的长度
+
+        word_to_id = StringLookup(
+                    vocabulary=vocab_list,
+                    mask_token='',
+                    )
+
+        id_to_word = StringLookup(
+            vocabulary=vocab_list,
+            mask_token='',
+            invert=True)
+
+        return word_to_id, id_to_word, n_vocab
 
     def map_id_to_word(self, id):
         """
@@ -457,10 +472,7 @@ class Vocab:
         :param id:
         :return:
         """
-        if id not in self.id_to_word:
-            return self._unk_str
-        else:
-            return self.id_to_word[id]
+        return self.id_to_word(id)
 
     def map_word_to_id(self, word):
         """
@@ -473,10 +485,7 @@ class Vocab:
         :return:
         """
 
-        if word not in self.word_to_id:
-            return self.word_to_id[self._unk_str]
-        else:
-            return self.word_to_id[word]
+        return self.word_to_id(word)
 
 
 class WMT14_Eng_Ge_Dataset:
@@ -524,8 +533,8 @@ class WMT14_Eng_Ge_Dataset:
         """
         self.cache_data_dir = os.path.join(base_dir, cache_data_folder)
 
-        self.vocab_source = Vocab(os.path.join(self.cache_data_dir, vocab_source_file), build=False)
-        self.vocab_target = Vocab(os.path.join(self.cache_data_dir, vocab_target_file), build=False)
+        self.vocab_source = Vocab(os.path.join(self.cache_data_dir, vocab_source_file))
+        self.vocab_target = Vocab(os.path.join(self.cache_data_dir, vocab_target_file))
 
         preffix = ''
 
@@ -565,23 +574,30 @@ class Test:
 
     def test_DataPreprocess(self):
 
-        # process_obj = DataPreprocess(cache_data_folder='cache_small_data')
-
         process_obj = DataPreprocess(cache_data_folder='cache_data')
 
         process_obj.do_mian(batch_size=256, n_vocab_source=50000, n_vocab_target=50000, max_seq_length=50)
 
-
+        # 使用小的训练数据集进行测试
+        # process_obj = DataPreprocess(cache_data_folder='cache_small_data')
+        #
+        # process_obj.do_mian(batch_size=256, n_vocab_source=5000, n_vocab_target=5000, max_seq_length=50)
 
     def test_WMT14_Eng_Ge_Dataset(self):
 
-        # dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_small_data', mode='train')
+        dataset_train_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_data', mode='train')
 
-        dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_data', mode='train')
+        dataset_infer_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_data', mode='infer')
+
+        # 使用小的训练数据集进行测试
+        # dataset_train_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_small_data', mode='train')
+        #
+        # dataset_infer_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_small_data', mode='infer')
+
 
 
         # 查看 1 个批次的数据
-        for batch_feature, batch_label in tqdm(dataset_obj.train_dataset.take(1)):
+        for batch_feature, batch_label in tqdm(dataset_train_obj.train_dataset.take(1)):
 
             source = batch_feature[0]
 
@@ -598,38 +614,33 @@ class Test:
             print(target_out)
 
 
-        # dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_small_data', mode='infer')
-
-        dataset_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_data', mode='infer')
-
-
         print('test_source_target_dict: ')
-        print(list(dataset_obj.test_source_target_dict.items())[0])
+        print(list(dataset_infer_obj.test_source_target_dict.items())[0])
 
         print('vocab_source: ')
 
-        print('word [START] index: ', dataset_obj.vocab_source.map_word_to_id('[START]'))
-        print('word [END] index: ', dataset_obj.vocab_source.map_word_to_id('[END]'))
-        print('word [UNK] index: ', dataset_obj.vocab_source.map_word_to_id('[UNK]'))
-        print('word [NULL] index: ', dataset_obj.vocab_source.map_word_to_id(''))
-        print('word a index: ', dataset_obj.vocab_source.map_word_to_id('a'))
-        print('word -= index: ', dataset_obj.vocab_source.map_word_to_id('-='))
+        print('word [START] index: ', dataset_infer_obj.vocab_source.map_word_to_id('[START]'))
+        print('word [END] index: ', dataset_infer_obj.vocab_source.map_word_to_id('[END]'))
+        print('word [UNK] index: ', dataset_infer_obj.vocab_source.map_word_to_id('[UNK]'))
+        print('word [NULL] index: ', dataset_infer_obj.vocab_source.map_word_to_id(''))
+        print('word a index: ', dataset_infer_obj.vocab_source.map_word_to_id('a'))
+        print('word -= index: ', dataset_infer_obj.vocab_source.map_word_to_id('-='))
 
 
         print('vocab_target: ')
 
-        print('word [START] index: ', dataset_obj.vocab_target.map_word_to_id('[START]'))
-        print('word [END] index: ', dataset_obj.vocab_target.map_word_to_id('[END]'))
-        print('word [UNK] index: ', dataset_obj.vocab_target.map_word_to_id('[UNK]'))
-        print('word [NULL] index: ', dataset_obj.vocab_target.map_word_to_id(''))
+        print('word [START] index: ', dataset_infer_obj.vocab_target.map_word_to_id('[START]'))
+        print('word [END] index: ', dataset_infer_obj.vocab_target.map_word_to_id('[END]'))
+        print('word [UNK] index: ', dataset_infer_obj.vocab_target.map_word_to_id('[UNK]'))
+        print('word [NULL] index: ', dataset_infer_obj.vocab_target.map_word_to_id(''))
 
-        print('word nämlich index: ', dataset_obj.vocab_target.map_word_to_id('nämlich'))
+        print('word nämlich index: ', dataset_infer_obj.vocab_target.map_word_to_id('nämlich'))
 
-        print('word würden index: ', dataset_obj.vocab_target.map_word_to_id('würden'))
+        print('word würden index: ', dataset_infer_obj.vocab_target.map_word_to_id('würden'))
 
-        print('word üblich index: ', dataset_obj.vocab_target.map_word_to_id('üblich'))
+        print('word üblich index: ', dataset_infer_obj.vocab_target.map_word_to_id('üblich'))
 
-        print('word Ämter index: ', dataset_obj.vocab_target.map_word_to_id('Ämter'))
+        print('word Ämter index: ', int(dataset_infer_obj.vocab_target.map_word_to_id('Ämter')))
 
 
 

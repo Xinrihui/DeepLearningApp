@@ -17,7 +17,7 @@ from tensorflow.keras.models import Model
 from lib.build_dataset_xrh import *
 from lib.evaluate_xrh import *
 from lib.get_dataset_xrh import *
-from lib.tf_data_utils_xrh import *
+from lib.tf_data_tokenize_xrh import *
 
 
 class CheckoutCallback(keras.callbacks.Callback):
@@ -79,12 +79,19 @@ class CheckoutCallback(keras.callbacks.Callback):
         # batch_source_dataset shape (N_batch, encoder_length)
         preds = self.model_infer.predict(self.batch_source_dataset)
 
-        decode_result = np.array(preds)  # shape (N_batch, encoder_length)
+        # decode_result = np.array(preds)  # shape (N_batch, encoder_length)
+        # candidates = []
+        # for prediction in decode_result:
+        #     output = ' '.join(self.vocab_obj.map_id_to_word(prediction))
+        #     candidates.append(output)
 
-        candidates = []
-        for prediction in decode_result:
-            output = ' '.join([self.vocab_obj.map_id_to_word(i) for i in prediction])
-            candidates.append(output)
+        decode_result = self.vocab_obj.map_id_to_word(preds)
+
+        decode_result = tf.strings.reduce_join(decode_result, axis=1,
+                                             separator=' ')
+
+        candidates = [sentence.numpy().decode('utf-8') for sentence in decode_result]
+
 
         bleu_score, _ = self.evaluate_obj.evaluate_bleu(self.references, candidates)
 
@@ -159,24 +166,24 @@ class MachineTranslation:
         self.vocab_source = vocab_source
         self.vocab_target = vocab_target
 
-        self._null = self.vocab_source.map_word_to_id(_null_str)  # 空
-        self._start = self.vocab_source.map_word_to_id(_start_str)  # 句子的开始
-        self._end = self.vocab_source.map_word_to_id(_end_str)  # 句子的结束
-        self._unk = self.vocab_source.map_word_to_id(_unk_str)  # 未登录词
+        self._null = int(self.vocab_source.map_word_to_id(_null_str))  # 空
+        self._start = int(vocab_source.map_word_to_id(_start_str))  # 句子的开始
+        self._end = int(self.vocab_source.map_word_to_id(_end_str))  # 句子的结束
+        self._unk = int(self.vocab_source.map_word_to_id(_unk_str))  # 未登录词
 
         # vocab_source 和 vocab_target 的标号不同
-        self._null_target = self.vocab_target.map_word_to_id(_null_str)  # 空
-        self._start_target = self.vocab_target.map_word_to_id(_start_str)  # 句子的开始
-        self._end_target = self.vocab_target.map_word_to_id(_end_str)  # 句子的结束
-        self._unk_target = self.vocab_target.map_word_to_id(_unk_str)  # 未登录词
+        self._null_target = int(self.vocab_target.map_word_to_id(_null_str))  # 空
+        self._start_target = int(self.vocab_target.map_word_to_id(_start_str))  # 句子的开始
+        self._end_target = int(self.vocab_target.map_word_to_id(_end_str)) # 句子的结束
+        self._unk_target = int(self.vocab_target.map_word_to_id(_unk_str))  # 未登录词
 
         self.model_path = model_path
 
         # 源语言的词表大小
-        self.n_vocab_source = len(self.vocab_source.word_to_id)
+        self.n_vocab_source = self.vocab_source.n_vocab
 
         # 目标语言的词表大小
-        self.n_vocab_target = len(self.vocab_target.word_to_id)
+        self.n_vocab_target = self.vocab_target.n_vocab
 
         # 目标语言的词表大小
 
@@ -433,15 +440,12 @@ class MachineTranslation:
 
         preds = self.model_infer.predict(batch_source)
 
-        decode_result = np.array(preds)  # shape (N, decoder_length)
+        decode_result = self.vocab_target.map_id_to_word(preds)
 
-        candidates = []
+        decode_result = tf.strings.reduce_join(decode_result, axis=1,
+                                             separator=' ')
 
-        # print(decode_result)
-
-        for prediction in decode_result:
-            output = ' '.join([self.vocab_target.map_id_to_word(i) for i in prediction])
-            candidates.append(output)
+        candidates = [sentence.numpy().decode('utf-8') for sentence in decode_result]
 
         return candidates
 
@@ -475,8 +479,8 @@ class Test_WMT14_Eng_Ge_Dataset:
         n_h = 1000
 
         # 词表大小
-        n_vocab_source = len(dataset_obj.vocab_source.word_to_id)  # 源语言的词典大小
-        n_vocab_target = len(dataset_obj.vocab_target.word_to_id)  # 目标语言的词典大小
+        n_vocab_source = dataset_obj.vocab_source.n_vocab  # 源语言的词典大小
+        n_vocab_target = dataset_obj.vocab_target.n_vocab  # 目标语言的词典大小
 
         dropout_rates = (0.8,)
 
@@ -500,7 +504,7 @@ class Test_WMT14_Eng_Ge_Dataset:
                                  )
         # use_pretrain=True: 在已有的模型参数基础上, 进行更进一步的训练
 
-        batch_size = 512
+        batch_size = 256
         buffer_size = 10000
 
         epoch_num = 10
@@ -536,8 +540,8 @@ class Test_WMT14_Eng_Ge_Dataset:
         n_h = 1000
 
         # 词表大小
-        n_vocab_source = len(dataset_obj.vocab_source.word_to_id)  # 源语言的词典大小
-        n_vocab_target = len(dataset_obj.vocab_target.word_to_id)  # 目标语言的词典大小
+        n_vocab_source = dataset_obj.vocab_source.n_vocab # 源语言的词典大小
+        n_vocab_target = dataset_obj.vocab_target.n_vocab # 目标语言的词典大小
 
         dropout_rates = (0.8,)
 
@@ -582,15 +586,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         batch_source_dataset = source_dataset.batch(batch_size)
 
-        # batch_source_dataset shape (N_batch, encoder_length)
-        preds = infer.model_infer.predict(batch_source_dataset)
-
-        decode_result = np.array(preds)  # shape (N_batch, encoder_length)
-
-        candidates = []
-        for prediction in decode_result:
-            output = ' '.join([infer.vocab_target.map_id_to_word(i) for i in prediction])
-            candidates.append(output)
+        candidates = infer.inference(batch_source_dataset)
 
         print('\ncandidates:')
         for i in range(0, 10):
@@ -619,6 +615,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training()
+    test.test_training()
 
-    test.test_evaluating()
+    # test.test_evaluating()
