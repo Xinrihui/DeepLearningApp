@@ -7,6 +7,7 @@ import pickle
 import re
 from collections import *
 import string
+import configparser
 
 import tensorflow as tf
 
@@ -38,55 +39,44 @@ class DataPreprocess:
     """
 
     def __init__(self,
+                 config_path, tag,
                  base_dir='../dataset/WMT-14-English-Germa',
                  cache_data_folder='cache_data',
-                 source_tokenizer_file='tokenizer_source.bin',
-                 target_tokenizer_file='tokenizer_target.bin',
-                 _null_str='',
-                 _start_str='[START]',
-                 _end_str='[END]',
-                 _unk_str='[UNK]',
+
                  tensor_int_type=tf.int32,
                  ):
         """
         :param base_dir:  数据集的路径
         :param cache_data_folder: 预处理结果文件夹
-        :param source_tokenizer_file: 源语言的词典路径
-        :param target_tokenizer_file: 目标语言的词典路径
-        :param  _null_str: 空字符
-        :param  _start_str: 句子的开始字符
-        :param  _end_str: 句子的结束字符
-        :param  _unk_str: 未登录字符
+
         :param  tensor_int_type: 操作系统不同, windows 选择 tf.int32 , linux 选择 tf.int64
 
         """
 
         self.cache_data_dir = os.path.join(base_dir, cache_data_folder)
-
-        self.source_tokenizer_path = os.path.join(self.cache_data_dir, source_tokenizer_file)
-        self.target_tokenizer_path = os.path.join(self.cache_data_dir, target_tokenizer_file)
-
         self.tensor_int_type = tensor_int_type
 
-        # 标准训练数据集
-        self.train_source_corpus_dir = os.path.join(base_dir, 'train.en')
-        self.train_target_corpus_dir = os.path.join(base_dir, 'train.de')
+        config = configparser.ConfigParser()
+        config.read(config_path, 'utf-8')
 
-        # 小的训练集用于测试
-        # self.train_source_corpus_dir = os.path.join(base_dir, 'newstest2012.en')
-        # self.train_target_corpus_dir = os.path.join(base_dir, 'newstest2012.de')
+        current_config = config[tag]
+        print('current config tag:{}'.format(tag))
 
-        self.valid_source_corpus_dir = os.path.join(base_dir, 'newstest2013.en')
-        self.valid_target_corpus_dir = os.path.join(base_dir, 'newstest2013.de')
+        self.train_source_corpus_dir = os.path.join(base_dir, current_config['train_source_corpus'])
+        self.train_target_corpus_dir = os.path.join(base_dir, current_config['train_target_corpus'])
 
-        self.test_source_corpus_dir = os.path.join(base_dir, 'newstest2014.en')
-        self.test_target_corpus_dir = os.path.join(base_dir, 'newstest2014.de')
+        self.valid_source_corpus_dir = os.path.join(base_dir,  current_config['valid_source_corpus'])
+        self.valid_target_corpus_dir = os.path.join(base_dir,  current_config['valid_target_corpus'])
+
+        self.test_source_corpus_dir = os.path.join(base_dir,  current_config['test_source_corpus'])
+        self.test_target_corpus_dir = os.path.join(base_dir,  current_config['test_target_corpus'])
 
 
-        self._null_str = _null_str
-        self._start_str = _start_str
-        self._end_str = _end_str
-        self._unk_str = _unk_str
+        self._null_str = current_config['_null_str']
+        self._start_str = current_config['_start_str']
+        self._end_str = current_config['_end_str']
+        self._unk_str = current_config['_unk_str']
+
 
         # 删除在各个语系外的字符
         self.remove_unk = r'[^\p{Latin}|[:print:]]'
@@ -130,7 +120,8 @@ class DataPreprocess:
             text_data = []
 
             for line in lines:
-                sentence = line.rstrip("\n")
+
+                sentence = line.strip()
 
                 # 句子的左右端点统一补充 1个空格
                 # sentence = " " + sentence + " "
@@ -148,22 +139,20 @@ class DataPreprocess:
         :return:
         """
 
-        text = tf_text.normalize_utf8(text)
-
         # 删除在各个语系外的字符
         text = tf.strings.regex_replace(text, self.remove_unk, ' ')
 
         # 清除指定单词
         text = tf.strings.regex_replace(text, self.remove_words, '')
 
+        # NKFC unicode 标准化 +  大小写折叠
+        text = tf_text.case_fold_utf8(text)
+
         # 清除句子中的标点符号
         text = tf.strings.regex_replace(text, self.remove_punc, ' ')  # 空1格
 
         # 清除句子中的独立数字
-        text = tf.strings.regex_replace(text, self.remove_digits, ' ')  # 空1格
-
-        # 全部转成小写
-        text = tf.strings.lower(text)
+        text = tf.strings.regex_replace(text, self.remove_digits, '')
 
         # 清除左右端点的空格
         text = tf.strings.strip(text)
@@ -178,8 +167,12 @@ class DataPreprocess:
         对语料库中的句子进行预处理, 包括删除标点符号
 
         :param text_data:
+        :param buffer_size:
+        :param batch_size:
+
         :return:
         """
+
         text_dataset = tf.data.Dataset.from_tensor_slices(text_data).batch(batch_size)  # 分块后可以加速计算, 后面每次读取都是一块
 
         text_preprocess_dataset = text_dataset.map(lambda batch_text:
@@ -188,26 +181,28 @@ class DataPreprocess:
         return text_preprocess_dataset
 
 
-    def tokenize_corpus(self, text_data, n_vocab, batch_size=64, max_seq_length=50):
+    def tokenize_corpus(self, text_data, n_vocab, tokenizer_file, do_persist=True, batch_size=64):
         """
         对语料库中的句子进行标记化, 同时生成词典
 
         :param text_data: 句子的列表
         :param n_vocab: 词表大小
-        :param max_seq_length: 最大的序列的长度
+        :param tokenizer_file: 标记模型的文件
+        :param do_persist: 是否持久化标记模型
+        :param batch_size:
 
         :return:
         """
 
-        # max_tokens: 保留出现次数最多的 top-k 个单词
-        # 若 output_sequence_length=None, 自动将语料库中最长的句子的长度作为 padding 的长度
-
-        text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size)
+        text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
 
         tokenizer = TextVectorization(
                     standardize=None,
-                    output_sequence_length=max_seq_length,
+                    # output_sequence_length=max_seq_length,
                     max_tokens=n_vocab)
+        # (1) max_tokens: 保留出现次数最多的 top-k 个单词
+        # (2) 若 output_sequence_length=None, 自动将本 batch 中最长的句子的长度作为 padding 的长度
+        #  在 padding 时 每一个 batch 中的序列的长度可能不同, 在同个 batch 中自然是统一的
 
         tokenizer.adapt(text_preprocess_dataset)
 
@@ -218,43 +213,57 @@ class DataPreprocess:
         print('vocab_list: ', vocab_list[:20])
 
         # 标记化所有的句子, 包括 padding
-        text_vector_dataset = text_preprocess_dataset.map(lambda batch_text: tokenizer(batch_text))
+        # text_vector_dataset = text_preprocess_dataset.map(lambda batch_text: tokenizer(batch_text))
+        # print('tokenize text complete ')
 
-        print('tokenize text complete ')
+        if do_persist:
+            # 持久化 tokenizer
+            tokenizer_path = os.path.join(self.cache_data_dir, tokenizer_file)
+            model = tf.keras.Sequential(tokenizer)
+            model.save(tokenizer_path)
 
-        return  text_vector_dataset, tokenizer, vocab_list
+        return text_preprocess_dataset, tokenizer, vocab_list
 
-
-    def tf_data_pipline(self, source_vector, target_vector, reverse_source=True, do_persist=False, dataset_file=None):
+    def tf_data_pipline(self, source_dataset, target_dataset, mode='mid', tokenizer_source=None, tokenizer_target=None, do_persist=False, dataset_file=None):
         """
         利用 tf.data 数据流水线 建立数据集,
 
-        :param source_vector:
-        :param target_vector:
-        :param reverse_source: 是否将源句子反转
+        :param source_dataset:
+        :param target_target:
+        :param tokenizer_source:
+        :param tokenizer_target:
+
         :param do_persist:
         :param dataset_file:
-
         :return:
         """
 
-        assert len(source_vector) == len(target_vector)
+        assert len(source_dataset) == len(target_dataset)
 
-        print('dataset batch num: ', len(source_vector))
+        print('dataset batch num: ', len(source_dataset))
 
-        # 输入 和 输出的 target 要错开一位
-        target_out = target_vector.map(lambda batch_text: batch_text[:, 1:], num_parallel_calls=tf.data.AUTOTUNE)
-        target_in = target_vector.map(lambda batch_text: batch_text[:, :-1], num_parallel_calls=tf.data.AUTOTUNE)
+        dataset = None
 
-        if reverse_source:  # 将源句子反转
-            source_vector = source_vector.map(lambda batch_text: batch_text[:, ::-1], num_parallel_calls=tf.data.AUTOTUNE)
+        if mode == 'final':  # 返回最终的数据集, 模型可以直接加载进入训练
 
-        # 特征和标签分开, 之后再合并
-        features_dataset = tf.data.Dataset.zip((source_vector, target_in))
-        labels_dataset = target_out
+            # 将文本标记化, 每一个 batch 中的 序列的长度相同
+            source_vector = source_dataset.map(lambda batch_text: tokenizer_source(batch_text))
+            target_vector = target_dataset.map(lambda batch_text: tokenizer_target(batch_text))
 
-        # 特征 和 标签 合并
-        dataset = tf.data.Dataset.zip((features_dataset, labels_dataset)).unbatch()  # 清除掉 batch 索引
+            print('tokenize text complete ')
+
+            # 输入 和 输出的 target 要错开一位
+            target_out = target_vector.map(lambda batch_text: batch_text[:, 1:], num_parallel_calls=tf.data.AUTOTUNE)
+            target_in = target_vector.map(lambda batch_text: batch_text[:, :-1], num_parallel_calls=tf.data.AUTOTUNE)
+
+            features = tf.data.Dataset.zip((source_vector, target_in))
+            labels = target_out
+
+            dataset = tf.data.Dataset.zip((features, labels))
+
+        elif mode == 'mid':  # 返回中间态的数据集, 模型需要做进一步预处理
+
+            dataset = tf.data.Dataset.zip((source_dataset, target_dataset))
 
         if do_persist:
             dataset_path = os.path.join(self.cache_data_dir, dataset_file)
@@ -263,46 +272,35 @@ class DataPreprocess:
         return dataset
 
 
-    def build_source_target_dict(self, source_text, source_vector, target_text, reverse_source=True, do_persist=False, source_target_dict_file=None):
+    def build_source_target_dict(self, source_text, target_text,  do_persist=False, source_target_dict_file=None):
         """
 
         1.待翻译的源语句会对应多个人工翻译的标准句子, 因此需要组合源语句和目标语句, 并返回组合后的字典
 
         :param source_text:
-        :param source_vector:
         :param target_text:
-        :param reverse_source: 是否将源句子反转
         :param do_persist: 将结果持久化到磁盘
         :param source_target_dict_file:
 
         :return:
             source_target_dict
             = {
-                b'<START> republican leaders justified their... <END>' : {
-                        'vector': array([1,.....,0])
-                        'target': [b'<START> Die Führungskräfte der Republikaner rechtfertigen... <END>' ]
-                     }
+                '<START> republican leaders justified their... <END>' :
+                 ['<START> Die Führungskräfte der Republikaner rechtfertigen... <END>' ]
+
               }
         """
 
-        source_text = source_text.unbatch()
-        source_vector = source_vector.unbatch()
+        source_text = source_text.unbatch()  # 将批数据还原为一行一行
         target_text = target_text.unbatch()
 
         source_target_dict = {}
 
-        for source, vector, target in zip(source_text, source_vector, target_text):
+        for source, target in zip(source_text, target_text):
 
-                key = source.numpy().decode('utf-8')
-                source_target_dict[key] = {}
+            key = source.numpy().decode('utf-8')
+            source_target_dict[key] = [target.numpy().decode('utf-8')]
 
-                source_vec = vector.numpy()
-
-                if reverse_source:
-                    source_vec = source_vec[::-1]
-
-                source_target_dict[key]['vector'] = source_vec
-                source_target_dict[key]['target'] = [target.numpy().decode('utf-8')]
 
         if do_persist:
 
@@ -315,15 +313,87 @@ class DataPreprocess:
 
         return source_target_dict
 
+    def __get_seq_length(self, seq_list):
+        """
+        统计序列的长度
 
-    def do_mian(self, batch_size, n_vocab_source, n_vocab_target, max_seq_length):
+        :param seq_list:
+        :return:
+        """
+        # length_dict = { 句子标号: 句子的长度,  }
+        length_dict = {}
+
+        for i, seq in enumerate(seq_list):
+
+            seq_arr = seq.split(" ")
+
+            length_dict[i] = len(seq_arr)
+
+        return length_dict
+
+    def statistic_seq_length(self, length_dict):
+        """
+        统计语料中句子的长度的分布
+
+        :param length_dict: 序列的长度字典
+                    length_dict = { 句子标号: 句子的长度,  }
+        :return:
+        """
+
+        length_counter = Counter(length_dict.values())
+        # length_counter = { 句子的长度: 该长度的句子的个数 }
+
+        print('most common seq length: (seq length, count num)')
+
+        print(length_counter.most_common(10))
+
+        length_counter_list = sorted(length_counter.items(), key=lambda t: t[0], reverse=True)
+
+        print('seq length count:  (seq length, count num)')
+
+        print(length_counter_list)
+
+        return length_counter_list
+
+    def filter_by_seq_length(self, source_seq_list, target_seq_list, max_seq_length):
+        """
+        过滤掉超出设定长度的序列
+
+        :param source_seq_list:
+        :param target_seq_list:
+        :param max_seq_length:
+        :return:
+        """
+        assert len(source_seq_list) == len(target_seq_list)  # 平行语料, 序列的个数必须相同
+
+        source_length_dict = self.__get_seq_length(source_seq_list)
+        target_length_dict = self.__get_seq_length(target_seq_list)
+
+        # 统计语料中句子的长度的分布
+        _ = self.statistic_seq_length(source_length_dict)
+
+        res_source_seq_list = []
+        res_target_seq_list = []
+
+        for i in range(len(source_seq_list)):
+
+            if source_length_dict[i] <= max_seq_length and target_length_dict[i] <= max_seq_length:
+
+                res_source_seq_list.append(source_seq_list[i])
+                res_target_seq_list.append(target_seq_list[i])
+
+        return res_source_seq_list, res_target_seq_list
+
+
+    def do_mian(self, batch_size, n_vocab_source, n_vocab_target, max_seq_length, test_max_seq_length):
         """
         数据集预处理的主流程
 
         :param batch_size: 一个批次的大小
         :param n_vocab_source: 源语言的词典大小
         :param n_vocab_target: 目标语言的词典大小
-        :param max_seq_length: 最大序列的长度
+        :param max_seq_length: 最大序列的长度(训练集和验证集)
+        :param test_max_seq_length: 最大序列的长度(测试集)
 
         :return:
         """
@@ -334,8 +404,12 @@ class DataPreprocess:
         train_source_text = self.load_corpus_data(corpus_file_dir=self.train_source_corpus_dir)
         train_target_text = self.load_corpus_data(corpus_file_dir=self.train_target_corpus_dir)
 
-        train_source_vector, tokenizer_source, vocab_source_list = self.tokenize_corpus(train_source_text, n_vocab_source, batch_size=batch_size, max_seq_length=max_seq_length)
-        train_target_vector, tokenizer_target, vocab_target_list = self.tokenize_corpus(train_target_text, n_vocab_target, batch_size=batch_size, max_seq_length=max_seq_length)
+        # 过滤掉长度 大于 max_seq_length 的序列
+        train_source_text, train_target_text = self.filter_by_seq_length(train_source_text, train_target_text, max_seq_length)
+
+        train_source_dataset, tokenizer_source, vocab_source_list = self.tokenize_corpus(text_data=train_source_text, n_vocab=n_vocab_source, batch_size=batch_size, tokenizer_file='tokenizer_source_model')
+        train_target_dataset, tokenizer_target, vocab_target_list = self.tokenize_corpus(text_data=train_target_text, n_vocab=n_vocab_target, batch_size=batch_size, tokenizer_file='tokenizer_target_model')
+
 
         # 建立字典
         print('build the vocab...')
@@ -343,8 +417,8 @@ class DataPreprocess:
         vocab_target = Vocab(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.bin'))
 
         # 训练数据集
-        train_dataset = self.tf_data_pipline(train_source_vector, train_target_vector, reverse_source=False, do_persist=True, dataset_file='train_dataset.bin')
-        reverse_train_dataset = self.tf_data_pipline(train_source_vector, train_target_vector, reverse_source=True, do_persist=True, dataset_file='reverse_train_dataset.bin')
+        train_dataset = self.tf_data_pipline(train_source_dataset, train_target_dataset, mode='mid',
+                                             do_persist=True, dataset_file='train_dataset.bin')
 
 
         # 2.验证数据处理
@@ -353,37 +427,33 @@ class DataPreprocess:
         valid_source_text = self.load_corpus_data(corpus_file_dir=self.valid_source_corpus_dir)
         valid_target_text = self.load_corpus_data(corpus_file_dir=self.valid_target_corpus_dir)
 
-        valid_source = self.preprocess_corpus(valid_source_text, batch_size=batch_size)
-        valid_target = self.preprocess_corpus(valid_target_text, batch_size=batch_size)
+        # 过滤掉长度 大于 max_seq_length 的序列
+        valid_source_text, valid_target_text = self.filter_by_seq_length(valid_source_text, valid_target_text, max_seq_length)
 
-        valid_source_vector = valid_source.map(lambda batch_text: tokenizer_source(batch_text))
-        valid_target_vector = valid_target.map(lambda batch_text: tokenizer_target(batch_text))
+        valid_source_dataset = self.preprocess_corpus(valid_source_text,  batch_size=batch_size)
+        valid_target_dataset = self.preprocess_corpus(valid_target_text,  batch_size=batch_size)
 
         # 验证数据集
-        valid_dataset = self.tf_data_pipline(valid_source_vector, valid_target_vector, reverse_source=False, do_persist=True, dataset_file='valid_dataset.bin')
-        reverse_valid_dataset = self.tf_data_pipline(valid_source_vector, valid_target_vector, reverse_source=True, do_persist=True, dataset_file='reverse_valid_dataset.bin')
-
+        valid_dataset = self.tf_data_pipline(valid_source_dataset, valid_target_dataset, mode='mid',
+                                             do_persist=True, dataset_file='valid_dataset.bin')
 
         # 验证数据 source_target_dict
-        self.build_source_target_dict(valid_source, valid_source_vector, valid_target, reverse_source=False, do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
-        self.build_source_target_dict(valid_source, valid_source_vector, valid_target, reverse_source=True, do_persist=True, source_target_dict_file='reverse_valid_source_target_dict.bin')
-
+        self.build_source_target_dict(valid_source_dataset, valid_target_dataset, do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
 
         # 3.测试数据处理
-
         print('preprocess the test dataset...')
 
         test_source_text = self.load_corpus_data(corpus_file_dir=self.test_source_corpus_dir)
         test_target_text = self.load_corpus_data(corpus_file_dir=self.test_target_corpus_dir)
 
-        test_source = self.preprocess_corpus(test_source_text, batch_size=batch_size)
-        test_target = self.preprocess_corpus(test_target_text, batch_size=batch_size)
+        # 过滤掉长度 大于 test_max_seq_length 的序列
+        test_source_text, test_target_text = self.filter_by_seq_length(test_source_text, test_target_text, max_seq_length=test_max_seq_length)
 
-        test_source_vector = test_source.map(lambda batch_text: tokenizer_source(batch_text))
+        test_source_dataset = self.preprocess_corpus(test_source_text, batch_size=batch_size)
+        test_target_dataset = self.preprocess_corpus(test_target_text, batch_size=batch_size)
 
         # 测试数据 source_target_dict
-        self.build_source_target_dict(test_source, test_source_vector, test_target, reverse_source=False, do_persist=True, source_target_dict_file='test_source_target_dict.bin')
-        self.build_source_target_dict(test_source, test_source_vector, test_target, reverse_source=True, do_persist=True, source_target_dict_file='reverse_test_source_target_dict.bin')
+        self.build_source_target_dict(test_source_dataset, test_target_dataset, do_persist=True, source_target_dict_file='test_source_target_dict.bin')
 
 
 class Vocab:
@@ -463,20 +533,20 @@ class Vocab:
 
         return word_to_id, id_to_word, n_vocab
 
-    def map_id_to_word(self, id):
+    def map_id_to_word(self, ids):
         """
-        输入单词标号, 返回单词
+        输入单词标号列表, 返回单词列表
 
         1.若单词标号未在 逆词典中, 返回 '<UNK>'
 
-        :param id:
+        :param ids:
         :return:
         """
-        return self.id_to_word(id)
+        return self.id_to_word(ids)
 
-    def map_word_to_id(self, word):
+    def map_word_to_id(self, words):
         """
-        输入单词, 返回单词标号
+        输入单词列表, 返回单词标号列表
 
         考虑未登录词:
         1.若输入的单词不在词典中, 返回 '<UNK>' 的标号
@@ -485,7 +555,7 @@ class Vocab:
         :return:
         """
 
-        return self.word_to_id(word)
+        return self.word_to_id(words)
 
 
 class WMT14_Eng_Ge_Dataset:
@@ -506,13 +576,15 @@ class WMT14_Eng_Ge_Dataset:
                  vocab_source_file='vocab_source.bin',
                  vocab_target_file='vocab_target.bin',
 
+                 tokenizer_source_file='tokenizer_source_model',
+                 tokenizer_target_file='tokenizer_target_model',
+
                  train_dataset_file='train_dataset.bin',
                  valid_dataset_file='valid_dataset.bin',
 
                  valid_source_target_dict_file='valid_source_target_dict.bin',
                  test_source_target_dict_file='test_source_target_dict.bin',
 
-                 reverse_source=True,
                  mode='train'
                  ):
         """
@@ -525,7 +597,6 @@ class WMT14_Eng_Ge_Dataset:
         :param valid_dataset_file:
         :param valid_source_target_dict_file:
         :param test_source_target_dict_file:
-        :param reverse_source: 是否将源句子反转
         :param mode: 当前处在的模式, 可以选择
                     'train' - 训练模式
                     'infer' - 推理模式
@@ -536,10 +607,10 @@ class WMT14_Eng_Ge_Dataset:
         self.vocab_source = Vocab(os.path.join(self.cache_data_dir, vocab_source_file))
         self.vocab_target = Vocab(os.path.join(self.cache_data_dir, vocab_target_file))
 
-        preffix = ''
+        self.tokenizer_source = tf.keras.models.load_model(os.path.join(self.cache_data_dir, tokenizer_source_file))
+        self.tokenizer_target = tf.keras.models.load_model(os.path.join(self.cache_data_dir, tokenizer_target_file))
 
-        if reverse_source:
-            preffix = 'reverse_'
+        preffix = ''
 
         if mode == 'train':
 
@@ -572,46 +643,40 @@ class WMT14_Eng_Ge_Dataset:
 
 class Test:
 
-    def test_DataPreprocess(self):
+    def test_DataPreprocess(self, config_path='config.ini', tag='DEFAULT'):
 
-        process_obj = DataPreprocess(cache_data_folder='cache_data')
+        config = configparser.ConfigParser()
+        config.read(config_path, 'utf-8')
+        current_config = config[tag]
 
-        process_obj.do_mian(batch_size=256, n_vocab_source=50000, n_vocab_target=50000, max_seq_length=50)
+        process_obj = DataPreprocess(config_path=config_path, tag=tag, cache_data_folder=current_config['cache_data_folder'])
 
-        # 使用小的训练数据集进行测试
-        # process_obj = DataPreprocess(cache_data_folder='cache_small_data')
-        #
-        # process_obj.do_mian(batch_size=256, n_vocab_source=5000, n_vocab_target=5000, max_seq_length=50)
+        process_obj.do_mian(batch_size=int(current_config['batch_size']), n_vocab_source=int(current_config['n_vocab_source']),
+                            n_vocab_target=int(current_config['n_vocab_target']), max_seq_length=int(current_config['max_seq_length']), test_max_seq_length=int(current_config['test_max_seq_length']))
 
-    def test_WMT14_Eng_Ge_Dataset(self):
+    def test_WMT14_Eng_Ge_Dataset(self, config_path='config.ini', tag='DEFAULT'):
 
-        dataset_train_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_data', mode='train')
+        config = configparser.ConfigParser()
+        config.read(config_path, 'utf-8')
+        current_config = config[tag]
 
-        dataset_infer_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_data', mode='infer')
-
-        # 使用小的训练数据集进行测试
-        # dataset_train_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_small_data', mode='train')
-        #
-        # dataset_infer_obj = WMT14_Eng_Ge_Dataset(reverse_source=True, cache_data_folder='cache_small_data', mode='infer')
-
+        dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], mode='train')
+        dataset_infer_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
 
         # 查看 1 个批次的数据
-        for batch_feature, batch_label in tqdm(dataset_train_obj.train_dataset.take(1)):
-
-            source = batch_feature[0]
-
-            target_in = batch_feature[1]
-            target_out = batch_label
+        for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
 
             print('source:')
             print(source)
 
-            print('target_in:')
-            print(target_in)
+            source_vector = dataset_train_obj.tokenizer_source(source).to_tensor()
+            print('source_vector:')
+            print(source_vector)
 
-            print('target_out:')
-            print(target_out)
+            print('target:')
+            print(target)
+
 
 
         print('test_source_target_dict: ')
@@ -642,13 +707,13 @@ class Test:
 
         print('word Ämter index: ', int(dataset_infer_obj.vocab_target.map_word_to_id('Ämter')))
 
-
+        print('word ämter index: ', int(dataset_infer_obj.vocab_target.map_word_to_id('ämter')))
 
 if __name__ == '__main__':
     test = Test()
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess()
+    # test.test_DataPreprocess(tag='TEST')
 
-    test.test_WMT14_Eng_Ge_Dataset()
+    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
