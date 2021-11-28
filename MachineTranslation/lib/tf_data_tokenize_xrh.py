@@ -469,69 +469,27 @@ class Vocab:
         self.vocab_list_path = vocab_list_path
         
         if vocab_list is not None:  # 建立新的词典
-        
-            self.word_to_id, self.id_to_word, self.n_vocab = self.__build_vocab(vocab_list)
+
+            save_dict = {}
+
+            self.vocab_list = vocab_list
+
+            self.n_vocab = len(self.vocab_list)  # 字典的长度
+
+            save_dict['vocab_list'] = vocab_list
+
+            with open(self.vocab_list_path, 'wb') as f:
+
+                pickle.dump(save_dict, f)
 
         else:  # 读取已有的词典
 
-            self.word_to_id, self.id_to_word, self.n_vocab = self.__load_vocab()
+            with open(self.vocab_list_path, 'rb') as f:
+                save_dict = pickle.load(f)
 
-    def __build_vocab(self, vocab_list):
-        """
-        建立词典
+            self.vocab_list = save_dict['vocab_list']
+            self.n_vocab = len(self.vocab_list)  # 字典的长度
 
-        :param vocab_list: ['', '[UNK]', '[START]', '[END]', '.', 'que', 'de', 'el', 'a', 'no']
-        :return:
-        """
-        n_vocab = len(vocab_list)  # 字典的长度
-
-        word_to_id = StringLookup(
-                    vocabulary=vocab_list,
-                    mask_token='',
-                    )
-
-        id_to_word = StringLookup(
-            vocabulary=vocab_list,
-            mask_token='',
-            invert=True)
-
-        save_dict = {}
-
-        save_dict['vocab_list'] = vocab_list
-
-        with open(self.vocab_list_path, 'wb') as f:
-
-            pickle.dump(save_dict, f)
-
-        return word_to_id, id_to_word, n_vocab
-
-
-    def __load_vocab(self):
-        """
-        读取词典
-
-        :param vocab_path:
-        :return:
-        """
-
-        with open(self.vocab_list_path, 'rb') as f:
-            save_dict = pickle.load(f)
-
-        vocab_list = save_dict['vocab_list']
-
-        n_vocab = len(vocab_list)  # 字典的长度
-
-        word_to_id = StringLookup(
-                    vocabulary=vocab_list,
-                    mask_token='',
-                    )
-
-        id_to_word = StringLookup(
-            vocabulary=vocab_list,
-            mask_token='',
-            invert=True)
-
-        return word_to_id, id_to_word, n_vocab
 
     def map_id_to_word(self, ids):
         """
@@ -542,7 +500,13 @@ class Vocab:
         :param ids:
         :return:
         """
-        return self.id_to_word(ids)
+
+        id_to_word = StringLookup(
+            vocabulary=self.vocab_list,
+            mask_token='',
+            invert=True)
+
+        return id_to_word(ids)
 
     def map_word_to_id(self, words):
         """
@@ -555,7 +519,12 @@ class Vocab:
         :return:
         """
 
-        return self.word_to_id(words)
+        word_to_id = StringLookup(
+                    vocabulary=self.vocab_list,
+                    mask_token='',
+                    )
+
+        return word_to_id(words)
 
 
 class WMT14_Eng_Ge_Dataset:
@@ -668,14 +637,14 @@ class Test:
         for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
 
             print('source:')
-            print(source)
+            print(source[:10])
 
             source_vector = dataset_train_obj.tokenizer_source(source).to_tensor()
             print('source_vector:')
             print(source_vector)
 
             print('target:')
-            print(target)
+            print(target[:10])
 
 
 

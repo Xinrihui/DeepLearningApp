@@ -172,7 +172,7 @@ class MachineTranslation:
         print('-------------------------')
 
         self._null = int(self.vocab_source.map_word_to_id(_null_str))  # 空
-        self._start = int(vocab_source.map_word_to_id(_start_str))  # 句子的开始
+        self._start = int(self.vocab_source.map_word_to_id(_start_str))  # 句子的开始
         self._end = int(self.vocab_source.map_word_to_id(_end_str))  # 句子的结束
         self._unk = int(self.vocab_source.map_word_to_id(_unk_str))  # 未登录词
 
