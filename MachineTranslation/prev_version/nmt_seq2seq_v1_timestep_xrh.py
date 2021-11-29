@@ -14,7 +14,7 @@ import tensorflow.keras as keras
 
 from tensorflow.keras.models import Model
 
-from build_dataset_xrh import *
+from lib.build_dataset_xrh import *
 from lib.evaluate_xrh import *
 from lib.get_dataset_xrh import *
 

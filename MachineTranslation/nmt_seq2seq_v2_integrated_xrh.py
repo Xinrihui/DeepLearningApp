@@ -21,99 +21,16 @@ import time
 import configparser
 import json
 
-class CheckoutCallback:
-    """
-    回调函数, 实现在每一次 epoch 后 checkout 训练好的模型,
-    并且计算在验证集上的 bleu 分数
-
-    """
-
-    def __init__(self, current_config,
-                 model, vocab_obj, valid_source_target_dict,
-                 checkpoint_models_path):
-
-        self.model = model
-        self.vocab_obj = vocab_obj
-
-        self.batch_source_dataset, self.references = self.prepare_valid_data(batch_size=int(current_config['n_h']),
-                                                                           valid_source_target_dict=valid_source_target_dict)
-
-        self.target_length = int(current_config['test_max_seq_length'])
-
-        self.evaluate_obj = Evaluate(
-            with_unk=True,
-            _null_str=current_config['_null_str'],
-            _start_str=current_config['_start_str'],
-            _end_str=current_config['_end_str'],
-            _unk_str=current_config['_unk_str'])
-
-        self.checkpoint_models_path = checkpoint_models_path
-
-    def prepare_valid_data(self, batch_size, valid_source_target_dict):
-        """
-        返回 图片的 embedding 向量 和 图片对应的 caption
-
-        :param batch_size:
-        :param valid_source_target_dict:
-        :return:
-        """
-
-        source_list = list(valid_source_target_dict.keys())
-
-        print('valid source seq num :{}'.format(len(source_list)))
-
-        references = [valid_source_target_dict[source] for source in source_list]
-
-        source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
-
-        batch_source_dataset = source_dataset.batch(batch_size)
-
-        return batch_source_dataset, references
-
-    def inference_bleu(self):
-        """
-        使用验证数据集进行推理, 并计算 bleu
-
-        :return:
-        """
-
-        # batch_source_dataset shape (N_batch, encoder_length)
-
-        preds = self.model.predict(self.batch_source_dataset, self.target_length)
-
-        decode_result = self.vocab_obj.map_id_to_word(preds)
-
-        decode_result = tf.strings.reduce_join(decode_result, axis=1,
-                                               separator=' ')
-
-        candidates = [sentence.numpy().decode('utf-8') for sentence in decode_result]
-
-        bleu_score, _ = self.evaluate_obj.evaluate_bleu(self.references, candidates)
-
-        print()
-        print('bleu_score:{}'.format(bleu_score))
-
-    def on_epoch_end(self, epoch, logs=None):
-
-        # checkout 模型
-        fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
-
-        # self.model.save(fmt % (epoch, logs['val_loss']))
-
-        tf.saved_model.save(self.model, fmt % (epoch, logs['val_loss']))
-
-        # 计算 bleu 分数
-        self.inference_bleu()
-
 
 class MachineTranslation:
     """
 
-    基于 seq2seq 的神经机器翻译模型 (v2)
+    基于 seq2seq 的神经机器翻译模型 (v2-integrated)
 
-    1. 多层的 LSTM 的堆叠 , 中间使用 dropout 连接
-    2. 实现了基于 tf.data 的数据预处理 pipline, 同时使用 TextVectorization 和 StringLookup 构建字典
-    3. 采用动态图构建模型, 并从头编写训练循环
+    1. 解码采用一体化模型 (integrated model)的方式, 即建立推理计算图, 将每一步的解码都在计算图中完成
+    2. 实现了基于 tf.data 的数据预处理 pipline, 使用 TextVectorization 和 StringLookup 做句子的向量化和反向量化
+    3. 采用动态图构建模型, 并从头编写训练循环;
+    4. 在配置中心中维护超参数
 
     Author: xrh
     Date: 2021-11-20
@@ -148,6 +65,8 @@ class MachineTranslation:
 
         self.n_h = int(current_config['n_h'])
         self.n_embedding = int(current_config['n_embedding'])
+
+        self.target_length = int(current_config['max_seq_length'])
 
         self.dropout_rates = json.loads(current_config['dropout_rates'])
 
@@ -185,17 +104,19 @@ class MachineTranslation:
         self.model_path = current_config['model_path']
 
         # 构建模型
+        self.model = Seq2seqModel(n_embedding=self.n_embedding, n_h=self.n_h, target_length=self.target_length,
+                                  n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
+                                  tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+                                  _start_target=self._start_target, _null_target=self._null_target,
+                                  dropout_rates=self.dropout_rates)
+
+
         if use_pretrain:  # 载入训练好的模型
 
-            self.seq2seq_model = tf.saved_model.load(self.model_path)
+            # self.model = tf.saved_model.load(self.model_path)
 
-        else:
+            self.model.load_weights(self.model_path)
 
-            self.seq2seq_model = Seq2seqModel(n_embedding=self.n_embedding, n_h=self.n_h,
-                                              n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
-                                              tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
-                                              _start_target=self._start_target, _null_target=self._null_target,
-                                              dropout_rates=self.dropout_rates)
 
     def _shuffle_dataset(self, dataset, buffer_size, batch_size):
         """
@@ -247,62 +168,143 @@ class MachineTranslation:
         early_stop = EarlyStopping('val_loss', patience=5)
 
         model_checkpoint_with_eval = CheckoutCallback(current_config=self.current_config,
-                                                      model=self.seq2seq_model,
+                                                      model=self.model,
                                                       vocab_obj=self.vocab_target, valid_source_target_dict=valid_source_target_dict,
                                                       checkpoint_models_path=checkpoint_models_path)
 
         # Final callbacks
         # callbacks = [model_checkpoint_with_eval, early_stop, tensor_board]
 
-        history = self.seq2seq_model.fit(
+        history = self.model.fit(
             epoch_num=epoch_num, train_dataset=train_dataset_prefetch, valid_dataset=valid_dataset_prefetch,
             callback_obj=model_checkpoint_with_eval
             )
 
         # 将训练好的模型保存到文件
-        self.seq2seq_model.save(self.model_path)
+        # self.model.save(self.model_path)
 
 
 
-    def inference(self, batch_source):
+    def inference(self, batch_source_dataset, target_length):
         """
         使用训练好的模型进行推理
 
-        :param batch_source:
+        :param batch_source_dataset:
 
         :return:
         """
-        # 打印 模型(计算图) 的所有网络层
-        print(self.model_infer.summary())
 
-        # 输出推理计算图的图片
-        # plot_model(self.model_infer, to_file='docs/images/model_infer.png', show_layer_names=True, show_shapes=True)
+        # batch_source_dataset shape (N_batch, encoder_length)
 
-        preds = self.model_infer.predict(batch_source)
+        preds = self.model.predict(batch_source_dataset, target_length)
 
         decode_result = self.vocab_target.map_id_to_word(preds)
 
         decode_result = tf.strings.reduce_join(decode_result, axis=1,
                                                separator=' ')
 
-        candidates = [sentence.numpy().decode('utf-8') for sentence in decode_result]
+        candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
         return candidates
+
+class CheckoutCallback:
+    """
+    回调函数, 实现在每一次 epoch 后 checkout 训练好的模型,
+    并且计算在验证集上的 bleu 分数
+
+    """
+
+    def __init__(self, current_config,
+                 model, vocab_obj, valid_source_target_dict,
+                 checkpoint_models_path):
+
+        self.model = model
+        self.vocab_obj = vocab_obj
+
+        self.batch_source_dataset, self.references = self.prepare_valid_data(batch_size=int(current_config['batch_size']),
+                                                                           valid_source_target_dict=valid_source_target_dict)
+
+        self.target_length = int(current_config['max_seq_length'])
+
+        self.evaluate_obj = Evaluate(
+            with_unk=True,
+            _null_str=current_config['_null_str'],
+            _start_str=current_config['_start_str'],
+            _end_str=current_config['_end_str'],
+            _unk_str=current_config['_unk_str'])
+
+        self.checkpoint_models_path = checkpoint_models_path
+
+    def prepare_valid_data(self, batch_size, valid_source_target_dict):
+        """
+        返回 图片的 embedding 向量 和 图片对应的 caption
+
+        :param batch_size:
+        :param valid_source_target_dict:
+        :return:
+        """
+
+        source_list = list(valid_source_target_dict.keys())
+
+        print('valid source seq num :{}'.format(len(source_list)))
+
+        references = [valid_source_target_dict[source] for source in source_list]
+
+        source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
+
+        batch_source_dataset = source_dataset.batch(batch_size)
+
+        return batch_source_dataset, references
+
+    def inference_bleu(self):
+        """
+        使用验证数据集进行推理, 并计算 bleu
+
+        :return:
+        """
+
+        # batch_source_dataset shape (N_batch, encoder_length)
+
+        preds = self.model.predict(self.batch_source_dataset, self.target_length)
+
+        decode_result = self.vocab_obj.map_id_to_word(preds)
+
+        decode_result = tf.strings.reduce_join(decode_result, axis=1,
+                                               separator=' ')
+
+        candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
+
+        bleu_score, _ = self.evaluate_obj.evaluate_bleu(self.references, candidates)
+
+        print()
+        print('bleu_score:{}'.format(bleu_score))
+
+    def on_epoch_end(self, epoch, logs=None):
+
+        # checkout 模型
+        fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
+
+        self.model.save_weights(fmt % (epoch, logs['val_loss']))  # 保存模型的参数
+
+        # tf.saved_model.save(self.model, fmt % (epoch, logs['val_loss']))  # 保存整个模型
+
+        # 计算 bleu 分数
+        self.inference_bleu()
 
 
 class Seq2seqModel(Model):
     """
     seq2seq 模型
 
-    1. 多层的 LSTM 的堆叠 , 中间使用 dropout 连接
-    2. 采用动态图构建模型( debug 时可以方便的查看前向传播各层的向量 ), 并从头编写训练循环
+    1. 解码采用一体化模型的方式, 即建立推理计算图, 将每一步的解码都在计算图中完成
+    2. 采用动态图构建模型, 并从头编写训练循环
 
     Author: xrh
     Date: 2021-11-20
 
     """
 
-    def __init__(self,  n_embedding, n_h,
+    def __init__(self,  n_embedding, n_h, target_length,
                  n_vocab_source, n_vocab_target,
                  _start_target, _null_target,
                  tokenizer_source=None, tokenizer_target=None,
@@ -322,9 +324,9 @@ class Seq2seqModel(Model):
         # 建立编码器和解码器
         self.encoder = Encoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_source, dropout_rates=dropout_rates)
 
-        self.train_decoder = TrianDecoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target, dropout_rates=dropout_rates)
+        self.train_decoder = TrianDecoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target, target_length=target_length, dropout_rates=dropout_rates)
 
-        self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target)
+        self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target, target_length=target_length)
 
         # 损失对象
         self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(reduction='none')
@@ -429,7 +431,7 @@ class Seq2seqModel(Model):
         for epoch in range(epoch_num):
 
             print('----------------------------------')
-            print("\nEpoch %d/%d" % (epoch, epoch_num))
+            print("Epoch %d/%d" % (epoch, epoch_num))
             start_time = time.time()
 
             logs = {}  # 当前 epoch 的日志
@@ -443,7 +445,7 @@ class Seq2seqModel(Model):
 
                 batch_loss, probs = self._train_step((features, labels))
 
-                # print('loss: %.2f' % (batch_loss,))
+                # print('iteration loss: %.2f' % (batch_loss,))
 
                 epoch_train_loss += batch_loss
 
@@ -549,14 +551,14 @@ class Encoder(Layer):
         # self.dropout_layer2 = Dropout(dropout_rates[0], name='dropout1')  # 神经元有 0.1 的概率被弃置
 
 
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({
-            'embedding_layer': self.embedding_layer,
-            'lstm_layer0': self.lstm_layer0
-
-        })
-        return config
+    # def get_config(self):
+    #     config = super().get_config().copy()
+    #     config.update({
+    #         'embedding_layer': self.embedding_layer,
+    #         'lstm_layer0': self.lstm_layer0
+    #
+    #     })
+    #     return config
 
     def call(self, batch_source, training=True):
 
@@ -580,9 +582,11 @@ class TrianDecoder(Layer):
 
     """
 
-    def __init__(self, n_embedding, n_h, n_vocab, dropout_rates=(0.2, 0.2, 0.2)):
+    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates=(0.2, 0.2, 0.2)):
 
         super(TrianDecoder, self).__init__()
+
+        self.target_length = target_length
 
         self.embedding_layer = Embedding(n_vocab, n_embedding)
 
@@ -593,17 +597,18 @@ class TrianDecoder(Layer):
         self.fc_layer = Dense(n_vocab, activation='softmax')
 
 
-    def get_config(self):
-
-        config = super().get_config().copy()
-
-        config.update({
-            'embedding_layer': self.embedding_layer,
-            'lstm_layer0': self.lstm_layer0,
-            'out_dropout_layer': self.out_dropout_layer,
-            'fc_layer': self.fc_layer,
-        })
-        return config
+    # def get_config(self):
+    #
+    #     config = super().get_config().copy()
+    #
+    #     config.update({
+    #         'target_length': self.target_length,
+    #         'embedding_layer': self.embedding_layer,
+    #         'lstm_layer0': self.lstm_layer0,
+    #         'out_dropout_layer': self.out_dropout_layer,
+    #         'fc_layer': self.fc_layer,
+    #     })
+    #     return config
 
     def call(self, batch_target_in, layer_state_list, training=True):
 
@@ -646,12 +651,14 @@ class InferDecoder(Layer):
 
     """
 
-    def __init__(self, train_decoder_obj, _start):
+    def __init__(self, train_decoder_obj, target_length, _start):
 
         super(InferDecoder, self).__init__()
 
         self.train_decoder_obj = train_decoder_obj
         self._start = _start
+
+        self.target_length = target_length
 
         self.embedding_layer = self.train_decoder_obj.embedding_layer
 
@@ -660,18 +667,19 @@ class InferDecoder(Layer):
 
         self.fc_layer = self.train_decoder_obj.fc_layer
 
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({
-
-            'train_decoder_obj': self.train_decoder_obj,
-            '_start': self._start,
-            'embedding_layer': self.embedding_layer,
-            'lstm_layer0': self.lstm_layer0,
-            'out_dropout_layer': self.out_dropout_layer,
-            'fc_layer': self.fc_layer,
-        })
-        return config
+    # def get_config(self):
+    #     config = super().get_config().copy()
+    #     config.update({
+    #
+    #         'train_decoder_obj': self.train_decoder_obj,
+    #         '_start': self._start,
+    #         'target_length': self.target_length,
+    #         'embedding_layer': self.embedding_layer,
+    #         'lstm_layer0': self.lstm_layer0,
+    #         'out_dropout_layer': self.out_dropout_layer,
+    #         'fc_layer': self.fc_layer,
+    #     })
+    #     return config
 
     def call(self, layer_state_list, target_length, training=False):
         """
@@ -726,7 +734,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
     def test_training(self, config_path='lib/config.ini', tag='DEFAULT'):
 
-        # 1. 数据集的预处理, 运行 tf_data_utils_xrh.py 中的 DataPreprocess -> do_mian()
+        # 0. 读取配置文件
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
@@ -734,6 +742,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         print('current tag:{}'.format(tag))
 
+        # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
         dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
                                            cache_data_folder=current_config['cache_data_folder'], mode='train')
 
@@ -759,64 +768,55 @@ class Test_WMT14_Eng_Ge_Dataset:
 
     def test_evaluating(self, config_path='lib/config.ini', tag='DEFAULT'):
 
-        # 1. 数据集的预处理, 运行 tf_data_utils_xrh.py 中的 DataPreprocess -> do_mian()
-
+        # 0. 读取配置文件
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
         current_config = config[tag]
 
+        # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
         dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
                                            cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
+        batch_size = int(current_config['batch_size'])
 
         # 2.模型推理
 
-        model_path = 'models/machine_translation_seq2seq_hid_1000_emb_1000.h5'
-
-        # model_path = 'models/cache/model.13-1.2755.h5'
-
-        trainer = MachineTranslation(
-            config_path=config_path, tag=tag,
+        infer = MachineTranslation(
+            current_config=current_config,
             vocab_source=dataset_obj.vocab_source,
             vocab_target=dataset_obj.vocab_target,
             tokenizer_source=dataset_obj.tokenizer_source, tokenizer_target=dataset_obj.tokenizer_target,
             use_pretrain=True
         )
 
-        batch_size = 256
+        source_list = list(dataset_obj.test_source_target_dict.keys())
 
-        test_source_target_dict = dataset_obj.test_source_target_dict
+        print('valid source seq num :{}'.format(len(source_list)))
 
-        source_list = list(test_source_target_dict.keys())
+        references = [dataset_obj.test_source_target_dict[source] for source in source_list]
 
-        print('valid source num:{}'.format(len(source_list)))
-
-        source_vector = np.array(
-            [list(test_source_target_dict[source]['vector']) for source in source_list])
-
-        references = [test_source_target_dict[source]['target'] for source in source_list]
-
-        source_dataset = tf.data.Dataset.from_tensor_slices(source_vector)
+        source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
 
         batch_source_dataset = source_dataset.batch(batch_size)
 
-        candidates = infer.inference(batch_source_dataset)
+        candidates = infer.inference(batch_source_dataset, target_length=int(current_config['test_max_seq_length']))
 
         print('\ncandidates:')
         for i in range(0, 10):
-            print('i:{} ,  {}'.format(i, candidates[i]))
+            print('[{}] {}'.format(i, candidates[i]))
 
         print('\nreferences:')
         for i in range(0, 10):
-            print('i:', i)
-            print(references[i])
+            print('[{}] {}'.format(i, references[i]))
+
 
         evaluate_obj = Evaluate(
             with_unk=True,
-            _null_str='',
-            _start_str='[START]',
-            _end_str='[END]',
-            _unk_str='[UNK]')
+            _null_str=current_config['_null_str'],
+            _start_str=current_config['_start_str'],
+            _end_str=current_config['_end_str'],
+            _unk_str=current_config['_unk_str'])
+
 
         bleu_score, _ = evaluate_obj.evaluate_bleu(references, candidates, bleu_N=4)
 
@@ -832,4 +832,4 @@ if __name__ == '__main__':
 
     test.test_training(tag='TEST')
 
-    # test.test_evaluating()
+    # test.test_evaluating(tag='TEST')

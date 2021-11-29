@@ -28,10 +28,7 @@ class DataPreprocess:
     Date: 2021-11-15
 
     ref:
-    https://keras.io/examples/nlp/neural_machine_translation_with_transformer/
     https://tensorflow.google.cn/text/tutorials/nmt_with_attention
-
-    https://www.tensorflow.org/datasets/overview
     https://www.tensorflow.org/text
     https://tensorflow.google.cn/api_docs/python/tf/keras/layers/TextVectorization
 
@@ -60,6 +57,9 @@ class DataPreprocess:
         config.read(config_path, 'utf-8')
 
         current_config = config[tag]
+
+        self.current_config = current_config
+
         print('current config tag:{}'.format(tag))
 
         self.train_source_corpus_dir = os.path.join(base_dir, current_config['train_source_corpus'])
@@ -198,7 +198,7 @@ class DataPreprocess:
 
         tokenizer = TextVectorization(
                     standardize=None,
-                    # output_sequence_length=max_seq_length,
+                    # output_sequence_length=int(self.current_config['max_seq_length']),
                     max_tokens=n_vocab)
         # (1) max_tokens: 保留出现次数最多的 top-k 个单词
         # (2) 若 output_sequence_length=None, 自动将本 batch 中最长的句子的长度作为 padding 的长度
@@ -220,6 +220,8 @@ class DataPreprocess:
             # 持久化 tokenizer
             tokenizer_path = os.path.join(self.cache_data_dir, tokenizer_file)
             model = tf.keras.Sequential(tokenizer)
+            model.compile()
+
             model.save(tokenizer_path)
 
         return text_preprocess_dataset, tokenizer, vocab_list
@@ -457,6 +459,94 @@ class DataPreprocess:
 
 
 class Vocab:
+    """
+    使用 python 的 dict 的 语料库词典
+
+    """
+
+    def __init__(self, vocab_list_path, vocab_list=None, _unk_str='[UNK]'):
+        """
+        词典的初始化
+
+        :param vocab_path: 词典持久化的路径
+        :param vocab_list:  (建立新的词典时必填)
+
+        """
+        self.vocab_list_path = vocab_list_path
+        self._unk_str = _unk_str
+
+        if vocab_list is not None:  # 建立新的词典
+
+            save_dict = {}
+
+            self.vocab_list = vocab_list
+
+            self.n_vocab = len(self.vocab_list)  # 字典的长度
+
+            save_dict['vocab_list'] = vocab_list
+
+            with open(self.vocab_list_path, 'wb') as f:
+
+                pickle.dump(save_dict, f)
+
+        else:  # 读取已有的词典
+
+            with open(self.vocab_list_path, 'rb') as f:
+                save_dict = pickle.load(f)
+
+            self.vocab_list = save_dict['vocab_list']
+            self.n_vocab = len(self.vocab_list)  # 字典的长度
+
+
+        self.word_to_id = {}
+        for i, word in enumerate(self.vocab_list):
+
+            self.word_to_id[word] = i
+
+        self.id_to_word = {}
+        for i, word in enumerate(self.vocab_list):
+
+            self.id_to_word[i] = word
+
+
+    def map_id_to_word(self, id):
+        """
+        输入单词标号, 返回单词
+
+        1.若单词标号未在 逆词典中, 返回 '<UNK>'
+
+        :param id:
+        :return:
+        """
+        if id not in self.id_to_word:
+            return self._unk_str
+        else:
+            return self.id_to_word[id]
+
+    def map_word_to_id(self, word):
+        """
+        输入单词, 返回单词标号
+
+        考虑未登录词:
+        1.若输入的单词不在词典中, 返回 '<UNK>' 的标号
+
+        :param word: 单词
+        :return:
+        """
+
+        if word not in self.word_to_id:
+            return self.word_to_id[self._unk_str]
+        else:
+            return self.word_to_id[word]
+
+
+
+
+class VocabTf:
+    """
+    使用 tf 的 StringLookup 的语料库词典
+
+    """
 
     def __init__(self, vocab_list_path, vocab_list=None):
         """
@@ -504,7 +594,7 @@ class Vocab:
         id_to_word = StringLookup(
             vocabulary=self.vocab_list,
             mask_token='',
-            invert=True)
+            invert=True)  # TODO: 易造成 GPU 的 OOM
 
         return id_to_word(ids)
 
@@ -554,6 +644,7 @@ class WMT14_Eng_Ge_Dataset:
                  valid_source_target_dict_file='valid_source_target_dict.bin',
                  test_source_target_dict_file='test_source_target_dict.bin',
 
+                 use_tf_vocab=True,
                  mode='train'
                  ):
         """
@@ -566,6 +657,9 @@ class WMT14_Eng_Ge_Dataset:
         :param valid_dataset_file:
         :param valid_source_target_dict_file:
         :param test_source_target_dict_file:
+
+        :param use_tf_vocab: 是否使用 tf 的 StringLookup 构建的语料库词典
+
         :param mode: 当前处在的模式, 可以选择
                     'train' - 训练模式
                     'infer' - 推理模式
@@ -573,8 +667,15 @@ class WMT14_Eng_Ge_Dataset:
         """
         self.cache_data_dir = os.path.join(base_dir, cache_data_folder)
 
-        self.vocab_source = Vocab(os.path.join(self.cache_data_dir, vocab_source_file))
-        self.vocab_target = Vocab(os.path.join(self.cache_data_dir, vocab_target_file))
+        if use_tf_vocab:
+
+            self.vocab_source = VocabTf(os.path.join(self.cache_data_dir, vocab_source_file))
+            self.vocab_target = VocabTf(os.path.join(self.cache_data_dir, vocab_target_file))
+
+        else:
+
+            self.vocab_source = Vocab(os.path.join(self.cache_data_dir, vocab_source_file))
+            self.vocab_target = Vocab(os.path.join(self.cache_data_dir, vocab_target_file))
 
         self.tokenizer_source = tf.keras.models.load_model(os.path.join(self.cache_data_dir, tokenizer_source_file))
         self.tokenizer_target = tf.keras.models.load_model(os.path.join(self.cache_data_dir, tokenizer_target_file))
@@ -646,6 +747,9 @@ class Test:
             print('target:')
             print(target[:10])
 
+            target_vector = dataset_train_obj.tokenizer_target(target).to_tensor()
+            print('target_vector:')
+            print(target_vector)
 
 
         print('test_source_target_dict: ')
@@ -678,6 +782,40 @@ class Test:
 
         print('word ämter index: ', int(dataset_infer_obj.vocab_target.map_word_to_id('ämter')))
 
+
+    def test_VocabTf(self, config_path='config.ini', tag='DEFAULT'):
+
+        config = configparser.ConfigParser()
+        config.read(config_path, 'utf-8')
+        current_config = config[tag]
+
+        dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], use_tf_vocab=True, mode='train')
+
+
+        # 查看 1 个批次的数据
+        for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
+
+            source_list = source[:10]
+
+            print('source:')
+            print(source_list)
+
+            source_vector = dataset_train_obj.tokenizer_source(source).to_tensor()
+
+            print('source_vector:')
+            print(source_vector)
+
+            decode_result = dataset_train_obj.vocab_source.map_id_to_word(source_vector)
+
+            decode_result = tf.strings.reduce_join(decode_result, axis=1,
+                                                   separator=' ')
+
+            decode_result = [sentence.numpy().decode('utf-8') for sentence in decode_result]
+
+            print('decode_result:')
+            print(decode_result)
+
+
 if __name__ == '__main__':
     test = Test()
 
@@ -685,4 +823,7 @@ if __name__ == '__main__':
 
     # test.test_DataPreprocess(tag='TEST')
 
-    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
+    # test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
+
+    test.test_VocabTf(tag='TEST')
+
