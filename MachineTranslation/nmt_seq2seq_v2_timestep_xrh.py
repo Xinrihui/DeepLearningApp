@@ -28,9 +28,10 @@ class MachineTranslation:
     基于 seq2seq 的神经机器翻译模型 (v2-timestep)
 
     1. 解码器的计算图只包含单个时间步 (timestep model), 解码采用分时间步的方式, 即每一个时间步运行解码器得到解码结果
-    2. 多层的 LSTM 的堆叠 , 中间使用 dropout 连接
-    3. 实现了基于 tf.data 的数据预处理 pipline, 使用 TextVectorization 和 StringLookup 做句子的向量化和反向量化
-    4. 采用动态图构建模型, 并从头编写训练循环; 在训练时, 通过 tf.function 转换为静态图加速计算
+    2. 采用动态图构建模型, 并从头编写训练循环; 在训练时, 通过 tf.function 转换为静态图加速计算
+
+    3. 多层的 LSTM 的堆叠 , 中间使用 dropout 连接
+    4. 实现了基于 tf.data 的数据预处理 pipline, 使用 TextVectorization 和 StringLookup 做句子的向量化和反向量化
     5. 在配置中心中维护超参数
 
     Author: xrh

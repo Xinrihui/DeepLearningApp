@@ -27,9 +27,14 @@ class MachineTranslation:
 
     基于 seq2seq 的神经机器翻译模型 (v2-integrated)
 
-    1. 解码采用一体化模型 (integrated model)的方式, 即建立推理计算图, 将每一步的解码都在计算图中完成
+    1. 解码采用一体化模型 (integrated model)的方式, 即将每一步的解码都在计算图中完成
+
+    2. 采用动态图构建模型, 并从头编写训练循环; 由于是边执行边构建图, 计算图的结构是变化的,
+       在本模型中, 解码时的序列长度 (同一个 batch 序列的长度相同, 但是不同的batch长度不同 ) 决定了计算图的结构,
+       因此不能使用  @tf.function 包装器加速训练
+
     2. 实现了基于 tf.data 的数据预处理 pipline, 使用 TextVectorization 和 StringLookup 做句子的向量化和反向量化
-    3. 采用动态图构建模型, 并从头编写训练循环;
+
     4. 在配置中心中维护超参数
 
     Author: xrh
@@ -46,6 +51,7 @@ class MachineTranslation:
                  current_config,
                  vocab_source, vocab_target,
                  tokenizer_source=None, tokenizer_target=None,
+                 reverse_source=True,
                  use_pretrain=False,
                  ):
         """
@@ -56,6 +62,8 @@ class MachineTranslation:
 
         :param tokenizer_source:
         :param tokenizer_target:
+
+        :param reverse_source:  是否将源序列反转
 
         :param use_pretrain: 使用训练好的模型
 
@@ -69,6 +77,8 @@ class MachineTranslation:
         self.target_length = int(current_config['max_seq_length'])
 
         self.dropout_rates = json.loads(current_config['dropout_rates'])
+
+        self.reverse_source = reverse_source
 
         _null_str = current_config['_null_str']
         _start_str = current_config['_start_str']
@@ -108,6 +118,7 @@ class MachineTranslation:
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                   _start_target=self._start_target, _null_target=self._null_target,
+                                  reverse_source=self.reverse_source,
                                   dropout_rates=self.dropout_rates)
 
 
@@ -308,9 +319,12 @@ class Seq2seqModel(Model):
                  n_vocab_source, n_vocab_target,
                  _start_target, _null_target,
                  tokenizer_source=None, tokenizer_target=None,
+                 reverse_source=True,
                  dropout_rates=(0.2, 0.2, 0.2)):
 
         super().__init__()
+
+        self.reverse_source = reverse_source
 
         # target 中代表 null 的标号
         self._start_target = _start_target
@@ -367,6 +381,9 @@ class Seq2seqModel(Model):
 
         batch_source_vector = self.tokenizer_source(batch_source).to_tensor()
 
+        if self.reverse_source:
+            batch_source_vector = batch_source_vector[:, ::-1]
+
         batch_target_vector = self.tokenizer_target(batch_target).to_tensor()
 
         batch_target_in = batch_target_vector[:, :-1]
@@ -374,7 +391,7 @@ class Seq2seqModel(Model):
 
         return (batch_source_vector, batch_target_in), batch_target_out
 
-    # @tf.function 可以加速训练
+
     # @tf.function
     def _train_step(self, inputs):
 
@@ -395,17 +412,14 @@ class Seq2seqModel(Model):
                                        layer_state_list=layer_state_list, training=training)
             # probs shape (N_batch, target_length, n_vocab)
 
-            target_mask, loss = self._mask_loss_function(batch_target_out, probs)
+            target_mask, average_loss = self._mask_loss_function(batch_target_out, probs)
 
-            # 求所有没有被填充的位置的损失的平均和
-            # average_loss = loss / tf.reduce_sum(target_mask)
 
-            average_loss = loss
+        trainable_variables = self.encoder.trainable_variables + self.train_decoder.trainable_variables
 
-        # Apply an optimization step
-        variables = self.trainable_variables
-        gradients = tape.gradient(average_loss, variables)
-        self.optimizer.apply_gradients(zip(gradients, variables))
+        gradients = tape.gradient(average_loss, trainable_variables)
+
+        self.optimizer.apply_gradients(zip(gradients, trainable_variables))
 
         return average_loss, probs
 
@@ -436,33 +450,41 @@ class Seq2seqModel(Model):
 
             logs = {}  # 当前 epoch 的日志
 
+            # ------------ train dataset -------------#
             epoch_train_loss = 0
+            iteration = 0
 
             # 遍历训练数据集的 所有batch
             for batch_data in tqdm(train_dataset):
 
                 features, labels = self._preprocess(batch_data)
 
-                batch_loss, probs = self._train_step((features, labels))
+                average_loss, probs = self._train_step((features, labels))
 
                 # print('iteration loss: %.2f' % (batch_loss,))
 
-                epoch_train_loss += batch_loss
+                epoch_train_loss += average_loss
 
                 # Update training metric.
                 self.train_acc_metric.update_state(labels, probs)
+
+                iteration += 1
 
             # 本次 epoch 的训练结束
             # print("\nEpoch: %d end" % (epoch,))
 
             train_acc = self.train_acc_metric.result()
-
-            print("train loss: %.4f , train acc: %.4f" % (epoch_train_loss, float(train_acc)))
-
             # 重置验证指标
             self.train_acc_metric.reset_states()
 
+            epoch_train_loss = epoch_train_loss / iteration
+            print("train loss: %.4f , train acc: %.4f" % (epoch_train_loss, float(train_acc)))
+
+
+            # ------------ valid dataset -------------#
+
             epoch_valid_loss = 0
+            iteration = 0
 
             # 遍历验证数据集
             for batch_data in tqdm(valid_dataset):
@@ -475,21 +497,23 @@ class Seq2seqModel(Model):
 
                 probs, _ = self._test_step(batch_source, target_length)
 
-                target_mask, batch_loss = self._mask_loss_function(labels, probs)
+                _, batch_loss = self._mask_loss_function(labels, probs)
 
                 epoch_valid_loss += batch_loss
 
                 # Update val metrics
                 self.val_acc_metric.update_state(labels, probs)
 
+                iteration += 1
 
             val_acc = self.val_acc_metric.result()
+            # 重置验证指标
             self.val_acc_metric.reset_states()
 
+            epoch_valid_loss = epoch_valid_loss / iteration
             print("valid loss: %.4f , valid acc: %.4f" % (epoch_valid_loss, float(val_acc)))
 
             cost_time = time.time() - start_time
-
             print("Time taken: %.2fs" % cost_time)
 
 
@@ -503,7 +527,7 @@ class Seq2seqModel(Model):
 
             logs_list.append(logs)
 
-            # callback
+            # -------------- callback --------------#
             if callback_obj is not None:
                 callback_obj.on_epoch_end(epoch=epoch, logs=logs)
 
@@ -524,11 +548,6 @@ class Seq2seqModel(Model):
             for pred in preds:
                 preds_list.append(pred)
 
-            # preds_list.append(list(preds.numpy()))
-
-        # batch_num, N_batch, seq_length = tf.shape(preds_list)
-
-        # res = tf.reshape(preds_list, [-1, target_length])
 
         return preds_list
 
