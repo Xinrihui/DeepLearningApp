@@ -14,12 +14,14 @@ class Evaluate:
     Date: 2021-9-26
 
     """
-    def __init__(self, _null_str='<NULL>',
+    def __init__(self, with_unk=True,
+                       _null_str='<NULL>',
                        _start_str='<START>',
                        _end_str='<END>',
                        _unk_str='<UNK>'):
         """
 
+        :param  with_unk: 是否保留 unk
         :param  _null_str: 空字符
         :param  _start_str: 句子的开始字符
         :param  _end_str: 句子的结束字符
@@ -31,18 +33,19 @@ class Evaluate:
         self._end_str = _end_str
         self._unk_str = _unk_str
 
-        # 删除标点符号
-        remove_chars = string.punctuation  # !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
-        remove_chars = remove_chars.replace("<", "")  # 不能删除 '<' , 因为 <START> 要作为一个单词
-        remove_chars = remove_chars.replace(">", "")
-        self.remove_chars_re = re.compile('[%s]' % re.escape(remove_chars))
+        if with_unk:  # 不删除 unk
 
-        # 需要删除的控制词
-        self.remove_word_re = re.compile(
-            r'{}|{}|{}'.format(self._null_str, self._start_str, self._end_str))
+            # 需要删除的控制词
+            self.remove_word_re = re.compile(
+                r'{}|{}|{}'.format(self._null_str, self._start_str, self._end_str))
 
+        else:  # 删除 unk
 
-    def evaluate_bleu(self, references, candidates):
+            # 需要删除的控制词
+            self.remove_word_re = re.compile(
+                r'{}|{}|{}|{}'.format(self._null_str, self._start_str, self._end_str, self._unk_str))
+
+    def evaluate_bleu(self, references, candidates, bleu_N=2):
         """
         使用 bleu 对翻译结果进行评价
 
@@ -68,6 +71,15 @@ class Evaluate:
              'racers ride their bikes <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL> <NULL>',
 
             ]
+
+        :param bleu_N:
+
+              eg. bleu_N=2
+                计算 bleu-1 和  bleu-2 的分数
+
+              eg. bleu_N=4
+                计算 bleu-1,  bleu-2, bleu-3, bleu-4 的分数
+
         :return:
         """
 
@@ -80,10 +92,7 @@ class Evaluate:
         for candidate in candidates:  # 对待评价的候选句子进行清理
 
             # 删除 控制词
-            candidate = self.remove_word_re.sub(' ', candidate)
-
-            # 删除 标点符号
-            candidate = self.remove_chars_re.sub(' ', candidate)
+            candidate = self.remove_word_re.sub('', candidate)
 
             candidate_split = candidate.split()
 
@@ -96,10 +105,7 @@ class Evaluate:
             for reference in reference_list:
 
                 # 删除 控制词
-                reference = self.remove_word_re.sub(' ', reference)
-
-                # 删除 标点符号
-                reference = self.remove_chars_re.sub(' ', reference)
+                reference = self.remove_word_re.sub('', reference)
 
                 reference_split = reference.split()
 
@@ -111,10 +117,14 @@ class Evaluate:
         average_bleu_score_dict = {}
 
         # use xrh bleu
-        bleu_score_dict_list['1-garm'] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
-                                                              N=1)
-        bleu_score_dict_list['2-garm'] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
-                                                              N=2)
+
+        for n in range(1, bleu_N+1):
+
+            bleu_score_dict_list['{}-garm'.format(n)] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
+                                                                  N=n)
+
+            average_bleu_score_dict['{}-garm'.format(n)] = np.average(bleu_score_dict_list['{}-garm'.format(n)])
+
 
         # use nltk bleu
         # bleu_score_dict_list['1-garm'] = corpus_bleu(references_arr, candidates_arr,
@@ -122,7 +132,5 @@ class Evaluate:
         # bleu_score_dict_list['2-garm'] = corpus_bleu(references_arr, candidates_arr,
         #                                                weights=(0.5, 0.5, 0, 0))
 
-        average_bleu_score_dict['1-garm'] = np.average(bleu_score_dict_list['1-garm'])
-        average_bleu_score_dict['2-garm'] = np.average(bleu_score_dict_list['2-garm'])
 
         return average_bleu_score_dict, bleu_score_dict_list

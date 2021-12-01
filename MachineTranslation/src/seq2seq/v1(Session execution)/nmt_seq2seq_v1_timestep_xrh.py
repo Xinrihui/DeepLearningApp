@@ -26,6 +26,8 @@ class MachineTranslation:
 
     基于 LSTM + seq2seq 的神经机器翻译模型
 
+    0. 采用静态图构建模型 (Session execution)
+
     1.解码采用分步骤的方式, 即每一个时间步进行一次模型推理, 得到解码结果
 
     Author: xrh

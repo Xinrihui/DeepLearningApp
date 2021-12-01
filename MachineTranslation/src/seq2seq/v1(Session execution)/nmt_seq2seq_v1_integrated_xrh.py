@@ -12,6 +12,8 @@ from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLRO
 from tensorflow.keras.utils import plot_model
 import tensorflow.keras as keras
 
+import tensorflow.keras.backend as K
+
 from tensorflow.keras.models import Model
 
 from lib.build_dataset_xrh import *
@@ -24,11 +26,15 @@ from lib.get_dataset_xrh import *
 class MachineTranslation:
     """
     基于 LSTM + seq2seq 的神经机器翻译模型
+
+    0. 采用静态图构建模型 (Session execution)
     1. 解码采用一体化模型的方式, 即建立推理计算图, 将每一步的解码都在计算图中完成
     2. 采用 稀疏的交叉熵损失函数, 避免了 标签 one-hot 化后的 OOM 问题
     3. 实现了基于 Sequence 的数据批量生成器
+
     Author: xrh
     Date: 2021-10-10
+
     ref:
     1. Sequence to Sequence Learning with Neural Networks
     2. Learning Phrase Representations using RNN Encoder–Decoder for Statistical Machine Translation
@@ -104,8 +110,6 @@ class MachineTranslation:
         :return:
         """
 
-        self.image_embedding_dense = Dense(self.n_h, activation='relu', name='pict_embedding')
-
         self.source_embedding_layer = Embedding(input_dim=self.n_vocab_source, output_dim=self.n_embedding,
                                                 name='source_embedding')
 
@@ -128,7 +132,7 @@ class MachineTranslation:
 
     def train_model(self):
         """
-        将各个 网络层(layer) 拼接为训练计算图
+        将各个 网络层(layer) 拼接为训练计算图(model)
         :return:
         """
 
@@ -141,6 +145,7 @@ class MachineTranslation:
         # mask_source = (batch_source != self._null)  # shape(N,encoder_length)
         # 因为训练时采用 mini-batch, 一个 batch 中的所有的 sentence 都是定长, 若有句子不够长度 则用 <null> 进行填充
         # 用 <null> 填充的时刻不能被计入损失中, 也不用求梯度
+
 
         out_encoder_lstm, state_h, state_c, = self.encoder_lstm_layer(
             inputs=source_embedding, mask=mask_source)  # out_lstm1 shape : (None, encoder_length, n_h)
@@ -161,7 +166,7 @@ class MachineTranslation:
         out_decoder_lstm, h1, c1 = self.decoder_lstm_layer(inputs=target_embedding, initial_state=[h1, c1], mask=mask_target)  # out_decoder_lstm shape (None, decoder_length, n_h)
         # initial_state=[previous hidden state, previous cell state]
 
-        outputs = self.dense_layer(inputs=out_decoder_lstm)  # shape (None, n_vocab_target)
+        outputs = self.dense_layer(inputs=out_decoder_lstm)  # shape (None, decoder_length, n_vocab_target)
 
         model = Model(inputs=[batch_source, batch_target], outputs=outputs)
 
@@ -259,6 +264,7 @@ class MachineTranslation:
         outs = []
 
         for t in range(self.decoder_length):
+
             target_embedding = self.target_embedding_layer(inputs=decoder_input)  # shape (None, 1, n_embedding)
 
             out_decoder_lstm_one_step, h1, c1 = self.decoder_lstm_layer(inputs=target_embedding, initial_state=[h1, c1]) # out_decoder_lstm_one_step shape (None, 1, n_h)

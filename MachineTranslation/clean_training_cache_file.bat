@@ -6,12 +6,16 @@ chcp 65001
 taskkill /F /im tensorboard.exe
 
 :: 删除缓存的训练过程中持久化的模型
-del /f /s /q .\models\cache\*
+rmdir /s/q .\models\cache\
+mkdir .\models\cache\
+
 
 :: 删除日志
-del /f /s /q .\logs\train\*
+rmdir /s/q .\logs\train\
+mkdir .\logs\train\
 
-del /f /s /q .\logs\validation\*
+rmdir /s/q .\logs\validation\
+mkdir .\logs\validation\
 
 :: 开启 tensorboard
 :: tensorboard --logdir ./logs

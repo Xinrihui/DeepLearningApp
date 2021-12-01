@@ -62,10 +62,6 @@ class DataPreprocess:
 
         print('current config tag:{}'.format(tag))
 
-        self.preprocess_mode = current_config['preprocess_mode']
-        self.max_seq_length = int(self.current_config['max_seq_length'])
-        self.reverse_source = bool(int(self.current_config['reverse_source']))
-
         self.train_source_corpus_dir = os.path.join(base_dir, current_config['train_source_corpus'])
         self.train_target_corpus_dir = os.path.join(base_dir, current_config['train_target_corpus'])
 
@@ -202,7 +198,7 @@ class DataPreprocess:
 
         tokenizer = TextVectorization(
                     standardize=None,
-                    output_sequence_length=self.max_seq_length,
+                    # output_sequence_length=int(self.current_config['max_seq_length']),
                     max_tokens=n_vocab)
         # (1) max_tokens: 保留出现次数最多的 top-k 个单词
         # (2) 若 output_sequence_length=None, 自动将本 batch 中最长的句子的长度作为 padding 的长度
@@ -230,7 +226,7 @@ class DataPreprocess:
 
         return text_preprocess_dataset, tokenizer, vocab_list
 
-    def tf_data_pipline(self, source_dataset, target_dataset, tokenizer_source=None, tokenizer_target=None, do_persist=False, dataset_file=None):
+    def tf_data_pipline(self, source_dataset, target_dataset, mode='mid', tokenizer_source=None, tokenizer_target=None, do_persist=False, dataset_file=None):
         """
         利用 tf.data 数据流水线 建立数据集,
 
@@ -250,18 +246,13 @@ class DataPreprocess:
 
         dataset = None
 
-        if self.preprocess_mode == 'final':  # 返回最终的数据集, 模型可以直接加载进入训练
+        if mode == 'final':  # 返回最终的数据集, 模型可以直接加载进入训练
 
             # 将文本标记化, 每一个 batch 中的 序列的长度相同
             source_vector = source_dataset.map(lambda batch_text: tokenizer_source(batch_text))
             target_vector = target_dataset.map(lambda batch_text: tokenizer_target(batch_text))
 
             print('tokenize text complete ')
-
-            # 将源序列倒置
-            if self.reverse_source:
-                source_vector = source_vector.map(lambda batch_text: batch_text[:, ::-1],
-                                               num_parallel_calls=tf.data.AUTOTUNE)
 
             # 输入 和 输出的 target 要错开一位
             target_out = target_vector.map(lambda batch_text: batch_text[:, 1:], num_parallel_calls=tf.data.AUTOTUNE)
@@ -272,7 +263,7 @@ class DataPreprocess:
 
             dataset = tf.data.Dataset.zip((features, labels))
 
-        elif self.preprocess_mode == 'mid':  # 返回中间态的数据集, 模型需要做进一步预处理
+        elif mode == 'mid':  # 返回中间态的数据集, 模型需要做进一步预处理
 
             dataset = tf.data.Dataset.zip((source_dataset, target_dataset))
 
@@ -283,7 +274,7 @@ class DataPreprocess:
         return dataset
 
 
-    def build_source_target_dict(self, source_text, target_text, do_persist=False, source_target_dict_file=None):
+    def build_source_target_dict(self, source_text, target_text,  do_persist=False, source_target_dict_file=None):
         """
 
         1.待翻译的源语句会对应多个人工翻译的标准句子, 因此需要组合源语句和目标语句, 并返回组合后的字典
@@ -393,10 +384,6 @@ class DataPreprocess:
                 res_source_seq_list.append(source_seq_list[i])
                 res_target_seq_list.append(target_seq_list[i])
 
-        assert len(res_source_seq_list) == len(res_target_seq_list)  # 平行语料, 序列的个数必须相同
-
-        print('seq length <={} num: {}'.format(max_seq_length, len(res_source_seq_list)))
-
         return res_source_seq_list, res_target_seq_list
 
 
@@ -428,11 +415,11 @@ class DataPreprocess:
 
         # 建立字典
         print('build the vocab...')
-        vocab_source = VocabTf(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.bin'))
-        vocab_target = VocabTf(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.bin'))
+        vocab_source = Vocab(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.bin'))
+        vocab_target = Vocab(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.bin'))
 
         # 训练数据集
-        train_dataset = self.tf_data_pipline(train_source_dataset, train_target_dataset, tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+        train_dataset = self.tf_data_pipline(train_source_dataset, train_target_dataset, mode='mid',
                                              do_persist=True, dataset_file='train_dataset.bin')
 
 
@@ -449,7 +436,7 @@ class DataPreprocess:
         valid_target_dataset = self.preprocess_corpus(valid_target_text,  batch_size=batch_size)
 
         # 验证数据集
-        valid_dataset = self.tf_data_pipline(valid_source_dataset, valid_target_dataset, tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+        valid_dataset = self.tf_data_pipline(valid_source_dataset, valid_target_dataset, mode='mid',
                                              do_persist=True, dataset_file='valid_dataset.bin')
 
         # 验证数据 source_target_dict
@@ -746,45 +733,26 @@ class Test:
         dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], mode='train')
         dataset_infer_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
-        if current_config['preprocess_mode'] == 'mid':
 
-            # 查看 1 个批次的数据
-            for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
+        # 查看 1 个批次的数据
+        for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
 
-                print('source:')
-                print(source[:10])
+            print('source:')
+            print(source[:10])
 
-                source_vector = dataset_train_obj.tokenizer_source(source).to_tensor()
-                print('source_vector:')
-                print(source_vector)
+            source_vector = dataset_train_obj.tokenizer_source(source).to_tensor()
+            print('source_vector:')
+            print(source_vector)
 
-                print('target:')
-                print(target[:10])
+            print('target:')
+            print(target[:10])
 
-                target_vector = dataset_train_obj.tokenizer_target(target).to_tensor()
-                print('target_vector:')
-                print(target_vector)
-
-        elif current_config['preprocess_mode'] == 'final':
-
-            # 查看 1 个批次的数据
-            for batch_feature, batch_label in tqdm(dataset_train_obj.train_dataset.take(1)):
-                source = batch_feature[0]
-
-                target_in = batch_feature[1]
-                target_out = batch_label
-
-                print('source:')
-                print(source)
-
-                print('target_in:')
-                print(target_in)
-
-                print('target_out:')
-                print(target_out)
+            target_vector = dataset_train_obj.tokenizer_target(target).to_tensor()
+            print('target_vector:')
+            print(target_vector)
 
 
-        print('one row of source_target_dict: ')
+        print('test_source_target_dict: ')
         print(list(dataset_infer_obj.test_source_target_dict.items())[0])
 
         print('vocab_source: ')
@@ -823,29 +791,29 @@ class Test:
 
         dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], use_tf_vocab=True, mode='train')
 
-        if current_config['preprocess_mode'] == 'mid':
-            # 查看 1 个批次的数据
-            for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
 
-                source_list = source[:10]
+        # 查看 1 个批次的数据
+        for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
 
-                print('source:')
-                print(source_list)
+            source_list = source[:10]
 
-                source_vector = dataset_train_obj.tokenizer_source(source).to_tensor()
+            print('source:')
+            print(source_list)
 
-                print('source_vector:')
-                print(source_vector)
+            source_vector = dataset_train_obj.tokenizer_source(source).to_tensor()
 
-                decode_result = dataset_train_obj.vocab_source.map_id_to_word(source_vector)
+            print('source_vector:')
+            print(source_vector)
 
-                decode_result = tf.strings.reduce_join(decode_result, axis=1,
-                                                       separator=' ')
+            decode_result = dataset_train_obj.vocab_source.map_id_to_word(source_vector)
 
-                decode_result = [sentence.numpy().decode('utf-8') for sentence in decode_result]
+            decode_result = tf.strings.reduce_join(decode_result, axis=1,
+                                                   separator=' ')
 
-                print('decode_result:')
-                print(decode_result)
+            decode_result = [sentence.numpy().decode('utf-8') for sentence in decode_result]
+
+            print('decode_result:')
+            print(decode_result)
 
 
 if __name__ == '__main__':
@@ -853,9 +821,9 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess(tag='TEST')
+    # test.test_DataPreprocess(tag='TEST')
 
-    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
+    # test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
-    # test.test_VocabTf(tag='TEST')
+    test.test_VocabTf(tag='TEST')
 

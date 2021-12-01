@@ -12,14 +12,12 @@ from tensorflow.keras.models import Model
 
 from tensorflow.keras.utils import plot_model
 
-from lib.nmt_utils import *
-from lib.utils_xrh import *
+from src.attention.v1.lib.nmt_utils import *
+from src.attention.v1.lib.utils_xrh import *
 
 from sklearn.model_selection import train_test_split
 
 from lib.bleu_xrh import *
-
-from nltk.translate.bleu_score import sentence_bleu,corpus_bleu
 
 from deprecated import deprecated
 
@@ -1078,7 +1076,7 @@ class MachineTranslationV2:
         print(self.infer_model.summary())
 
         # 画出计算图
-        plot_model(self.infer_model, to_file='docs/images/infer_model_attention.png', show_layer_names=True, show_shapes=True)
+        plot_model(self.infer_model, to_file='../../../docs/images/infer_model_attention.png', show_layer_names=True, show_shapes=True)
 
 
         candidate_group_list = []

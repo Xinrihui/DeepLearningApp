@@ -25,15 +25,14 @@ import json
 class MachineTranslation:
     """
 
-    基于 seq2seq 的神经机器翻译模型 (v2-integrated)
+    基于 seq2seq 的神经机器翻译模型 (v3-integrated)
 
-    1. 解码采用一体化模型 (integrated model)的方式, 即将每一步的解码都在计算图中完成
+    1. 解码采用一体化模型 (integrated model)的方式, 即将每一步的解码都在计算图中完成(时间步的循环控制写在计算图里面)
 
-    2. 采用动态图构建模型, 并从头编写训练循环; 由于是边执行边构建图, 计算图的结构是变化的,
-       在本模型中, 解码时的序列长度 (同一个 batch 序列的长度相同, 但是不同的batch长度不同 ) 决定了计算图的结构,
-       因此不能使用  @tf.function 包装器加速训练
+    2. 训练时采用静态图 (Session execution) 构建模型, 输入的 source 序列 和 输出的 target 序列必须为定长, 使用静态图可以节约显存并加速训练;
+       推理时采用动态图(Eager execution)构建模型, 每次推理一条句子, 在 decoder 预测出 <END> 时结束解码, 使用动态图可以实现变长的解码
 
-    2. 实现了基于 tf.data 的数据预处理 pipline, 使用 TextVectorization 和 StringLookup 做句子的向量化和反向量化
+    2. 实现了基于 tf.data 的数据预处理 pipline, 使用 TextVectorization制作词典, 并用 StringLookup 做句子的向量化和反向量化
 
     4. 在配置中心中维护超参数
 
@@ -43,7 +42,7 @@ class MachineTranslation:
     ref:
     1. Sequence to Sequence Learning with Neural Networks
     2. Learning Phrase Representations using RNN Encoder–Decoder for Statistical Machine Translation
-    3.
+
 
     """
 
@@ -51,7 +50,6 @@ class MachineTranslation:
                  current_config,
                  vocab_source, vocab_target,
                  tokenizer_source=None, tokenizer_target=None,
-                 reverse_source=True,
                  use_pretrain=False,
                  ):
         """
@@ -74,11 +72,11 @@ class MachineTranslation:
         self.n_h = int(current_config['n_h'])
         self.n_embedding = int(current_config['n_embedding'])
 
-        self.target_length = int(current_config['max_seq_length'])
+        self.max_seq_length = int(current_config['max_seq_length'])
 
         self.dropout_rates = json.loads(current_config['dropout_rates'])
 
-        self.reverse_source = reverse_source
+        self.reverse_source = bool(int(self.current_config['reverse_source']))
 
         _null_str = current_config['_null_str']
         _start_str = current_config['_start_str']
@@ -111,11 +109,13 @@ class MachineTranslation:
         self._end_target = int(self.vocab_target.map_word_to_id(_end_str))  # 句子的结束
         self._unk_target = int(self.vocab_target.map_word_to_id(_unk_str))  # 未登录词
 
+        self.save_mode = current_config['save_mode']
         self.model_path = current_config['model_path']
 
         # 构建模型
-        self.model = Seq2seqModel(n_embedding=self.n_embedding, n_h=self.n_h, target_length=self.target_length,
+        self.model_obj = Seq2seqModel(n_embedding=self.n_embedding, n_h=self.n_h, max_seq_length=self.max_seq_length,
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
+                                  vocab_target=self.vocab_target,
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                   _start_target=self._start_target, _null_target=self._null_target,
                                   reverse_source=self.reverse_source,
@@ -124,9 +124,13 @@ class MachineTranslation:
 
         if use_pretrain:  # 载入训练好的模型
 
-            # self.model = tf.saved_model.load(self.model_path)
+            if self.save_mode in ('hdf5', 'weight'):
 
-            self.model.load_weights(self.model_path)
+                self.model_obj.model_train.load_weights(self.model_path)
+
+            elif self.save_mode == 'SavedModel':
+
+                self.model_obj.model_train = tf.saved_model.load(self.model_path)
 
 
     def _shuffle_dataset(self, dataset, buffer_size, batch_size):
@@ -179,24 +183,31 @@ class MachineTranslation:
         early_stop = EarlyStopping('val_loss', patience=5)
 
         model_checkpoint_with_eval = CheckoutCallback(current_config=self.current_config,
-                                                      model=self.model,
+                                                      model_obj=self.model_obj,
                                                       vocab_obj=self.vocab_target, valid_source_target_dict=valid_source_target_dict,
-                                                      checkpoint_models_path=checkpoint_models_path)
+                                                      )
 
         # Final callbacks
-        # callbacks = [model_checkpoint_with_eval, early_stop, tensor_board]
+        callbacks = [model_checkpoint_with_eval]
 
-        history = self.model.fit(
-            epoch_num=epoch_num, train_dataset=train_dataset_prefetch, valid_dataset=valid_dataset_prefetch,
-            callback_obj=model_checkpoint_with_eval
+        # loss='sparse_categorical_crossentropy'
+
+        self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer='rmsprop', metrics=['accuracy'])
+
+        history = self.model_obj.model_train.fit(
+            x=train_dataset_prefetch,
+            epochs=epoch_num,
+            validation_data=valid_dataset_prefetch,
+            verbose=1,
+            callbacks=callbacks
             )
 
-        # 将训练好的模型保存到文件
-        # self.model.save(self.model_path)
+        # 将训练好的模型持久化
+        # self.model_obj.model_train.save(self.model_path)
 
 
 
-    def inference(self, batch_source_dataset, target_length):
+    def inference(self, batch_source_dataset):
         """
         使用训练好的模型进行推理
 
@@ -207,18 +218,13 @@ class MachineTranslation:
 
         # batch_source_dataset shape (N_batch, encoder_length)
 
-        preds = self.model.predict(batch_source_dataset, target_length)
-
-        decode_result = self.vocab_target.map_id_to_word(preds)
-
-        decode_result = tf.strings.reduce_join(decode_result, axis=1,
-                                               separator=' ')
+        decode_result = self.model_obj.predict(batch_source_dataset)
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
         return candidates
 
-class CheckoutCallback:
+class CheckoutCallback(keras.callbacks.Callback):
     """
     回调函数, 实现在每一次 epoch 后 checkout 训练好的模型,
     并且计算在验证集上的 bleu 分数
@@ -226,16 +232,26 @@ class CheckoutCallback:
     """
 
     def __init__(self, current_config,
-                 model, vocab_obj, valid_source_target_dict,
-                 checkpoint_models_path):
+                 model_obj, vocab_obj, valid_source_target_dict,
+                 ):
+        """
 
-        self.model = model
+        :param current_config: 配置中心
+        :param model_obj: 模型对象
+        :param vocab_obj: 目标语言的词典对象
+        :param valid_source_target_dict: 源序列到目标序列的词典
+
+        """
+
+        keras.callbacks.Callback.__init__(self)
+
+        self.model_obj = model_obj
         self.vocab_obj = vocab_obj
 
-        self.batch_source_dataset, self.references = self.prepare_valid_data(batch_size=int(current_config['batch_size']),
-                                                                           valid_source_target_dict=valid_source_target_dict)
+        self.save_mode = current_config['save_mode']
 
-        self.target_length = int(current_config['max_seq_length'])
+        self.batch_source_dataset, self.references = self.prepare_data(batch_size=int(current_config['batch_size']),
+                                                                           valid_source_target_dict=valid_source_target_dict)
 
         self.evaluate_obj = Evaluate(
             with_unk=True,
@@ -244,9 +260,9 @@ class CheckoutCallback:
             _end_str=current_config['_end_str'],
             _unk_str=current_config['_unk_str'])
 
-        self.checkpoint_models_path = checkpoint_models_path
+        self.checkpoint_models_path = current_config['checkpoint_models_path']
 
-    def prepare_valid_data(self, batch_size, valid_source_target_dict):
+    def prepare_data(self, batch_size, valid_source_target_dict):
         """
         返回 图片的 embedding 向量 和 图片对应的 caption
 
@@ -276,12 +292,7 @@ class CheckoutCallback:
 
         # batch_source_dataset shape (N_batch, encoder_length)
 
-        preds = self.model.predict(self.batch_source_dataset, self.target_length)
-
-        decode_result = self.vocab_obj.map_id_to_word(preds)
-
-        decode_result = tf.strings.reduce_join(decode_result, axis=1,
-                                               separator=' ')
+        decode_result = self.model_obj.predict(self.batch_source_dataset)
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
@@ -293,40 +304,71 @@ class CheckoutCallback:
     def on_epoch_end(self, epoch, logs=None):
 
         # checkout 模型
-        fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
 
-        self.model.save_weights(fmt % (epoch, logs['val_loss']))  # 保存模型的参数
+        if self.save_mode == 'hdf5':
 
-        # tf.saved_model.save(self.model, fmt % (epoch, logs['val_loss']))  # 保存整个模型
+            # 使用 hdf5 保存整个模型
+            fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f.h5')
+            self.model_obj.model_train.save(fmt % (epoch, logs['val_loss']))
+
+        elif self.save_mode == 'SavedModel':
+
+            # 使用 SavedModel 保存整个模型
+            fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
+            tf.saved_model.save(self.model_obj.model_train, fmt % (epoch, logs['val_loss']))
+
+        elif self.save_mode == 'weight':
+            # 'weight' 只保存权重
+            fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
+            self.model_obj.model_train.save_weights(fmt % (epoch, logs['val_loss']))  # 保存模型的参数
 
         # 计算 bleu 分数
         self.inference_bleu()
 
 
-class Seq2seqModel(Model):
+class Seq2seqModel:
     """
     seq2seq 模型
 
-    1. 解码采用一体化模型的方式, 即建立推理计算图, 将每一步的解码都在计算图中完成
-    2. 采用动态图构建模型, 并从头编写训练循环
+    1. 解码采用一体化模型 (integrated model)的方式, 即将每一步的解码都在计算图中完成(时间步的循环控制写在计算图里面)
+
+    2. 训练时采用静态图 (Session execution) 构建模型, 输入的 source 序列 和 输出的 target 序列必须为定长, 使用静态图可以节约显存并加速训练;
+
+    3. 推理时采用动态图(Eager execution)构建模型, 使用动态图可以实现变长的解码
+
+      (1) 每次推理 1 个 源序列, 在 decoder 预测出 <END> 时结束解码,
+
+      (2) 每次推理 1 个 batch 的源序列, 目标序列的长度设置为源序列的长度
+
+    4.使用多层的 LSTM 堆叠,中间使用 dropout 连接
 
     Author: xrh
     Date: 2021-11-20
 
     """
 
-    def __init__(self,  n_embedding, n_h, target_length,
-                 n_vocab_source, n_vocab_target,
+    def __init__(self,  n_embedding, n_h, max_seq_length,
+                 dropout_rates,
+                 n_vocab_source, n_vocab_target, vocab_target,
                  _start_target, _null_target,
                  tokenizer_source=None, tokenizer_target=None,
                  reverse_source=True,
-                 dropout_rates=(0.2, 0.2, 0.2)):
+                 ):
 
         super().__init__()
 
+        # 最大的序列长度
+        self.max_seq_length = max_seq_length
+
+        # 训练数据中源序列的长度
+        self.source_length = self.max_seq_length
+
+        # 训练数据中目标序列的长度
+        self.target_length = self.max_seq_length - 1
+
         self.reverse_source = reverse_source
 
-        # target 中代表 null 的标号
+        # target 中代表 start 的标号
         self._start_target = _start_target
 
         # target 中代表 null 的标号
@@ -338,21 +380,37 @@ class Seq2seqModel(Model):
         # 建立编码器和解码器
         self.encoder = Encoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_source, dropout_rates=dropout_rates)
 
-        self.train_decoder = TrianDecoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target, target_length=target_length, dropout_rates=dropout_rates)
+        self.train_decoder = TrianDecoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target, target_length=self.target_length, dropout_rates=dropout_rates)
 
-        self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target, target_length=target_length)
+        self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target, vocab_target=vocab_target)
 
-        # 损失对象
+        # 建立训练计算图
+        self.model_train = self.build_train_graph()
+
+        # 损失函数对象
         self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(reduction='none')
 
         # 优化器
-        self.optimizer = keras.optimizers.RMSprop()
-
-        # 评价指标
-        self.train_acc_metric = keras.metrics.SparseCategoricalAccuracy()
-        self.val_acc_metric = keras.metrics.SparseCategoricalAccuracy()
+        # self.optimizer = keras.optimizers.RMSprop()
 
 
+    def build_train_graph(self):
+        """
+        将各个 网络层(layer) 拼接为训练计算图
+
+        :return:
+        """
+        batch_source = Input(shape=(None,), name='batch_source')  # shape (N_batch, encoder_length)
+
+        batch_target_in = Input(shape=(None,), name='batch_target_in')  # shape (N_batch, decoder_length)
+
+        layer_state_list = self.encoder(batch_source)
+
+        outputs_prob = self.train_decoder(batch_target_in, layer_state_list)
+
+        model = Model(inputs=[batch_source, batch_target_in], outputs=outputs_prob)
+
+        return model
 
     def _mask_loss_function(self, real, pred):
         """
@@ -367,7 +425,7 @@ class Seq2seqModel(Model):
         mask = tf.cast(mask, dtype=loss_.dtype)
         loss_ *= mask
 
-        return mask, tf.reduce_mean(loss_)
+        return tf.reduce_mean(loss_)
 
     def _preprocess(self, batch_data):
         """
@@ -377,51 +435,15 @@ class Seq2seqModel(Model):
         :return:
         """
 
-        batch_source, batch_target = batch_data
+        batch_source = batch_data
 
         batch_source_vector = self.tokenizer_source(batch_source).to_tensor()
 
         if self.reverse_source:
             batch_source_vector = batch_source_vector[:, ::-1]
 
-        batch_target_vector = self.tokenizer_target(batch_target).to_tensor()
+        return batch_source_vector
 
-        batch_target_in = batch_target_vector[:, :-1]
-        batch_target_out = batch_target_vector[:, 1:]
-
-        return (batch_source_vector, batch_target_in), batch_target_out
-
-
-    # @tf.function
-    def _train_step(self, inputs):
-
-        training = True
-
-        (batch_source, batch_target_in), batch_target_out = inputs
-        # batch_source  shape (N_batch, source_length)
-        # batch_target_in shape (N_batch, target_length)
-        # batch_target_out shape (N_batch, target_length)
-
-        target_length = tf.shape(batch_target_in)[1]
-
-        with tf.GradientTape() as tape:
-
-            layer_state_list = self.encoder(batch_source=batch_source, training=training)
-
-            probs = self.train_decoder(batch_target_in=batch_target_in,
-                                       layer_state_list=layer_state_list, training=training)
-            # probs shape (N_batch, target_length, n_vocab)
-
-            target_mask, average_loss = self._mask_loss_function(batch_target_out, probs)
-
-
-        trainable_variables = self.encoder.trainable_variables + self.train_decoder.trainable_variables
-
-        gradients = tape.gradient(average_loss, trainable_variables)
-
-        self.optimizer.apply_gradients(zip(gradients, trainable_variables))
-
-        return average_loss, probs
 
     # @tf.function
     def _test_step(self, batch_source, target_length):
@@ -432,124 +454,36 @@ class Seq2seqModel(Model):
 
         layer_state_list = self.encoder(batch_source=batch_source, training=training)
 
-        probs, preds = self.infer_decoder(layer_state_list=layer_state_list,
+        probs, preds, decode_text = self.infer_decoder(layer_state_list=layer_state_list,
                                    target_length=target_length, training=training)
 
-        return probs, preds
+        return probs, preds, decode_text
 
 
-    def fit(self, epoch_num, train_dataset, valid_dataset, callback_obj=None):
 
-        logs_list = []  # 记录每一个 epoch 的日志
+    def predict(self, source_dataset):
+        """
+        输出预测的单词序列
 
-        for epoch in range(epoch_num):
+        :param source_dataset:
+        :return:
+        """
 
-            print('----------------------------------')
-            print("Epoch %d/%d" % (epoch, epoch_num))
-            start_time = time.time()
-
-            logs = {}  # 当前 epoch 的日志
-
-            # ------------ train dataset -------------#
-            epoch_train_loss = 0
-            iteration = 0
-
-            # 遍历训练数据集的 所有batch
-            for batch_data in tqdm(train_dataset):
-
-                features, labels = self._preprocess(batch_data)
-
-                average_loss, probs = self._train_step((features, labels))
-
-                # print('iteration loss: %.2f' % (batch_loss,))
-
-                epoch_train_loss += average_loss
-
-                # Update training metric.
-                self.train_acc_metric.update_state(labels, probs)
-
-                iteration += 1
-
-            # 本次 epoch 的训练结束
-            # print("\nEpoch: %d end" % (epoch,))
-
-            train_acc = self.train_acc_metric.result()
-            # 重置验证指标
-            self.train_acc_metric.reset_states()
-
-            epoch_train_loss = epoch_train_loss / iteration
-            print("train loss: %.4f , train acc: %.4f" % (epoch_train_loss, float(train_acc)))
-
-
-            # ------------ valid dataset -------------#
-
-            epoch_valid_loss = 0
-            iteration = 0
-
-            # 遍历验证数据集
-            for batch_data in tqdm(valid_dataset):
-
-                features, labels = self._preprocess(batch_data)
-
-                (batch_source, batch_target_in) = features
-
-                target_length = tf.shape(batch_target_in)[1]
-
-                probs, _ = self._test_step(batch_source, target_length)
-
-                _, batch_loss = self._mask_loss_function(labels, probs)
-
-                epoch_valid_loss += batch_loss
-
-                # Update val metrics
-                self.val_acc_metric.update_state(labels, probs)
-
-                iteration += 1
-
-            val_acc = self.val_acc_metric.result()
-            # 重置验证指标
-            self.val_acc_metric.reset_states()
-
-            epoch_valid_loss = epoch_valid_loss / iteration
-            print("valid loss: %.4f , valid acc: %.4f" % (epoch_valid_loss, float(val_acc)))
-
-            cost_time = time.time() - start_time
-            print("Time taken: %.2fs" % cost_time)
-
-
-            # 记录日志
-            logs['epoch'] = epoch
-            logs['train_loss'] = epoch_train_loss
-            logs['train_acc'] = train_acc
-            logs['val_loss'] = epoch_valid_loss
-            logs['val_acc'] = val_acc
-            logs['time'] = cost_time
-
-            logs_list.append(logs)
-
-            # -------------- callback --------------#
-            if callback_obj is not None:
-                callback_obj.on_epoch_end(epoch=epoch, logs=logs)
-
-        return logs_list
-
-    def predict(self, source_dataset, target_length):
-
-        preds_list = []
+        seq_list = []
 
         # 遍历数据集
         for batch_data in tqdm(source_dataset):
 
-            batch_source = batch_data
-            batch_source = self.tokenizer_source(batch_source).to_tensor()
+            batch_source = self._preprocess(batch_data)
 
-            _, preds = self._test_step(batch_source, target_length)
+            target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
 
-            for pred in preds:
-                preds_list.append(pred)
+            _, _, decode_seq = self._test_step(batch_source, target_length)
 
+            for seq in decode_seq:
+                seq_list.append(seq)
 
-        return preds_list
+        return seq_list
 
 class Encoder(Layer):
     """
@@ -557,27 +491,40 @@ class Encoder(Layer):
 
     """
 
-    def __init__(self, n_embedding, n_h, n_vocab, dropout_rates=(0.2, 0.2, 0.2)):
+    def __init__(self, n_embedding, n_h, n_vocab, dropout_rates):
 
         super(Encoder, self).__init__()
 
         self.embedding_layer = Embedding(n_vocab, n_embedding)
 
-        self.lstm_layer0 = LSTM(n_h, return_sequences=True, return_state=True, name='lstm_layer1')
-        # self.dropout_layer1 = Dropout(dropout_rates[0], name='dropout1')  # 神经元有 0.1 的概率被弃置
+        self.lstm_layer0 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer0 = Dropout(dropout_rates[0])  # 神经元有 dropout_rates[0] 的概率被弃置
 
-        # self.lstm_layer2 = LSTM(n_h, return_sequences=True, return_state=True, name='lstm_layer1')
-        # self.dropout_layer2 = Dropout(dropout_rates[0], name='dropout1')  # 神经元有 0.1 的概率被弃置
+        self.lstm_layer1 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer1 = Dropout(dropout_rates[1])
+
+        self.lstm_layer2 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer2 = Dropout(dropout_rates[2])
+
+        self.lstm_layer3 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer3 = Dropout(dropout_rates[3])
 
 
-    # def get_config(self):
-    #     config = super().get_config().copy()
-    #     config.update({
-    #         'embedding_layer': self.embedding_layer,
-    #         'lstm_layer0': self.lstm_layer0
-    #
-    #     })
-    #     return config
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'embedding_layer': self.embedding_layer,
+            'lstm_layer0': self.lstm_layer0,
+            'dropout_layer0': self.dropout_layer0,
+            'lstm_layer1': self.lstm_layer1,
+            'dropout_layer1': self.dropout_layer1,
+            'lstm_layer2': self.lstm_layer2,
+            'dropout_layer2': self.dropout_layer2,
+            'lstm_layer3': self.lstm_layer3,
+            'dropout_layer3': self.dropout_layer3,
+
+        })
+        return config
 
     def call(self, batch_source, training=True):
 
@@ -587,10 +534,34 @@ class Encoder(Layer):
 
         layer_state_list = []
 
-        out_lstm0, state_h0, state_c0 = self.lstm_layer0(
+        # layer0
+        out_lstm0, h0, c0 = self.lstm_layer0(
             inputs=source_embedding)  # out_lstm0 shape : (N_batch, source_length, n_h)
 
-        layer_state_list.append((state_h0, state_c0))
+        layer_state_list.append((h0, c0))
+        dropout0 = self.dropout_layer0(inputs=out_lstm0, training=training)
+
+        # layer1
+        out_lstm1, h1, c1 = self.lstm_layer1(
+            inputs=dropout0)  # out_lstm0 shape : (N_batch, source_length, n_h)
+
+        layer_state_list.append((h1, c1))
+        dropout1 =self.dropout_layer1(inputs=out_lstm1, training=training)
+
+        # layer2
+        out_lstm2, h2, c2 = self.lstm_layer2(
+            inputs=dropout1)  # out_lstm0 shape : (N_batch, source_length, n_h)
+
+        layer_state_list.append((h2, c2))
+        dropout2 =self.dropout_layer2(inputs=out_lstm2, training=training)
+
+        # layer3
+        out_lstm3, h3, c3 = self.lstm_layer3(
+            inputs=dropout2)  # out_lstm0 shape : (N_batch, source_length, n_h)
+
+        layer_state_list.append((h3, c3))
+        dropout3 =self.dropout_layer3(inputs=out_lstm1, training=training)
+
 
         return layer_state_list
 
@@ -601,7 +572,7 @@ class TrianDecoder(Layer):
 
     """
 
-    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates=(0.2, 0.2, 0.2)):
+    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates):
 
         super(TrianDecoder, self).__init__()
 
@@ -609,25 +580,38 @@ class TrianDecoder(Layer):
 
         self.embedding_layer = Embedding(n_vocab, n_embedding)
 
-        self.lstm_layer0 = LSTM(n_h, return_sequences=True, return_state=True, name='lstm_layer1')
+        self.lstm_layer0 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer0 = Dropout(dropout_rates[0])  # 神经元有 dropout_rates[0] 的概率被弃置
 
-        self.out_dropout_layer = Dropout(dropout_rates[-1])
+        self.lstm_layer1 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer1 = Dropout(dropout_rates[1])
+
+        self.lstm_layer2 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer2 = Dropout(dropout_rates[2])
+
+        self.lstm_layer3 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer3 = Dropout(dropout_rates[3])
 
         self.fc_layer = Dense(n_vocab, activation='softmax')
 
+    def get_config(self):
 
-    # def get_config(self):
-    #
-    #     config = super().get_config().copy()
-    #
-    #     config.update({
-    #         'target_length': self.target_length,
-    #         'embedding_layer': self.embedding_layer,
-    #         'lstm_layer0': self.lstm_layer0,
-    #         'out_dropout_layer': self.out_dropout_layer,
-    #         'fc_layer': self.fc_layer,
-    #     })
-    #     return config
+        config = super().get_config().copy()
+
+        config.update({
+            'target_length': self.target_length,
+            'embedding_layer': self.embedding_layer,
+            'lstm_layer0': self.lstm_layer0,
+            'dropout_layer0': self.dropout_layer0,
+            'lstm_layer1': self.lstm_layer1,
+            'dropout_layer1': self.dropout_layer1,
+            'lstm_layer2': self.lstm_layer2,
+            'dropout_layer2': self.dropout_layer2,
+            'lstm_layer3': self.lstm_layer3,
+            'dropout_layer3': self.dropout_layer3,
+            'fc_layer': self.fc_layer,
+        })
+        return config
 
     def call(self, batch_target_in, layer_state_list, training=True):
 
@@ -636,14 +620,26 @@ class TrianDecoder(Layer):
         batch_target_embbeding = self.embedding_layer(inputs=batch_target_in)
         # shape (N_batch, target_length, n_embedding)
 
+        # 第 0 层的编码器LSTM 的隐藏层
         h0 = layer_state_list[0][0]  # shape: (N_batch, n_h)
         c0 = layer_state_list[0][1]  # shape: (N_batch, n_h)
 
+        # 第 1 层的编码器LSTM 的隐藏层
+        h1 = layer_state_list[1][0]  # shape: (N_batch, n_h)
+        c1 = layer_state_list[1][1]  # shape: (N_batch, n_h)
+
+        # 第 2 层的编码器LSTM 的隐藏层
+        h2 = layer_state_list[2][0]  # shape: (N_batch, n_h)
+        c2 = layer_state_list[2][1]  # shape: (N_batch, n_h)
+
+        # 第 3 层的编码器LSTM 的隐藏层
+        h3 = layer_state_list[3][0]  # shape: (N_batch, n_h)
+        c3 = layer_state_list[3][1]  # shape: (N_batch, n_h)
+
         outs_prob = []
 
-        target_length = tf.shape(batch_target_in)[1]  # 使用动态图时可以支持
-
-        for t in tf.range(target_length):
+        for t in range(self.target_length):  # 使用静态图必须为固定的长度
+            # TODO: 这里使用 tf.range() 会报错
 
             batch_token_embbeding = tf.expand_dims(batch_target_embbeding[:, t, :], axis=1)
             # Teacher Forcing: 每一个时间步的输入为真实的标签值而不是上一步预测的结果
@@ -652,10 +648,19 @@ class TrianDecoder(Layer):
             context = batch_token_embbeding
 
             out_lstm0, h0, c0 = self.lstm_layer0(inputs=context, initial_state=[h0, c0])  # 输入 context 只有1个时间步
+            out_dropout0 = self.dropout_layer0(out_lstm0, training=training)
 
-            h_dropout = self.out_dropout_layer(h0, training=training)
+            out_lstm1, h1, c1 = self.lstm_layer1(inputs=out_dropout0, initial_state=[h1, c1])  # 输入 context 只有1个时间步
+            out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
 
-            out = self.fc_layer(h_dropout)  # shape (N_batch, n_vocab)
+            out_lstm2, h2, c2 = self.lstm_layer2(inputs=out_dropout1, initial_state=[h2, c2])  # 输入 context 只有1个时间步
+            out_dropout2 = self.dropout_layer2(out_lstm2, training=training)
+
+            out_lstm3, h3, c3 = self.lstm_layer3(inputs=out_dropout2, initial_state=[h3, c3])  # 输入 context 只有1个时间步
+
+            out_dropout3 = self.dropout_layer3(h3, training=training)
+
+            out = self.fc_layer(out_dropout3)  # shape (N_batch, n_vocab)
 
             outs_prob.append(out)  # shape (target_length, N_batch, n_vocab)
 
@@ -670,35 +675,49 @@ class InferDecoder(Layer):
 
     """
 
-    def __init__(self, train_decoder_obj, target_length, _start):
+    def __init__(self, train_decoder_obj, _start, vocab_target):
 
         super(InferDecoder, self).__init__()
 
         self.train_decoder_obj = train_decoder_obj
         self._start = _start
 
-        self.target_length = target_length
-
         self.embedding_layer = self.train_decoder_obj.embedding_layer
 
         self.lstm_layer0 = self.train_decoder_obj.lstm_layer0
-        self.out_dropout_layer = self.train_decoder_obj.out_dropout_layer
+        self.dropout_layer0 = self.train_decoder_obj.dropout_layer0
+
+        self.lstm_layer1 = self.train_decoder_obj.lstm_layer1
+        self.dropout_layer1 = self.train_decoder_obj.dropout_layer1
+
+        self.lstm_layer2 = self.train_decoder_obj.lstm_layer2
+        self.dropout_layer2 = self.train_decoder_obj.dropout_layer2
+
+        self.lstm_layer3 = self.train_decoder_obj.lstm_layer3
+        self.dropout_layer3 = self.train_decoder_obj.dropout_layer3
 
         self.fc_layer = self.train_decoder_obj.fc_layer
 
-    # def get_config(self):
-    #     config = super().get_config().copy()
-    #     config.update({
-    #
-    #         'train_decoder_obj': self.train_decoder_obj,
-    #         '_start': self._start,
-    #         'target_length': self.target_length,
-    #         'embedding_layer': self.embedding_layer,
-    #         'lstm_layer0': self.lstm_layer0,
-    #         'out_dropout_layer': self.out_dropout_layer,
-    #         'fc_layer': self.fc_layer,
-    #     })
-    #     return config
+        self.vocab_target = vocab_target
+
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'train_decoder_obj': self.train_decoder_obj,
+            '_start': self._start,
+            'embedding_layer': self.embedding_layer,
+            'lstm_layer0': self.lstm_layer0,
+            'dropout_layer0': self.dropout_layer0,
+            'lstm_layer1': self.lstm_layer1,
+            'dropout_layer1': self.dropout_layer1,
+            'lstm_layer2': self.lstm_layer2,
+            'dropout_layer2': self.dropout_layer2,
+            'lstm_layer3': self.lstm_layer3,
+            'dropout_layer3': self.dropout_layer3,
+            'fc_layer': self.fc_layer,
+            'vocab_target': self.vocab_target,
+        })
+        return config
 
     def call(self, layer_state_list, target_length, training=False):
         """
@@ -710,8 +729,22 @@ class InferDecoder(Layer):
                 outputs - shape (N_batch, target_length) 标号形式的推理结果
         """
 
+        # 第 0 层的编码器LSTM 的隐藏层
         h0 = layer_state_list[0][0]  # shape: (N_batch, n_h)
         c0 = layer_state_list[0][1]  # shape: (N_batch, n_h)
+
+        # 第 1 层的编码器LSTM 的隐藏层
+        h1 = layer_state_list[1][0]  # shape: (N_batch, n_h)
+        c1 = layer_state_list[1][1]  # shape: (N_batch, n_h)
+
+        # 第 2 层的编码器LSTM 的隐藏层
+        h2 = layer_state_list[2][0]  # shape: (N_batch, n_h)
+        c2 = layer_state_list[2][1]  # shape: (N_batch, n_h)
+
+        # 第 3 层的编码器LSTM 的隐藏层
+        h3 = layer_state_list[3][0]  # shape: (N_batch, n_h)
+        c3 = layer_state_list[3][1]  # shape: (N_batch, n_h)
+
 
         N_batch = tf.shape(h0)[0]
         batch_token = tf.ones((N_batch, 1)) * self._start  # (N_batch, 1)
@@ -727,10 +760,19 @@ class InferDecoder(Layer):
             context = batch_token_embbeding
 
             out_lstm0, h0, c0 = self.lstm_layer0(inputs=context, initial_state=[h0, c0])  # 输入 context 只有1个时间步
+            out_dropout0 = self.dropout_layer0(out_lstm0, training=training)
 
-            h_dropout = self.out_dropout_layer(h0, training=training)
+            out_lstm1, h1, c1 = self.lstm_layer1(inputs=out_dropout0, initial_state=[h1, c1])  # 输入 context 只有1个时间步
+            out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
 
-            out = self.fc_layer(h_dropout)  # shape (N_batch, n_vocab)
+            out_lstm2, h2, c2 = self.lstm_layer2(inputs=out_dropout1, initial_state=[h2, c2])  # 输入 context 只有1个时间步
+            out_dropout2 = self.dropout_layer2(out_lstm2, training=training)
+
+            out_lstm3, h3, c3 = self.lstm_layer3(inputs=out_dropout2, initial_state=[h3, c3])  # 输入 context 只有1个时间步
+
+            out_dropout3 = self.dropout_layer3(h3, training=training)
+
+            out = self.fc_layer(out_dropout3)  # shape (N_batch, n_vocab)
 
             max_idx = tf.math.argmax(out, axis=1)  # shape (N_batch, )
 
@@ -742,11 +784,15 @@ class InferDecoder(Layer):
 
             outs.append(max_idx)  # shape (target_length, N_batch)
 
-        outputs_prob = tf.transpose(outs_prob, perm=[1, 0, 2])  # shape (N_batch, target_length, n_vocab)
+        outputs_prob = tf.transpose(outs_prob, perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
 
-        outputs = tf.transpose(outs, perm=[1, 0])  # shape (N_batch, target_length)
+        outputs = tf.transpose(outs, perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
 
-        return outputs_prob, outputs
+        decode_seq = self.vocab_target.map_id_to_word(outputs)  # 解码后的单词序列 shape (N_batch, target_length)
+
+        decode_text = tf.strings.reduce_join(decode_seq, axis=1, separator=' ')  # 单词序列 join 成句子
+
+        return outputs_prob, outputs, decode_text
 
 
 class Test_WMT14_Eng_Ge_Dataset:
@@ -818,7 +864,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         batch_source_dataset = source_dataset.batch(batch_size)
 
-        candidates = infer.inference(batch_source_dataset, target_length=int(current_config['test_max_seq_length']))
+        candidates = infer.inference(batch_source_dataset)
 
         print('\ncandidates:')
         for i in range(0, 10):
