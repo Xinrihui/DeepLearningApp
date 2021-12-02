@@ -767,8 +767,12 @@ class Test:
 
         elif current_config['preprocess_mode'] == 'final':
 
+            dataset = dataset_train_obj.train_dataset.unbatch()
+
+            dataset = dataset.shuffle(10000).batch(32)
+
             # 查看 1 个批次的数据
-            for batch_feature, batch_label in tqdm(dataset_train_obj.train_dataset.take(1)):
+            for batch_feature, batch_label in tqdm(dataset.take(10)):
                 source = batch_feature[0]
 
                 target_in = batch_feature[1]
@@ -853,7 +857,7 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess(tag='TEST')
+    # test.test_DataPreprocess(tag='TEST')
 
     test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
