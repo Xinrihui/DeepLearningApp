@@ -769,23 +769,34 @@ class Test:
 
             dataset = dataset_train_obj.train_dataset.unbatch()
 
-            dataset = dataset.shuffle(10000).batch(32)
+            dataset = dataset.shuffle(100).batch(2)
 
             # 查看 1 个批次的数据
-            for batch_feature, batch_label in tqdm(dataset.take(10)):
-                source = batch_feature[0]
+            for batch_feature, batch_label in tqdm(dataset.take(1)):
 
-                target_in = batch_feature[1]
-                target_out = batch_label
+                source_vector = batch_feature[0]
 
+                target_in_vector = batch_feature[1]
+                target_out_vector = batch_label
+
+                print('source_vector:')
+                print(source_vector)
+
+                source = dataset_train_obj.vocab_source.map_id_to_word(source_vector)
+                source = tf.strings.reduce_join(source[:, ::-1], axis=1, separator=' ')  # 单词序列 join 成句子
                 print('source:')
                 print(source)
 
+                print('target_in_vector:')
+                print(target_in_vector)
+
+                target_in = dataset_train_obj.vocab_target.map_id_to_word(target_in_vector)
+                target_in = tf.strings.reduce_join(target_in, axis=1, separator=' ')  # 单词序列 join 成句子
                 print('target_in:')
                 print(target_in)
 
-                print('target_out:')
-                print(target_out)
+                print('target_out_vector:')
+                print(target_out_vector)
 
 
         print('one row of source_target_dict: ')

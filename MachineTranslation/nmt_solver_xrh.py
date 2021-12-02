@@ -4,8 +4,7 @@
 #  适用于 tensorflow >= 2.0, keras 被直接集成到 tensorflow 的内部
 #  ref: https://keras.io/about/
 
-from tensorflow.keras.layers import Layer, Input, LSTM, TimeDistributed, Bidirectional, Dense, Lambda, Embedding, Dropout, \
-    Concatenate, RepeatVector
+
 from tensorflow.keras.optimizers import Adam
 
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
@@ -170,24 +169,37 @@ class MachineTranslation:
         checkpoint_models_path = self.current_config['checkpoint_models_path']
 
         # Callbacks
+        # [1] tensorboard
         # 在根目录下运行 tensorboard --logdir ./logs
         tensor_board = keras.callbacks.TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True,
                                                    write_images=True)
 
-        # 早停: 在验证集上, 损失经过 patience 次的迭代后, 仍然没有下降则暂停训练
+        # [2] 根据 epoch 调整学习率
+        def scheduler(epoch, lr):
+            if epoch <= 5:
+                return lr
+            else:
+                return lr * 0.5
+        dynamic_lr = tf.keras.callbacks.LearningRateScheduler(scheduler)
+
+        # [3] 早停: 在验证集上, 损失经过 patience 次的迭代后, 仍然没有下降则暂停训练
         early_stop = EarlyStopping('val_loss', patience=5)
 
+        # [4] 计算在验证集上的 bleu 指标
         model_checkpoint_with_eval = CheckoutCallback(current_config=self.current_config,
                                                       model_obj=self.model_obj,
                                                       vocab_obj=self.vocab_target, valid_source_target_dict=valid_source_target_dict,
                                                       )
 
         # Final callbacks
-        callbacks = [model_checkpoint_with_eval]
+        callbacks = [model_checkpoint_with_eval, dynamic_lr]
 
         # loss='sparse_categorical_crossentropy'
+        # optimizer='rmsprop'
 
-        self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer='rmsprop', metrics=['accuracy'])
+        optimizer = tf.keras.optimizers.SGD(learning_rate=1.0)
+
+        self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer=optimizer, metrics=['accuracy'])
 
         history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,
@@ -196,6 +208,8 @@ class MachineTranslation:
             verbose=1,
             callbacks=callbacks
             )
+
+        print('final learning_rate:', round(self.model_obj.model_train.optimizer.lr.numpy(), 5))
 
         # 将训练好的模型持久化
         # self.model_obj.model_train.save(self.model_path)

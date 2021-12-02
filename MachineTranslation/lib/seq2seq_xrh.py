@@ -13,9 +13,9 @@ import tensorflow.keras as keras
 
 from tensorflow.keras.models import Model
 
-from lib.tf_data_tokenize_xrh import *
+import tensorflow as tf
 
-
+from tqdm import tqdm
 
 class Seq2seq:
     """
@@ -85,8 +85,6 @@ class Seq2seq:
         # 损失函数对象
         self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(reduction='none')
 
-        # 优化器
-        # self.optimizer = keras.optimizers.RMSprop()
 
 
     def build_train_graph(self):
@@ -193,7 +191,7 @@ class Encoder(Layer):
         self.embedding_layer = Embedding(n_vocab, n_embedding)
 
         self.lstm_layer0 = LSTM(n_h, return_sequences=True, return_state=True)
-        self.dropout_layer0 = Dropout(dropout_rates[0])  # 神经元有 dropout_rates[0] 的概率被弃置
+        # self.dropout_layer0 = Dropout(dropout_rates[0])  # 神经元有 dropout_rates[0] 的概率被弃置
 
 
     def get_config(self):
@@ -201,7 +199,7 @@ class Encoder(Layer):
         config.update({
             'embedding_layer': self.embedding_layer,
             'lstm_layer0': self.lstm_layer0,
-            'dropout_layer0': self.dropout_layer0,
+            # 'dropout_layer0': self.dropout_layer0,
         })
         return config
 
@@ -218,7 +216,7 @@ class Encoder(Layer):
             inputs=source_embedding)  # out_lstm0 shape : (N_batch, source_length, n_h)
 
         layer_state_list.append((h0, c0))
-        dropout0 = self.dropout_layer0(inputs=out_lstm0, training=training)
+        # dropout0 = self.dropout_layer0(inputs=out_lstm0, training=training)
 
         return layer_state_list
 
@@ -266,13 +264,13 @@ class TrianDecoder(Layer):
         h0 = layer_state_list[0][0]  # shape: (N_batch, n_h)
         c0 = layer_state_list[0][1]  # shape: (N_batch, n_h)
 
-        outs_prob = []
+        # outs_prob = []
+        outs_prob = tf.TensorArray(tf.float32, size=self.target_length, clear_after_read=False)
 
-        # target_length = int(tf.shape(batch_target_in)[1])
+        # target_length = tf.shape(batch_target_in)[1]
 
         for t in range(self.target_length):  # 使用静态图必须为固定的长度
-            # TODO: 若使用 tf.range() 会报错:
-            #  InaccessibleTensorError: tf.Graph captured an external symbolic tensor.
+            # TODO: 若使用 tf.range() 会报错, 详见 logs/../bugs.md
 
             batch_token_embbeding = tf.expand_dims(batch_target_embbeding[:, t, :], axis=1)
             # Teacher Forcing: 每一个时间步的输入为真实的标签值而不是上一步预测的结果
@@ -281,13 +279,16 @@ class TrianDecoder(Layer):
             context = batch_token_embbeding
 
             out_lstm0, h0, c0 = self.lstm_layer0(inputs=context, initial_state=[h0, c0])  # 输入 context 只有1个时间步
+
             out_dropout0 = self.dropout_layer0(h0, training=training)
 
             out = self.fc_layer(out_dropout0)  # shape (N_batch, n_vocab)
 
-            outs_prob.append(out)  # shape (target_length, N_batch, n_vocab)
+            # outs_prob.append(out)  # shape (target_length, N_batch, n_vocab)
 
-        outputs_prob = tf.transpose(outs_prob, perm=[1, 0, 2])  # shape (N_batch, target_length, n_vocab)
+            outs_prob = outs_prob.write(t, out)
+
+        outputs_prob = tf.transpose(outs_prob.stack(), perm=[1, 0, 2])  # shape (N_batch, target_length, n_vocab)
 
         return outputs_prob
 
@@ -345,9 +346,12 @@ class InferDecoder(Layer):
         N_batch = tf.shape(h0)[0]
         batch_token = tf.ones((N_batch, 1)) * self._start  # (N_batch, 1)
 
-        outs_prob = []
+        # outs_prob = []
+        outs_prob = tf.TensorArray(tf.float32, size=target_length, clear_after_read=False)
 
-        outs = []
+        # outs = []
+        outs = tf.TensorArray(tf.int64, size=target_length, clear_after_read=False)
+
 
         for t in tf.range(target_length):
 
@@ -367,13 +371,15 @@ class InferDecoder(Layer):
 
             batch_token = tf.expand_dims(max_idx, axis=1)  # shape (N_batch, 1)
 
-            outs_prob.append(out)  # shape (target_length, N_batch, n_vocab)
+            # outs_prob.append(out)  # shape (target_length, N_batch, n_vocab)
+            outs_prob = outs_prob.write(t, out)
 
-            outs.append(max_idx)  # shape (target_length, N_batch)
+            # outs.append(max_idx)  # shape (target_length, N_batch)
+            outs = outs.write(t, max_idx)
 
-        outputs_prob = tf.transpose(outs_prob, perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
+        outputs_prob = tf.transpose(outs_prob.stack(), perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
 
-        outputs = tf.transpose(outs, perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
+        outputs = tf.transpose(outs.stack(), perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
 
         decode_seq = self.vocab_target.map_id_to_word(outputs)  # 解码后的单词序列 shape (N_batch, target_length)
 
