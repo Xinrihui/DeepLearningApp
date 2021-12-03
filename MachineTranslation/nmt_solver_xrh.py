@@ -192,7 +192,7 @@ class MachineTranslation:
                                                       )
 
         # Final callbacks
-        callbacks = [model_checkpoint_with_eval, dynamic_lr]
+        callbacks = [model_checkpoint_with_eval]
 
         loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
 
@@ -201,7 +201,7 @@ class MachineTranslation:
         # optimizer = tf.keras.optimizers.Adam(clipnorm=5)
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
-        self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer=optimizer, metrics=['accuracy'])
+        self.model_obj.model_train.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 
         history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,
@@ -260,7 +260,7 @@ class CheckoutCallback(keras.callbacks.Callback):
         self.vocab_obj = vocab_obj
 
         self.save_mode = current_config['save_mode']
-        self.max_seq_length = current_config['max_seq_length']
+        self.max_seq_length = int(current_config['max_seq_length'])
 
         self.batch_source_dataset, self.references = self.prepare_data(batch_size=int(current_config['batch_size']),
                                                                            valid_source_target_dict=valid_source_target_dict)

@@ -150,7 +150,10 @@ class DataPreprocess:
         text = tf.strings.regex_replace(text, self.remove_words, '')
 
         # NKFC unicode 标准化 +  大小写折叠
-        text = tf_text.case_fold_utf8(text)
+        # text = tf_text.case_fold_utf8(text)
+
+        text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
+        text = tf.strings.lower(text)
 
         # 清除句子中的标点符号
         text = tf.strings.regex_replace(text, self.remove_punc, ' ')  # 空1格
@@ -873,9 +876,9 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DataPreprocess(tag='DEFAULT')
+    test.test_DataPreprocess(tag='TEST')
 
-    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
+    # test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
-    # test.test_VocabTf(tag='DEFAULT')
+    # test.test_VocabTf(tag='TEST')
 

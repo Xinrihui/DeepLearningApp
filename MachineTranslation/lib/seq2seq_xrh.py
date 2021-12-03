@@ -171,7 +171,7 @@ class Seq2seq:
 
             batch_source = self._preprocess(batch_data)
 
-            if target_length is not None:
+            if target_length is None:
 
                 target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
 
