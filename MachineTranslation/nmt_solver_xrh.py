@@ -198,7 +198,7 @@ class MachineTranslation:
 
         optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
 
-        # optimizer = tf.keras.optimizers.Adam(clipnorm=5)
+        # optimizer = tf.keras.optimizers.Adam(learning_rate=0.05, clipnorm=5)
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
         self.model_obj.model_train.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
@@ -308,7 +308,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
-        bleu_score, _ = self.evaluate_obj.evaluate_bleu(self.references, candidates)
+        bleu_score = self.evaluate_obj.evaluate_bleu(self.references, candidates)
 
         print()
         print('bleu_score:{}'.format(bleu_score))
@@ -351,8 +351,8 @@ class Test_WMT14_Eng_Ge_Dataset:
         print('current tag:{}'.format(tag))
 
         #  配置混合精度
-        policy = mixed_precision.Policy(current_config['mixed_precision'])
-        mixed_precision.set_global_policy(policy)
+        # policy = mixed_precision.Policy(current_config['mixed_precision'])
+        # mixed_precision.set_global_policy(policy)
 
         # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
         dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
@@ -386,8 +386,8 @@ class Test_WMT14_Eng_Ge_Dataset:
         current_config = config[tag]
 
         #  配置混合精度
-        policy = mixed_precision.Policy(current_config['mixed_precision'])
-        mixed_precision.set_global_policy(policy)
+        # policy = mixed_precision.Policy(current_config['mixed_precision'])
+        # mixed_precision.set_global_policy(policy)
 
         # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
         dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
@@ -435,7 +435,7 @@ class Test_WMT14_Eng_Ge_Dataset:
             _unk_str=current_config['_unk_str'])
 
 
-        bleu_score, _ = evaluate_obj.evaluate_bleu(references, candidates, bleu_N=4)
+        bleu_score = evaluate_obj.evaluate_bleu(references, candidates, bleu_N=4)
 
         print('bleu_score:{}'.format(bleu_score))
 

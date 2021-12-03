@@ -150,10 +150,10 @@ class DataPreprocess:
         text = tf.strings.regex_replace(text, self.remove_words, '')
 
         # NKFC unicode 标准化 +  大小写折叠
-        # text = tf_text.case_fold_utf8(text)
+        text = tf_text.case_fold_utf8(text)
 
-        text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
-        text = tf.strings.lower(text)
+        # text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
+        # text = tf.strings.lower(text) # 小写化
 
         # 清除句子中的标点符号
         text = tf.strings.regex_replace(text, self.remove_punc, ' ')  # 空1格

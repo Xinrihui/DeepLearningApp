@@ -239,6 +239,25 @@ class Test:
         print('nltk: ', score)
 
 
+        candidate = [
+            ['die', '[UNK]', 'und', 'die', '[UNK]', '[UNK]', 'anderen', 'noch'],
+            ['die', '[UNK]', '[UNK]', 'und', '[UNK]', 'bin', 'ihre', '[UNK]']
+        ]
+
+        reference = [
+            [['orlando', 'bloom', 'und', 'miranda', 'kerr', 'lieben', 'sich', 'noch', 'immer']],
+            [['schauspieler', 'orlando', 'bloom', 'und', 'model', 'miranda', 'kerr', 'wollen', 'künftig', 'getrennte',
+              'wege', 'gehen']]
+        ]
+
+        score_list = BleuScore.compute_bleu_corpus(reference, candidate, N=1)
+        print('test8:', np.average(score_list))
+
+        score_nltk = corpus_bleu(reference, candidate, weights=(1.0, 0, 0, 0))
+        print('by nltk :', score_nltk)
+
+
+
 if __name__ == '__main__':
     test = Test()
 

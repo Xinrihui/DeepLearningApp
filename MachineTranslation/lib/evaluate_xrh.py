@@ -15,23 +15,29 @@ class Evaluate:
 
     """
     def __init__(self, with_unk=True,
+                       use_nltk=False,
                        _null_str='<NULL>',
                        _start_str='<START>',
                        _end_str='<END>',
-                       _unk_str='<UNK>'):
+                       _unk_str='<UNK>',
+
+                 ):
         """
 
         :param  with_unk: 是否保留 unk
+        :param  use_nltk: 是否使用 nltk 自带的 bleu 包
         :param  _null_str: 空字符
         :param  _start_str: 句子的开始字符
         :param  _end_str: 句子的结束字符
         :param  _unk_str: 未登录字符
         """
 
-        self._null_str = _null_str
-        self._start_str = _start_str
-        self._end_str = _end_str
-        self._unk_str = _unk_str
+        self._null_str = re.escape(_null_str)  # 对文本（字符串）中所有 可能被解释为正则运算符的字符进行转义
+        self._start_str = re.escape(_start_str)
+        self._end_str = re.escape(_end_str)
+        self._unk_str = re.escape(_unk_str)
+
+        self.use_nltk = use_nltk
 
         if with_unk:  # 不删除 unk
 
@@ -113,24 +119,28 @@ class Evaluate:
 
             references_arr.append(group)
 
-        bleu_score_dict_list = {}
-        average_bleu_score_dict = {}
+        if not self.use_nltk:
 
-        # use xrh bleu
+            bleu_score_dict_list = {}
+            average_bleu_score_dict = {}
 
-        for n in range(1, bleu_N+1):
+            # use xrh bleu
 
-            bleu_score_dict_list['{}-garm'.format(n)] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
-                                                                  N=n)
+            for n in range(1, bleu_N+1):
 
-            average_bleu_score_dict['{}-garm'.format(n)] = np.average(bleu_score_dict_list['{}-garm'.format(n)])
+                bleu_score_dict_list['{}-garm'.format(n)] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
+                                                                      N=n)
 
+                average_bleu_score_dict['{}-garm'.format(n)] = np.average(bleu_score_dict_list['{}-garm'.format(n)])
 
+        else:
         # use nltk bleu
-        # bleu_score_dict_list['1-garm'] = corpus_bleu(references_arr, candidates_arr,
-        #                                                weights=(1.0, 0, 0, 0))
-        # bleu_score_dict_list['2-garm'] = corpus_bleu(references_arr, candidates_arr,
-        #                                                weights=(0.5, 0.5, 0, 0))
+
+            average_bleu_score_dict = {}
+
+            for n in range(1, bleu_N + 1):
+                average_bleu_score_dict['{}-garm'.format(n)] = corpus_bleu(references_arr, candidates_arr,
+                                                           weights=np.array([1 / n] * n))
 
 
-        return average_bleu_score_dict, bleu_score_dict_list
+        return average_bleu_score_dict
