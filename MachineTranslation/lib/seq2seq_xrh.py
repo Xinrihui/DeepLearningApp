@@ -5,11 +5,12 @@
 #  ref: https://keras.io/about/
 
 from tensorflow.keras.layers import Layer, Input, LSTM, TimeDistributed, Bidirectional, Dense, Lambda, Embedding, Dropout, \
-    Concatenate, RepeatVector
+    Concatenate, RepeatVector, Activation
 from tensorflow.keras.optimizers import Adam
 
 from tensorflow.keras.utils import plot_model
 import tensorflow.keras as keras
+
 
 from tensorflow.keras.models import Model
 
@@ -154,11 +155,12 @@ class Seq2seq:
 
 
 
-    def predict(self, source_dataset):
+    def predict(self, source_dataset, target_length=None):
         """
         输出预测的单词序列
 
         :param source_dataset:
+        :param target_length:
         :return:
         """
 
@@ -169,7 +171,9 @@ class Seq2seq:
 
             batch_source = self._preprocess(batch_data)
 
-            target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
+            if target_length is not None:
+
+                target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
 
             _, _, decode_seq = self._test_step(batch_source, target_length)
 
@@ -238,7 +242,9 @@ class TrianDecoder(Layer):
         self.lstm_layer0 = LSTM(n_h, return_sequences=True, return_state=True)
         self.dropout_layer0 = Dropout(dropout_rates[0])  # 神经元有 dropout_rates[0] 的概率被弃置
 
-        self.fc_layer = Dense(n_vocab, activation='softmax')
+        self.fc_layer = Dense(n_vocab)
+
+        self.softmax_layer = Activation('softmax', dtype='float32')
 
     def get_config(self):
 
@@ -250,6 +256,7 @@ class TrianDecoder(Layer):
             'lstm_layer0': self.lstm_layer0,
             'dropout_layer0': self.dropout_layer0,
             'fc_layer': self.fc_layer,
+            'softmax_layer': self.softmax_layer,
         })
         return config
 
@@ -284,6 +291,8 @@ class TrianDecoder(Layer):
 
             out = self.fc_layer(out_dropout0)  # shape (N_batch, n_vocab)
 
+            out = self.softmax_layer(out)
+
             # outs_prob.append(out)  # shape (target_length, N_batch, n_vocab)
 
             outs_prob = outs_prob.write(t, out)
@@ -311,8 +320,8 @@ class InferDecoder(Layer):
         self.lstm_layer0 = self.train_decoder_obj.lstm_layer0
         self.dropout_layer0 = self.train_decoder_obj.dropout_layer0
 
-
         self.fc_layer = self.train_decoder_obj.fc_layer
+        self.softmax_layer = self.train_decoder_obj.softmax_layer
 
         self.vocab_target = vocab_target
 
@@ -326,6 +335,7 @@ class InferDecoder(Layer):
             'dropout_layer0': self.dropout_layer0,
             'fc_layer': self.fc_layer,
             'vocab_target': self.vocab_target,
+            'softmax_layer': self.softmax_layer,
         })
         return config
 
@@ -364,6 +374,8 @@ class InferDecoder(Layer):
             out_dropout0 = self.dropout_layer0(h0, training=training)
 
             out = self.fc_layer(out_dropout0)  # shape (N_batch, n_vocab)
+
+            out = self.softmax_layer(out)
 
             max_idx = tf.math.argmax(out, axis=1)  # shape (N_batch, )
 

@@ -381,7 +381,12 @@ class DataPreprocess:
         target_length_dict = self.__get_seq_length(target_seq_list)
 
         # 统计语料中句子的长度的分布
+        print('source sentence length distribution:')
         _ = self.statistic_seq_length(source_length_dict)
+
+        # 统计语料中句子的长度的分布
+        print('target sentence length distribution:')
+        _ = self.statistic_seq_length(target_length_dict)
 
         res_source_seq_list = []
         res_target_seq_list = []
@@ -769,10 +774,10 @@ class Test:
 
             dataset = dataset_train_obj.train_dataset.unbatch()
 
-            dataset = dataset.shuffle(100).batch(2)
+            dataset = dataset.shuffle(int(current_config['buffer_size'])).batch(2)
 
             # 查看 1 个批次的数据
-            for batch_feature, batch_label in tqdm(dataset.take(1)):
+            for batch_feature, batch_label in tqdm(dataset.take(10)):
 
                 source_vector = batch_feature[0]
 
@@ -868,9 +873,9 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DataPreprocess(tag='TEST')
+    # test.test_DataPreprocess(tag='DEFAULT')
 
     test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
-    # test.test_VocabTf(tag='TEST')
+    # test.test_VocabTf(tag='DEFAULT')
 

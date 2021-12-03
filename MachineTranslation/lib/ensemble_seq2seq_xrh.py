@@ -13,8 +13,7 @@ import tensorflow.keras as keras
 
 from tensorflow.keras.models import Model
 
-from lib.tf_data_tokenize_xrh import *
-
+import tensorflow as tf
 
 
 class EnsembleSeq2seq:

@@ -5,13 +5,13 @@
 #  ref: https://keras.io/about/
 
 
-from tensorflow.keras.optimizers import Adam
-
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.utils import plot_model
 import tensorflow.keras as keras
 
 from tensorflow.keras.models import Model
+
+from tensorflow.keras import mixed_precision
 
 from lib.evaluate_xrh import *
 from lib.tf_data_tokenize_xrh import *
@@ -194,10 +194,12 @@ class MachineTranslation:
         # Final callbacks
         callbacks = [model_checkpoint_with_eval, dynamic_lr]
 
-        # loss='sparse_categorical_crossentropy'
-        # optimizer='rmsprop'
+        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
 
-        optimizer = tf.keras.optimizers.SGD(learning_rate=1.0)
+        optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
+
+        # optimizer = tf.keras.optimizers.Adam(clipnorm=5)
+        # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
         self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer=optimizer, metrics=['accuracy'])
 
@@ -216,7 +218,7 @@ class MachineTranslation:
 
 
 
-    def inference(self, batch_source_dataset):
+    def inference(self, batch_source_dataset, max_seq_length):
         """
         使用训练好的模型进行推理
 
@@ -227,7 +229,7 @@ class MachineTranslation:
 
         # batch_source_dataset shape (N_batch, encoder_length)
 
-        decode_result = self.model_obj.predict(batch_source_dataset)
+        decode_result = self.model_obj.predict(batch_source_dataset, max_seq_length)
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
@@ -258,6 +260,7 @@ class CheckoutCallback(keras.callbacks.Callback):
         self.vocab_obj = vocab_obj
 
         self.save_mode = current_config['save_mode']
+        self.max_seq_length = current_config['max_seq_length']
 
         self.batch_source_dataset, self.references = self.prepare_data(batch_size=int(current_config['batch_size']),
                                                                            valid_source_target_dict=valid_source_target_dict)
@@ -301,7 +304,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         # batch_source_dataset shape (N_batch, encoder_length)
 
-        decode_result = self.model_obj.predict(self.batch_source_dataset)
+        decode_result = self.model_obj.predict(self.batch_source_dataset, self.max_seq_length)
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
@@ -347,6 +350,10 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         print('current tag:{}'.format(tag))
 
+        #  配置混合精度
+        policy = mixed_precision.Policy(current_config['mixed_precision'])
+        mixed_precision.set_global_policy(policy)
+
         # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
         dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
                                            cache_data_folder=current_config['cache_data_folder'], mode='train')
@@ -378,11 +385,16 @@ class Test_WMT14_Eng_Ge_Dataset:
         config.read(config_path, 'utf-8')
         current_config = config[tag]
 
+        #  配置混合精度
+        policy = mixed_precision.Policy(current_config['mixed_precision'])
+        mixed_precision.set_global_policy(policy)
+
         # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
         dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
                                            cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
         batch_size = int(current_config['batch_size'])
+        max_seq_length = int(current_config['test_max_seq_length'])
 
         # 2.模型推理
 
@@ -404,7 +416,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         batch_source_dataset = source_dataset.batch(batch_size)
 
-        candidates = infer.inference(batch_source_dataset)
+        candidates = infer.inference(batch_source_dataset, max_seq_length)
 
         print('\ncandidates:')
         for i in range(0, 10):
