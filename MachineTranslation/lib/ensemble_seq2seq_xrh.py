@@ -15,6 +15,7 @@ from tensorflow.keras.models import Model
 
 import tensorflow as tf
 
+from tqdm import tqdm
 
 class EnsembleSeq2seq:
     """
@@ -156,11 +157,12 @@ class EnsembleSeq2seq:
 
 
 
-    def predict(self, source_dataset):
+    def predict(self, source_dataset, target_length=None):
         """
         输出预测的单词序列
 
         :param source_dataset:
+        :param target_length:
         :return:
         """
 
@@ -171,7 +173,9 @@ class EnsembleSeq2seq:
 
             batch_source = self._preprocess(batch_data)
 
-            target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
+            if target_length is None:
+
+                target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
 
             _, _, decode_seq = self._test_step(batch_source, target_length)
 

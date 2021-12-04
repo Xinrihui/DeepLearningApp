@@ -267,6 +267,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         self.evaluate_obj = Evaluate(
             with_unk=True,
+            use_nltk=True,
             _null_str=current_config['_null_str'],
             _start_str=current_config['_start_str'],
             _end_str=current_config['_end_str'],
@@ -308,7 +309,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
-        bleu_score = self.evaluate_obj.evaluate_bleu(self.references, candidates)
+        bleu_score = self.evaluate_obj.evaluate_bleu(self.references, candidates, bleu_N=4)
 
         print()
         print('bleu_score:{}'.format(bleu_score))
@@ -434,6 +435,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
             evaluate_obj = Evaluate(
                 with_unk=True,
+                use_nltk=True,
                 _null_str=current_config['_null_str'],
                 _start_str=current_config['_start_str'],
                 _end_str=current_config['_end_str'],
@@ -453,6 +455,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training(tag='TEST')
+    test.test_training(tag='TEST')
 
-    test.test_evaluating(tag='TEST')
+    # test.test_evaluating(tag='TEST')

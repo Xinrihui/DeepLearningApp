@@ -227,13 +227,74 @@ class Encoder(Layer):
 
 class TrianDecoder(Layer):
     """
-    训练模式下的基于 LSTM 的解码器层
+    训练模式下的基于 LSTM 的解码器层,
+    计算图中包含所有时间步, 但是不在计算图中手工展开时间步, 这样可以加速训练
 
     """
 
     def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates):
 
         super(TrianDecoder, self).__init__()
+
+        self.target_length = target_length
+
+        self.embedding_layer = Embedding(n_vocab, n_embedding)
+
+        self.lstm_layer0 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.dropout_layer0 = Dropout(dropout_rates[0])  # 神经元有 dropout_rates[0] 的概率被弃置
+
+        self.fc_layer = Dense(n_vocab)
+
+        self.softmax_layer = Activation('softmax', dtype='float32')
+
+    def get_config(self):
+
+        config = super().get_config().copy()
+
+        config.update({
+            'target_length': self.target_length,
+            'embedding_layer': self.embedding_layer,
+            'lstm_layer0': self.lstm_layer0,
+            'dropout_layer0': self.dropout_layer0,
+            'fc_layer': self.fc_layer,
+            'softmax_layer': self.softmax_layer,
+        })
+        return config
+
+    def call(self, batch_target_in, layer_state_list, training=True):
+
+        # batch_target_in shape (N_batch, target_length)
+
+        batch_target_embbeding = self.embedding_layer(inputs=batch_target_in)
+        # shape (N_batch, target_length, n_embedding)
+
+        # 第 0 层的编码器LSTM 的隐藏层
+        h0 = layer_state_list[0][0]  # shape: (N_batch, n_h)
+        c0 = layer_state_list[0][1]  # shape: (N_batch, n_h)
+
+        # outs_prob = []
+
+        out_lstm0, h0, c0 = self.lstm_layer0(inputs=batch_target_embbeding, initial_state=[h0, c0])  # 输入 context 只有1个时间步
+
+        out_dropout0 = self.dropout_layer0(out_lstm0, training=training)  # shape (N_batch, target_length, n_vocab)
+
+        out = self.fc_layer(out_dropout0)  # shape (N_batch, target_length, n_vocab)
+
+        outputs_prob = self.softmax_layer(out)
+
+        return outputs_prob
+
+
+class TrianDecoderUnroll(Layer):
+    """
+    训练模式下的基于 LSTM 的解码器层,
+    在计算图中手工展开时间步
+
+    """
+
+    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates):
+
+        super(TrianDecoderUnroll, self).__init__()
 
         self.target_length = target_length
 
@@ -302,9 +363,11 @@ class TrianDecoder(Layer):
         return outputs_prob
 
 
+
 class InferDecoder(Layer):
     """
     推理模式下的基于 LSTM 的解码器层
+    由于每一步的输入是上一步的输出, 所以必须在计算图中手工展开时间步
 
     """
 
