@@ -389,64 +389,70 @@ class Test_WMT14_Eng_Ge_Dataset:
         # policy = mixed_precision.Policy(current_config['mixed_precision'])
         # mixed_precision.set_global_policy(policy)
 
-        # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
-        dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
-                                           cache_data_folder=current_config['cache_data_folder'], mode='infer')
+        infer_device = current_config['infer_device']
 
-        batch_size = int(current_config['batch_size'])
-        max_seq_length = int(current_config['test_max_seq_length'])
+        # 使用 CPU
+        with tf.device(infer_device):
 
-        # 2.模型推理
+            # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
+            dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
+                                               cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
-        infer = MachineTranslation(
-            current_config=current_config,
-            vocab_source=dataset_obj.vocab_source,
-            vocab_target=dataset_obj.vocab_target,
-            tokenizer_source=dataset_obj.tokenizer_source, tokenizer_target=dataset_obj.tokenizer_target,
-            use_pretrain=True
-        )
+            batch_size = int(current_config['batch_size'])
+            max_seq_length = int(current_config['test_max_seq_length'])
 
-        source_list = list(dataset_obj.test_source_target_dict.keys())
+            # 2.模型推理
 
-        print('valid source seq num :{}'.format(len(source_list)))
+            infer = MachineTranslation(
+                current_config=current_config,
+                vocab_source=dataset_obj.vocab_source,
+                vocab_target=dataset_obj.vocab_target,
+                tokenizer_source=dataset_obj.tokenizer_source, tokenizer_target=dataset_obj.tokenizer_target,
+                use_pretrain=True
+            )
 
-        references = [dataset_obj.test_source_target_dict[source] for source in source_list]
+            source_list = list(dataset_obj.test_source_target_dict.keys())
 
-        source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
+            print('valid source seq num :{}'.format(len(source_list)))
 
-        batch_source_dataset = source_dataset.batch(batch_size)
+            references = [dataset_obj.test_source_target_dict[source] for source in source_list]
 
-        candidates = infer.inference(batch_source_dataset, max_seq_length)
+            source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
 
-        print('\ncandidates:')
-        for i in range(0, 10):
-            print('[{}] {}'.format(i, candidates[i]))
+            batch_source_dataset = source_dataset.batch(batch_size)
 
-        print('\nreferences:')
-        for i in range(0, 10):
-            print('[{}] {}'.format(i, references[i]))
+            candidates = infer.inference(batch_source_dataset, max_seq_length)
 
+            print('\ncandidates:')
+            for i in range(0, 10):
+                print('[{}] {}'.format(i, candidates[i]))
 
-        evaluate_obj = Evaluate(
-            with_unk=True,
-            _null_str=current_config['_null_str'],
-            _start_str=current_config['_start_str'],
-            _end_str=current_config['_end_str'],
-            _unk_str=current_config['_unk_str'])
+            print('\nreferences:')
+            for i in range(0, 10):
+                print('[{}] {}'.format(i, references[i]))
 
 
-        bleu_score = evaluate_obj.evaluate_bleu(references, candidates, bleu_N=4)
+            evaluate_obj = Evaluate(
+                with_unk=True,
+                _null_str=current_config['_null_str'],
+                _start_str=current_config['_start_str'],
+                _end_str=current_config['_end_str'],
+                _unk_str=current_config['_unk_str'])
 
-        print('bleu_score:{}'.format(bleu_score))
+
+            bleu_score = evaluate_obj.evaluate_bleu(references, candidates, bleu_N=4)
+
+            print('bleu_score:{}'.format(bleu_score))
 
 
 if __name__ == '__main__':
+
     test = Test_WMT14_Eng_Ge_Dataset()
 
     # TODO: 每次实验前
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training(tag='TEST')
+    # test.test_training(tag='TEST')
 
-    # test.test_evaluating(tag='TEST')
+    test.test_evaluating(tag='TEST')
