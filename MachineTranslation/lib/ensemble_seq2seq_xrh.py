@@ -4,8 +4,9 @@
 #  适用于 tensorflow >= 2.0, keras 被直接集成到 tensorflow 的内部
 #  ref: https://keras.io/about/
 
-from tensorflow.keras.layers import Layer, Input, LSTM, TimeDistributed, Bidirectional, Dense, Lambda, Embedding, Dropout, \
-    Concatenate, RepeatVector
+from tensorflow.keras.layers import Layer, Input, LSTM, TimeDistributed, Bidirectional, Dense, Lambda, Embedding, \
+    Dropout, \
+    Concatenate, RepeatVector, Activation, LSTMCell
 from tensorflow.keras.optimizers import Adam
 
 from tensorflow.keras.utils import plot_model
@@ -17,15 +18,17 @@ import tensorflow as tf
 
 from tqdm import tqdm
 
+
 class EnsembleSeq2seq:
     """
+
     Ensemble Seq2seq 模型  (v3-integrated)
 
     1. 解码采用一体化模型 (integrated model)的方式, 即将每一步的解码都在计算图中完成(时间步的循环控制写在计算图里面)
 
     2. 训练时采用静态图 (Session execution) 构建模型, 输入的 source 序列 和 输出的 target 序列必须为定长, 使用静态图可以节约显存并加速训练;
 
-    3. 推理时采用动态图(Eager execution)构建模型, 使用动态图可以实现变长的解码
+    3. 推理时采用动态图 (Eager execution)构建模型, 使用动态图可以实现变长的解码
 
       (1) 每次推理 1 个 源序列, 在 decoder 预测出 <END> 时结束解码,
 
@@ -43,7 +46,7 @@ class EnsembleSeq2seq:
 
     """
 
-    def __init__(self,  n_embedding, n_h, max_seq_length,
+    def __init__(self, n_embedding, n_h, max_seq_length,
                  dropout_rates,
                  n_vocab_source, n_vocab_target, vocab_target,
                  _start_target, _null_target,
@@ -76,19 +79,17 @@ class EnsembleSeq2seq:
         # 建立编码器和解码器
         self.encoder = Encoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_source, dropout_rates=dropout_rates)
 
-        self.train_decoder = TrianDecoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target, target_length=self.target_length, dropout_rates=dropout_rates)
+        self.train_decoder = TrianDecoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target,
+                                                target_length=self.target_length, dropout_rates=dropout_rates)
 
-        self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target, vocab_target=vocab_target)
+        self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target,
+                                                vocab_target=vocab_target)
 
         # 建立训练计算图
         self.model_train = self.build_train_graph()
 
         # 损失函数对象
         self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(reduction='none')
-
-        # 优化器
-        # self.optimizer = keras.optimizers.RMSprop()
-
 
     def build_train_graph(self):
         """
@@ -140,7 +141,6 @@ class EnsembleSeq2seq:
 
         return batch_source_vector
 
-
     # @tf.function
     def _test_step(self, batch_source, target_length):
 
@@ -151,11 +151,9 @@ class EnsembleSeq2seq:
         layer_state_list = self.encoder(batch_source=batch_source, training=training)
 
         probs, preds, decode_text = self.infer_decoder(layer_state_list=layer_state_list,
-                                   target_length=target_length, training=training)
+                                                       target_length=target_length, training=training)
 
         return probs, preds, decode_text
-
-
 
     def predict(self, source_dataset, target_length=None):
         """
@@ -174,7 +172,6 @@ class EnsembleSeq2seq:
             batch_source = self._preprocess(batch_data)
 
             if target_length is None:
-
                 target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
 
             _, _, decode_seq = self._test_step(batch_source, target_length)
@@ -184,6 +181,9 @@ class EnsembleSeq2seq:
 
         return seq_list
 
+
+
+
 class Encoder(Layer):
     """
     基于 LSTM 的编码器层
@@ -191,7 +191,6 @@ class Encoder(Layer):
     """
 
     def __init__(self, n_embedding, n_h, n_vocab, dropout_rates):
-
         super(Encoder, self).__init__()
 
         self.embedding_layer = Embedding(n_vocab, n_embedding)
@@ -206,8 +205,6 @@ class Encoder(Layer):
         self.dropout_layer2 = Dropout(dropout_rates[2])
 
         self.lstm_layer3 = LSTM(n_h, return_sequences=True, return_state=True)
-        self.dropout_layer3 = Dropout(dropout_rates[3])
-
 
     def get_config(self):
         config = super().get_config().copy()
@@ -220,13 +217,11 @@ class Encoder(Layer):
             'lstm_layer2': self.lstm_layer2,
             'dropout_layer2': self.dropout_layer2,
             'lstm_layer3': self.lstm_layer3,
-            'dropout_layer3': self.dropout_layer3,
 
         })
         return config
 
     def call(self, batch_source, training=True):
-
         # batch_source shape (N_batch, source_length)
 
         source_embedding = self.embedding_layer(inputs=batch_source)  # shape (N_batch, encoder_length, n_embedding)
@@ -245,34 +240,32 @@ class Encoder(Layer):
             inputs=dropout0)  # out_lstm0 shape : (N_batch, source_length, n_h)
 
         layer_state_list.append((h1, c1))
-        dropout1 =self.dropout_layer1(inputs=out_lstm1, training=training)
+        dropout1 = self.dropout_layer1(inputs=out_lstm1, training=training)
 
         # layer2
         out_lstm2, h2, c2 = self.lstm_layer2(
             inputs=dropout1)  # out_lstm0 shape : (N_batch, source_length, n_h)
 
         layer_state_list.append((h2, c2))
-        dropout2 =self.dropout_layer2(inputs=out_lstm2, training=training)
+        dropout2 = self.dropout_layer2(inputs=out_lstm2, training=training)
 
         # layer3
         out_lstm3, h3, c3 = self.lstm_layer3(
             inputs=dropout2)  # out_lstm0 shape : (N_batch, source_length, n_h)
 
         layer_state_list.append((h3, c3))
-        dropout3 =self.dropout_layer3(inputs=out_lstm1, training=training)
-
 
         return layer_state_list
 
 
 class TrianDecoder(Layer):
     """
-    训练模式下的基于 LSTM 的解码器层
+    训练模式下的基于 LSTM 的解码器层,
+    计算图中包含所有时间步, 但是不在计算图中手工展开时间步, 这样可以加速训练(占用显存更少)
 
     """
 
     def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates):
-
         super(TrianDecoder, self).__init__()
 
         self.target_length = target_length
@@ -291,10 +284,11 @@ class TrianDecoder(Layer):
         self.lstm_layer3 = LSTM(n_h, return_sequences=True, return_state=True)
         self.dropout_layer3 = Dropout(dropout_rates[3])
 
-        self.fc_layer = Dense(n_vocab, activation='softmax')
+        self.fc_layer = Dense(n_vocab)
+
+        self.softmax_layer = Activation('softmax', dtype='float32')
 
     def get_config(self):
-
         config = super().get_config().copy()
 
         config.update({
@@ -309,11 +303,11 @@ class TrianDecoder(Layer):
             'lstm_layer3': self.lstm_layer3,
             'dropout_layer3': self.dropout_layer3,
             'fc_layer': self.fc_layer,
+            'softmax_layer': self.softmax_layer,
         })
         return config
 
     def call(self, batch_target_in, layer_state_list, training=True):
-
         # batch_target_in shape (N_batch, target_length)
 
         batch_target_embbeding = self.embedding_layer(inputs=batch_target_in)
@@ -335,38 +329,24 @@ class TrianDecoder(Layer):
         h3 = layer_state_list[3][0]  # shape: (N_batch, n_h)
         c3 = layer_state_list[3][1]  # shape: (N_batch, n_h)
 
-        outs_prob = []
+        context = batch_target_embbeding
+        # Teacher Forcing: 每一个时间步的输入为真实的标签值而不是上一步预测的结果
 
-        # target_length = int(tf.shape(batch_target_in)[1])
+        out_lstm0, h0, c0 = self.lstm_layer0(inputs=context, initial_state=[h0, c0])
+        out_dropout0 = self.dropout_layer0(out_lstm0, training=training)
 
-        for t in range(self.target_length):  # 使用静态图必须为固定的长度
-            # TODO: 若使用 tf.range() 会报错:
-            #  InaccessibleTensorError: tf.Graph captured an external symbolic tensor.
+        out_lstm1, h1, c1 = self.lstm_layer1(inputs=out_dropout0, initial_state=[h1, c1])
+        out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
 
-            batch_token_embbeding = tf.expand_dims(batch_target_embbeding[:, t, :], axis=1)
-            # Teacher Forcing: 每一个时间步的输入为真实的标签值而不是上一步预测的结果
-            # batch_token_embbeding shape (N_batch, 1, n_embedding)
+        out_lstm2, h2, c2 = self.lstm_layer2(inputs=out_dropout1, initial_state=[h2, c2])
+        out_dropout2 = self.dropout_layer2(out_lstm2, training=training)
 
-            context = batch_token_embbeding
+        out_lstm3, h3, c3 = self.lstm_layer3(inputs=out_dropout2, initial_state=[h3, c3])
+        out_dropout3 = self.dropout_layer3(out_lstm3, training=training)
 
-            out_lstm0, h0, c0 = self.lstm_layer0(inputs=context, initial_state=[h0, c0])  # 输入 context 只有1个时间步
-            out_dropout0 = self.dropout_layer0(out_lstm0, training=training)
+        outputs = self.fc_layer(out_dropout3)  # shape (N_batch, target_length, n_vocab)
 
-            out_lstm1, h1, c1 = self.lstm_layer1(inputs=out_dropout0, initial_state=[h1, c1])  # 输入 context 只有1个时间步
-            out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
-
-            out_lstm2, h2, c2 = self.lstm_layer2(inputs=out_dropout1, initial_state=[h2, c2])  # 输入 context 只有1个时间步
-            out_dropout2 = self.dropout_layer2(out_lstm2, training=training)
-
-            out_lstm3, h3, c3 = self.lstm_layer3(inputs=out_dropout2, initial_state=[h3, c3])  # 输入 context 只有1个时间步
-
-            out_dropout3 = self.dropout_layer3(h3, training=training)
-
-            out = self.fc_layer(out_dropout3)  # shape (N_batch, n_vocab)
-
-            outs_prob.append(out)  # shape (target_length, N_batch, n_vocab)
-
-        outputs_prob = tf.transpose(outs_prob, perm=[1, 0, 2])  # shape (N_batch, target_length, n_vocab)
+        outputs_prob = self.softmax_layer(outputs)  # shape (N_batch, target_length, n_vocab)
 
         return outputs_prob
 
@@ -378,7 +358,6 @@ class InferDecoder(Layer):
     """
 
     def __init__(self, train_decoder_obj, _start, vocab_target):
-
         super(InferDecoder, self).__init__()
 
         self.train_decoder_obj = train_decoder_obj
@@ -399,6 +378,7 @@ class InferDecoder(Layer):
         self.dropout_layer3 = self.train_decoder_obj.dropout_layer3
 
         self.fc_layer = self.train_decoder_obj.fc_layer
+        self.softmax_layer = self.train_decoder_obj.softmax_layer
 
         self.vocab_target = vocab_target
 
@@ -418,9 +398,13 @@ class InferDecoder(Layer):
             'dropout_layer3': self.dropout_layer3,
             'fc_layer': self.fc_layer,
             'vocab_target': self.vocab_target,
+            'softmax_layer': self.softmax_layer,
         })
         return config
 
+    # @tf.function 生成静态图(graph) 加速计算
+
+    @tf.function
     def call(self, layer_state_list, target_length, training=False):
         """
 
@@ -447,16 +431,14 @@ class InferDecoder(Layer):
         h3 = layer_state_list[3][0]  # shape: (N_batch, n_h)
         c3 = layer_state_list[3][1]  # shape: (N_batch, n_h)
 
-
         N_batch = tf.shape(h0)[0]
-        batch_token = tf.ones((N_batch, 1)) * self._start  # (N_batch, 1)
+        batch_token = tf.ones((N_batch, 1), dtype=tf.int64) * self._start  # (N_batch, 1)
 
-        outs_prob = []
+        outs_prob = tf.TensorArray(tf.float32, size=target_length, clear_after_read=False)
 
-        outs = []
+        outs = tf.TensorArray(tf.int64, size=target_length, clear_after_read=False)
 
         for t in tf.range(target_length):
-
             batch_token_embbeding = self.embedding_layer(batch_token)  # shape (N_batch, 1, n_embedding)
 
             context = batch_token_embbeding
@@ -464,17 +446,19 @@ class InferDecoder(Layer):
             out_lstm0, h0, c0 = self.lstm_layer0(inputs=context, initial_state=[h0, c0])  # 输入 context 只有1个时间步
             out_dropout0 = self.dropout_layer0(out_lstm0, training=training)
 
-            out_lstm1, h1, c1 = self.lstm_layer1(inputs=out_dropout0, initial_state=[h1, c1])  # 输入 context 只有1个时间步
+            out_lstm1, h1, c1 = self.lstm_layer1(inputs=out_dropout0, initial_state=[h1, c1])
             out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
 
-            out_lstm2, h2, c2 = self.lstm_layer2(inputs=out_dropout1, initial_state=[h2, c2])  # 输入 context 只有1个时间步
+            out_lstm2, h2, c2 = self.lstm_layer2(inputs=out_dropout1, initial_state=[h2, c2])
             out_dropout2 = self.dropout_layer2(out_lstm2, training=training)
 
-            out_lstm3, h3, c3 = self.lstm_layer3(inputs=out_dropout2, initial_state=[h3, c3])  # 输入 context 只有1个时间步
+            out_lstm3, h3, c3 = self.lstm_layer3(inputs=out_dropout2, initial_state=[h3, c3])
 
             out_dropout3 = self.dropout_layer3(h3, training=training)
 
             out = self.fc_layer(out_dropout3)  # shape (N_batch, n_vocab)
+
+            out = self.softmax_layer(out)
 
             max_idx = tf.math.argmax(out, axis=1)  # shape (N_batch, )
 
@@ -482,13 +466,14 @@ class InferDecoder(Layer):
 
             batch_token = tf.expand_dims(max_idx, axis=1)  # shape (N_batch, 1)
 
-            outs_prob.append(out)  # shape (target_length, N_batch, n_vocab)
+            outs_prob = outs_prob.write(t, out)  # shape (target_length, N_batch, n_vocab)
 
-            outs.append(max_idx)  # shape (target_length, N_batch)
+            outs = outs.write(t, max_idx)  # shape (target_length, N_batch)
 
-        outputs_prob = tf.transpose(outs_prob, perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
+        outputs_prob = tf.transpose(outs_prob.stack(),
+                                    perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
 
-        outputs = tf.transpose(outs, perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
+        outputs = tf.transpose(outs.stack(), perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
 
         decode_seq = self.vocab_target.map_id_to_word(outputs)  # 解码后的单词序列 shape (N_batch, target_length)
 
@@ -497,3 +482,307 @@ class InferDecoder(Layer):
         return outputs_prob, outputs, decode_text
 
 
+class TrainModel(tf.keras.Model):
+
+    def __init__(self, n_embedding, n_h, target_length,
+                 dropout_rates,
+                 n_vocab_source, n_vocab_target):
+
+        super(TrainModel, self).__init__(self)
+
+        # 建立编码器和解码器
+        self.encoder = Encoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_source, dropout_rates=dropout_rates)
+
+        self.train_decoder = TrianDecoderUnroll(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target,
+                                                target_length=target_length, dropout_rates=dropout_rates)
+
+    #   @tf.function(input_signature=[tf.TensorSpec(dtype=tf.float32, shape=[None, None, 3])])
+    def call(self, batch_source, batch_target_in):
+
+        # batch_source shape (N_batch, source_length)
+        # batch_target_in shape (N_batch, target_length)
+
+        layer_state_list = self.encoder(batch_source)
+
+        outputs_prob = self.train_decoder(batch_target_in, layer_state_list)
+
+        return outputs_prob
+
+
+
+class TrianDecoderUnroll(Layer):
+    """
+    训练模式下的基于 LSTMcell 的解码器层,
+    通过在计算图中手工展开时间步的方式让 计算图中包含所有时间步,  为后面加入 attention 机制做准备
+
+    """
+
+    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates):
+        super(TrianDecoderUnroll, self).__init__()
+
+        self.target_length = target_length
+
+        self.embedding_layer = Embedding(n_vocab, n_embedding)
+
+        self.lstm_layer0 = LSTMCell(n_h)
+        self.dropout_layer0 = Dropout(dropout_rates[0])  # 神经元有 dropout_rates[0] 的概率被弃置
+
+        self.lstm_layer1 = LSTMCell(n_h)
+        self.dropout_layer1 = Dropout(dropout_rates[1])
+
+        self.lstm_layer2 = LSTMCell(n_h)
+        self.dropout_layer2 = Dropout(dropout_rates[2])
+
+        self.lstm_layer3 = LSTMCell(n_h)
+        self.dropout_layer3 = Dropout(dropout_rates[3])
+
+        self.fc_layer = Dense(n_vocab)
+
+        self.softmax_layer = Activation('softmax', dtype='float32')
+
+    def get_config(self):
+        config = super().get_config().copy()
+
+        config.update({
+            'target_length': self.target_length,
+            'embedding_layer': self.embedding_layer,
+            'lstm_layer0': self.lstm_layer0,
+            'dropout_layer0': self.dropout_layer0,
+            'lstm_layer1': self.lstm_layer1,
+            'dropout_layer1': self.dropout_layer1,
+            'lstm_layer2': self.lstm_layer2,
+            'dropout_layer2': self.dropout_layer2,
+            'lstm_layer3': self.lstm_layer3,
+            'dropout_layer3': self.dropout_layer3,
+            'fc_layer': self.fc_layer,
+            'softmax_layer': self.softmax_layer,
+        })
+        return config
+
+    # @tf.function
+    def call(self, batch_target_in, layer_state_list, training=True):
+        # batch_target_in shape (N_batch, target_length)
+
+        batch_target_embbeding = self.embedding_layer(inputs=batch_target_in)
+        # shape (N_batch, target_length, n_embedding)
+
+        # 第 0 层的编码器LSTM 的隐藏层
+        h0 = layer_state_list[0][0]  # shape: (N_batch, n_h)
+        c0 = layer_state_list[0][1]  # shape: (N_batch, n_h)
+
+        # 第 1 层的编码器LSTM 的隐藏层
+        h1 = layer_state_list[1][0]  # shape: (N_batch, n_h)
+        c1 = layer_state_list[1][1]  # shape: (N_batch, n_h)
+
+        # 第 2 层的编码器LSTM 的隐藏层
+        h2 = layer_state_list[2][0]  # shape: (N_batch, n_h)
+        c2 = layer_state_list[2][1]  # shape: (N_batch, n_h)
+
+        # 第 3 层的编码器LSTM 的隐藏层
+        h3 = layer_state_list[3][0]  # shape: (N_batch, n_h)
+        c3 = layer_state_list[3][1]  # shape: (N_batch, n_h)
+
+        outs_prob = tf.TensorArray(tf.float32, size=self.target_length, clear_after_read=False)
+
+        target_length = tf.shape(batch_target_in)[1]
+
+        for t in tf.range(target_length):
+            # for t in range(self.target_length):
+
+            batch_token_embbeding = batch_target_embbeding[:, t, :]
+            # Teacher Forcing: 每一个时间步的输入为真实的标签值而不是上一步预测的结果
+            # batch_token_embbeding shape (N_batch, n_embedding)
+
+            context = batch_token_embbeding
+
+            out_lstm0, (h0, c0) = self.lstm_layer0(inputs=context, states=[h0, c0],
+                                                 training=training)  # 输入 context 只有1个时间步
+            out_dropout0 = self.dropout_layer0(out_lstm0, training=training)
+
+            out_lstm1, (h1, c1) = self.lstm_layer1(inputs=out_dropout0, states=[h1, c1], training=training)
+            out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
+
+            out_lstm2, (h2, c2) = self.lstm_layer2(inputs=out_dropout1, states=[h2, c2], training=training)
+            out_dropout2 = self.dropout_layer2(out_lstm2, training=training)
+
+            out_lstm3, (h3, c3) = self.lstm_layer3(inputs=out_dropout2, states=[h3, c3], training=training)
+
+            out_dropout3 = self.dropout_layer3(out_lstm3, training=training)
+
+            out = self.fc_layer(out_dropout3)  # shape (N_batch, n_vocab)
+
+            out = self.softmax_layer(out)
+
+            outs_prob = outs_prob.write(t, out)  # shape (target_length, N_batch, n_vocab)
+
+        outputs_prob = tf.transpose(outs_prob.stack(), perm=[1, 0, 2])  # shape (N_batch, target_length, n_vocab)
+
+        return outputs_prob
+
+
+class InferDecoderUnroll(Layer):
+    """
+    推理模式下的基于 LSTMcell 的解码器层
+    通过在计算图中手工展开时间步的方式让 计算图中包含所有时间步, 为后面加入 attention 机制做准备
+
+    """
+
+    def __init__(self, train_decoder_obj, _start, vocab_target):
+        super(InferDecoderUnroll, self).__init__()
+
+        self.train_decoder_obj = train_decoder_obj
+        self._start = _start
+
+        self.embedding_layer = self.train_decoder_obj.embedding_layer
+
+        self.lstm_layer0 = self.train_decoder_obj.lstm_layer0
+        self.dropout_layer0 = self.train_decoder_obj.dropout_layer0
+
+        self.lstm_layer1 = self.train_decoder_obj.lstm_layer1
+        self.dropout_layer1 = self.train_decoder_obj.dropout_layer1
+
+        self.lstm_layer2 = self.train_decoder_obj.lstm_layer2
+        self.dropout_layer2 = self.train_decoder_obj.dropout_layer2
+
+        self.lstm_layer3 = self.train_decoder_obj.lstm_layer3
+        self.dropout_layer3 = self.train_decoder_obj.dropout_layer3
+
+        self.fc_layer = self.train_decoder_obj.fc_layer
+        self.softmax_layer = self.train_decoder_obj.softmax_layer
+
+        self.vocab_target = vocab_target
+
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'train_decoder_obj': self.train_decoder_obj,
+            '_start': self._start,
+            'embedding_layer': self.embedding_layer,
+            'lstm_layer0': self.lstm_layer0,
+            'dropout_layer0': self.dropout_layer0,
+            'lstm_layer1': self.lstm_layer1,
+            'dropout_layer1': self.dropout_layer1,
+            'lstm_layer2': self.lstm_layer2,
+            'dropout_layer2': self.dropout_layer2,
+            'lstm_layer3': self.lstm_layer3,
+            'dropout_layer3': self.dropout_layer3,
+            'fc_layer': self.fc_layer,
+            'vocab_target': self.vocab_target,
+            'softmax_layer': self.softmax_layer,
+        })
+        return config
+
+    # @tf.function 生成静态图(graph) 加速计算
+
+    @tf.function
+    def call(self, layer_state_list, target_length, training=False):
+        """
+
+        :param layer_state_list:
+        :param target_length:
+        :param training:
+        :return: outputs_prob - shape (N_batch, target_length, n_vocab) 概率形式的推理结果
+                outputs - shape (N_batch, target_length) 标号形式的推理结果
+        """
+
+        # 第 0 层的编码器LSTM 的隐藏层
+        h0 = layer_state_list[0][0]  # shape: (N_batch, n_h)
+        c0 = layer_state_list[0][1]  # shape: (N_batch, n_h)
+
+        # 第 1 层的编码器LSTM 的隐藏层
+        h1 = layer_state_list[1][0]  # shape: (N_batch, n_h)
+        c1 = layer_state_list[1][1]  # shape: (N_batch, n_h)
+
+        # 第 2 层的编码器LSTM 的隐藏层
+        h2 = layer_state_list[2][0]  # shape: (N_batch, n_h)
+        c2 = layer_state_list[2][1]  # shape: (N_batch, n_h)
+
+        # 第 3 层的编码器LSTM 的隐藏层
+        h3 = layer_state_list[3][0]  # shape: (N_batch, n_h)
+        c3 = layer_state_list[3][1]  # shape: (N_batch, n_h)
+
+        N_batch = tf.shape(h0)[0]
+        batch_token = tf.ones(N_batch, dtype=tf.int64) * self._start  # (N_batch, 1)
+
+        outs_prob = tf.TensorArray(tf.float32, size=target_length, clear_after_read=False)
+
+        outs = tf.TensorArray(tf.int64, size=target_length, clear_after_read=False)
+
+        for t in tf.range(target_length):
+            batch_token_embbeding = self.embedding_layer(batch_token)  # shape (N_batch,  n_embedding)
+
+            context = batch_token_embbeding
+
+            out_lstm0, (h0, c0) = self.lstm_layer0(inputs=context, state=[h0, c0],
+                                                 training=training)  # 输入 context 只有1个时间步
+            out_dropout0 = self.dropout_layer0(out_lstm0, training=training)
+
+            out_lstm1, (h1, c1) = self.lstm_layer1(inputs=out_dropout0, state=[h1, c1], training=training)
+            out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
+
+            out_lstm2, (h2, c2) = self.lstm_layer2(inputs=out_dropout1, state=[h2, c2], training=training)
+            out_dropout2 = self.dropout_layer2(out_lstm2, training=training)
+
+            out_lstm3, (h3, c3) = self.lstm_layer3(inputs=out_dropout2, state=[h3, c3], training=training)
+
+            out_dropout3 = self.dropout_layer3(out_lstm3, training=training)
+
+            out = self.fc_layer(out_dropout3)  # shape (N_batch, n_vocab)
+
+            out = self.softmax_layer(out)
+
+            max_idx = tf.math.argmax(out, axis=1)  # shape (N_batch, )
+
+            # print('max_idx', max_idx)
+
+            batch_token = tf.expand_dims(max_idx, axis=1)  # shape (N_batch, 1)
+
+            outs_prob = outs_prob.write(t, out)  # shape (target_length, N_batch, n_vocab)
+
+            outs = outs.write(t, max_idx)  # shape (target_length, N_batch)
+
+        outputs_prob = tf.transpose(outs_prob.stack(),
+                                    perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
+
+        outputs = tf.transpose(outs.stack(), perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
+
+        decode_seq = self.vocab_target.map_id_to_word(outputs)  # 解码后的单词序列 shape (N_batch, target_length)
+
+        decode_text = tf.strings.reduce_join(decode_seq, axis=1, separator=' ')  # 单词序列 join 成句子
+
+        return outputs_prob, outputs, decode_text
+
+
+class Test:
+
+    def test_TrainModel(self):
+
+        n_embedding = 32
+        n_h = 32
+
+        target_length = 5
+        dropout_rates = [0.2,0.2,0.2,0.2]
+
+        n_vocab_source = 50
+        n_vocab_target = 50
+
+        model = TrainModel(n_embedding, n_h, target_length,
+                 dropout_rates,
+                 n_vocab_source, n_vocab_target)
+
+        N_batch = 4
+        source_length = 6
+
+        batch_source = tf.random.normal(shape=[N_batch, source_length])
+        batch_target_in = tf.random.normal(shape=[N_batch, target_length])
+
+        outputs_prob = model.call(batch_source, batch_target_in)
+
+        print(outputs_prob)
+
+
+if __name__ == '__main__':
+
+    test = Test()
+
+    test.test_TrainModel()

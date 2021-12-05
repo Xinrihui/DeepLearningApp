@@ -228,7 +228,7 @@ class Encoder(Layer):
 class TrianDecoder(Layer):
     """
     训练模式下的基于 LSTM 的解码器层,
-    计算图中包含所有时间步, 但是不在计算图中手工展开时间步, 这样可以加速训练
+    计算图中包含所有时间步, 但是不在计算图中手工展开时间步, 这样可以加速训练(占用显存更少)
 
     """
 
@@ -278,9 +278,9 @@ class TrianDecoder(Layer):
 
         out_dropout0 = self.dropout_layer0(out_lstm0, training=training)  # shape (N_batch, target_length, n_vocab)
 
-        out = self.fc_layer(out_dropout0)  # shape (N_batch, target_length, n_vocab)
+        outputs = self.fc_layer(out_dropout0)  # shape (N_batch, target_length, n_vocab)
 
-        outputs_prob = self.softmax_layer(out)
+        outputs_prob = self.softmax_layer(outputs)
 
         return outputs_prob
 
@@ -288,7 +288,7 @@ class TrianDecoder(Layer):
 class TrianDecoderUnroll(Layer):
     """
     训练模式下的基于 LSTM 的解码器层,
-    在计算图中手工展开时间步
+    通过在计算图中手工展开时间步的方式让计算图中包含所有时间步, 为后面加入 attention 机制做准备
 
     """
 

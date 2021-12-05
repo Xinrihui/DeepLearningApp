@@ -54,27 +54,34 @@ class BleuScore:
         return count_n_gram
 
     @staticmethod
-    def compute_bleu_corpus(reference_corpus, candidate_corpus, N=4, weight=None):
+    def compute_bleu_sentences(reference_corpus, candidate_corpus, N=4, weight=None):
         """
-        计算整个语料库的 bleu 分数
+        计算整个语料库的所有 candidate 的 bleu 分数
 
         语料库中有多个 机器翻译后的句子, 每一个机器翻译后的句子对应多条人工翻译的记录
+
+        此处的实现与论文 BLEU: a Method for Automatic Evaluation of Machine Translation 有不同,
+        此函数对于 每一个 candidate 都计算了 bleu 分数, 即 计算 modified precision score 是按照每一个 candidate 单独计算的,
+        而 论文中第 3 页的公式显示为 让所有 candidate 计算一个 modified precision score
 
         :param reference_corpus: 平行语料库人工翻译的记录
 
         eg. 3个 机器翻译的句子对应 3 组人工翻译的句子
-        [
-         [['1990', '09', '23'],],
-         [['1990', '09', '23'],],
-         [['1990', '09', '23'],]
+
+        reference_corpus = [
+            [['this', 'is', 'small', 'test'], ['this', 'is', 'the', 'test']],
+            [['the', 'cat', 'is', 'on', 'the', 'mat'], ['there', 'is', 'a', 'cat', 'on', 'the', 'mat']],
+            [['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]
         ]
 
         :param candidate_corpus: 机器的翻译结果
 
         eg. 一共 3个 机器翻译的句子
-        [['1990', '09', '23'],
-         ['2990', '09', '23'],
-         ['9990', '09', '23']]
+        candidate_corpus = [
+            ['this', 'is', 'a', 'test'],
+            ['the', 'cat', 'the', 'cat', 'on', 'the', 'mat'],
+            ['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']
+        ]
 
         :param N: N_gram 的长度上限,
 
@@ -83,7 +90,8 @@ class BleuScore:
               计算 bleu 时设置 N_gram 的长度上限为 2( 仅考虑 1-gram, 2-gram 的加权和)
 
         :param weight: n_gram 对应的 precision 在计算 bleu 时的权重
-        :return: bleu_score_list: 所有 candidate 的 bleu 分数列表
+
+        :return: bleu_score_list: 所有 candidate 的 bleu 分数列表, 将此列表取平均数可以作为整个语料库的 bleu 分数
 
         """
 
@@ -165,12 +173,17 @@ class Test:
 
         print(ngrams_count)
 
-    def test_compute_bleu_corpus(self):
+    def test_compute_bleu_sentences(self):
+        """
+        测试 单个 candidate
+
+        :return:
+        """
         # test1
         reference = [[['this', 'is', 'small', 'test'], ['this', 'is', 'the', 'test']]]
         candidate = [['this', 'is', 'a', 'test']]
 
-        score = BleuScore.compute_bleu_corpus(reference, candidate, N=2)
+        score = BleuScore.compute_bleu_sentences(reference, candidate, N=2)
         print('test1:', score)
 
         score = corpus_bleu(reference, candidate, weights=(0.5, 0.5))
@@ -182,7 +195,7 @@ class Test:
                       ]]
         candidate = [['the', 'cat', 'the', 'cat', 'on', 'the', 'mat']]
 
-        score = BleuScore.compute_bleu_corpus(reference, candidate, N=4)
+        score = BleuScore.compute_bleu_sentences(reference, candidate, N=4)
         print('test2:', score)
 
         score = corpus_bleu(reference, candidate)
@@ -192,7 +205,7 @@ class Test:
         reference = [[['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]]
         candidate = [['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]
 
-        score = BleuScore.compute_bleu_corpus(reference, candidate, N=4)
+        score = BleuScore.compute_bleu_sentences(reference, candidate, N=4)
         print('test3:', score)
 
         score = corpus_bleu(reference, candidate)
@@ -202,7 +215,7 @@ class Test:
         reference = [[['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]]
         candidate = [['the', 'fast', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]
 
-        score = BleuScore.compute_bleu_corpus(reference, candidate, N=4)
+        score = BleuScore.compute_bleu_sentences(reference, candidate, N=4)
         print('test4:', score)
 
         score = corpus_bleu(reference, candidate)
@@ -212,7 +225,7 @@ class Test:
         reference = [[['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]]
         candidate = [['the', 'fast', 'brown', 'fox', 'jumped', 'over', 'the', 'sleepy', 'dog']]
 
-        score = BleuScore.compute_bleu_corpus(reference, candidate, N=4)
+        score = BleuScore.compute_bleu_sentences(reference, candidate, N=4)
         print('test5:', score)
 
         score = corpus_bleu(reference, candidate)
@@ -222,7 +235,7 @@ class Test:
         reference = [[['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]]
         candidate = [['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog', 'from', 'space']]
 
-        score = BleuScore.compute_bleu_corpus(reference, candidate, N=4)
+        score = BleuScore.compute_bleu_sentences(reference, candidate, N=4)
         print('test6:', score)
 
         score = corpus_bleu(reference, candidate)
@@ -232,13 +245,19 @@ class Test:
         reference = [[['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]]
         candidate = [['the', 'quick']]
 
-        score = BleuScore.compute_bleu_corpus(reference, candidate, N=4)
+        score = BleuScore.compute_bleu_sentences(reference, candidate, N=4)
         print('test7:', score)
 
         score = corpus_bleu(reference, candidate)
         print('nltk: ', score)
 
 
+    def test_compute_bleu_sentences_multi(self):
+        """
+        测试多个 candidate 句子下的结果
+
+        :return:
+        """
         candidate = [
             ['die', '[UNK]', 'und', 'die', '[UNK]', '[UNK]', 'anderen', 'noch'],
             ['die', '[UNK]', '[UNK]', 'und', '[UNK]', 'bin', 'ihre', '[UNK]']
@@ -250,12 +269,46 @@ class Test:
               'wege', 'gehen']]
         ]
 
-        score_list = BleuScore.compute_bleu_corpus(reference, candidate, N=1)
-        print('test8:', np.average(score_list))
+        # score_list = BleuScore.compute_bleu_sentences(reference, candidate, N=1)
+        # print('test1:', np.average(score_list))
+        #
+        # score_nltk = corpus_bleu(reference, candidate, weights=(1.0, 0, 0, 0))
+        # print('by nltk :', score_nltk)
 
-        score_nltk = corpus_bleu(reference, candidate, weights=(1.0, 0, 0, 0))
-        print('by nltk :', score_nltk)
+        print('test2:')
 
+        candidate = [
+            ['this', 'is', 'a', 'test'],
+            ['the', 'cat', 'the', 'cat', 'on', 'the', 'mat'],
+            ['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']
+        ]
+
+        reference = [
+            [['this', 'is', 'small', 'test'], ['this', 'is', 'the', 'test']],
+            [['the', 'cat', 'is', 'on', 'the', 'mat'], ['there', 'is', 'a', 'cat', 'on', 'the', 'mat']],
+            [['the', 'quick', 'brown', 'fox', 'jumped', 'over', 'the', 'lazy', 'dog']]
+        ]
+
+
+        n = 1
+        score_list = BleuScore.compute_bleu_sentences(reference, candidate, N=n)
+        print('bleu1:', np.average(score_list))
+
+        score_nltk = corpus_bleu(reference, candidate, weights=np.array([1 / n] * n))
+        print('bleu1 by nltk :', score_nltk)
+
+        # score_nltk = corpus_bleu(reference, candidate, weights=[1.0, 0, 0, 0])
+        # print('bleu1 by nltk :', score_nltk)
+
+        n = 4
+        score_list = BleuScore.compute_bleu_sentences(reference, candidate, N=n)
+        print('bleu4:', np.average(score_list))
+
+        score_nltk = corpus_bleu(reference, candidate, weights=np.array([1 / n] * n))
+        print('bleu4 by nltk :', score_nltk)
+
+        # score_nltk = corpus_bleu(reference, candidate, weights=[0.25, 0.25, 0.25,0.25])
+        # print('bleu4 by nltk :', score_nltk)
 
 
 if __name__ == '__main__':
@@ -263,4 +316,6 @@ if __name__ == '__main__':
 
     # test.test_get_ngrams()
 
-    test.test_compute_bleu_corpus()
+    # test.test_compute_bleu_sentences()
+
+    test.test_compute_bleu_sentences_multi()

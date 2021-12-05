@@ -15,7 +15,7 @@ class Evaluate:
 
     """
     def __init__(self, with_unk=True,
-                       use_nltk=False,
+                       use_nltk=True,
                        _null_str='<NULL>',
                        _start_str='<START>',
                        _end_str='<END>',
@@ -120,15 +120,14 @@ class Evaluate:
             references_arr.append(group)
 
         if not self.use_nltk:
+        # use xrh bleu
 
             bleu_score_dict_list = {}
             average_bleu_score_dict = {}
 
-            # use xrh bleu
-
             for n in range(1, bleu_N+1):
 
-                bleu_score_dict_list['{}-garm'.format(n)] = BleuScore.compute_bleu_corpus(references_arr, candidates_arr,
+                bleu_score_dict_list['{}-garm'.format(n)] = BleuScore.compute_bleu_sentences(references_arr, candidates_arr,
                                                                       N=n)
 
                 average_bleu_score_dict['{}-garm'.format(n)] = np.average(bleu_score_dict_list['{}-garm'.format(n)])
