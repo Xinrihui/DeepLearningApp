@@ -103,7 +103,9 @@ class MachineTranslation:
         self._end_target = int(self.vocab_target.map_word_to_id(_end_str))  # 句子的结束
         self._unk_target = int(self.vocab_target.map_word_to_id(_unk_str))  # 未登录词
 
+        self.build_mode = current_config['build_mode']
         self.save_mode = current_config['save_mode']
+
         self.model_path = current_config['model_path']
 
         # 构建模型
@@ -113,6 +115,7 @@ class MachineTranslation:
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                   _start_target=self._start_target, _null_target=self._null_target,
                                   reverse_source=self.reverse_source,
+                                  build_mode=self.build_mode,
                                   dropout_rates=self.dropout_rates)
 
 
@@ -176,7 +179,7 @@ class MachineTranslation:
 
         # [2] 根据 epoch 调整学习率
         def scheduler(epoch, lr):
-            if epoch <= 5:
+            if epoch <= 8:
                 return lr
             else:
                 return lr * 0.5
@@ -196,12 +199,12 @@ class MachineTranslation:
 
         loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
 
-        optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
+        # optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
 
-        # optimizer = tf.keras.optimizers.Adam(learning_rate=0.05, clipnorm=5)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.05, clipnorm=5)
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
-        self.model_obj.model_train.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
+        self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer=optimizer, metrics=['accuracy'])
 
         history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,
