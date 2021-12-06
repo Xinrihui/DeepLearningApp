@@ -199,9 +199,9 @@ class MachineTranslation:
 
         loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
 
-        # optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
+        optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
 
-        optimizer = tf.keras.optimizers.Adam(learning_rate=0.05, clipnorm=5)
+        # optimizer = tf.keras.optimizers.Adam(learning_rate=0.005, clipnorm=5)
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
         self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer=optimizer, metrics=['accuracy'])

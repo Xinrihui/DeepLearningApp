@@ -394,7 +394,7 @@ class TrianDecoder(Layer):
         h4 = layer_state_list[4][0]  # shape: (N_batch, n_h)
         c4 = layer_state_list[4][1]  # shape: (N_batch, n_h)
 
-        context = self.dropout_layer0(batch_target_embbeding)
+        context = self.dropout_layer0(batch_target_embbeding, training=training)
         # Teacher Forcing: 每一个时间步的输入为真实的标签值而不是上一步预测的结果
 
         out_lstm1, h1, c1 = self.lstm_layer1(inputs=context, initial_state=[h1, c1])
@@ -510,7 +510,7 @@ class InferDecoder(Layer):
 
             batch_token_embbeding = self.embedding_layer(batch_token)  # shape (N_batch, 1, n_embedding)
 
-            context = self.dropout_layer0(batch_token_embbeding)
+            context = self.dropout_layer0(batch_token_embbeding, training=training)
 
             out_lstm1, h1, c1 = self.lstm_layer1(inputs=context, initial_state=[h1, c1])
             out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
@@ -685,7 +685,7 @@ class TrianDecoderUnroll(Layer):
             # Teacher Forcing: 每一个时间步的输入为真实的标签值而不是上一步预测的结果
             # batch_token_embbeding shape (N_batch, n_embedding)
 
-            context = self.dropout_layer0(batch_token_embbeding)
+            context = self.dropout_layer0(batch_token_embbeding, training=training)
 
             out_lstm1, (h1, c1) = self.lstm_layer1(inputs=context, states=[h1, c1], training=training)
             out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
@@ -808,7 +808,7 @@ class InferDecoderUnroll(Layer):
 
             batch_token_embbeding = self.embedding_layer(batch_token)  # shape (N_batch,  n_embedding)
 
-            context = self.dropout_layer0(batch_token_embbeding)
+            context = self.dropout_layer0(batch_token_embbeding, training=training)
 
             out_lstm1, (h1, c1) = self.lstm_layer1(inputs=context, states=[h1, c1])
             out_dropout1 = self.dropout_layer1(out_lstm1, training=training)
