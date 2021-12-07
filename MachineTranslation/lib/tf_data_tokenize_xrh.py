@@ -66,6 +66,8 @@ class DataPreprocess:
         self.max_seq_length = int(self.current_config['max_seq_length'])
         self.reverse_source = bool(int(self.current_config['reverse_source']))
 
+        self.normalize_mode = current_config['normalize_mode']
+
         self.train_source_corpus_dir = os.path.join(base_dir, current_config['train_source_corpus'])
         self.train_target_corpus_dir = os.path.join(base_dir, current_config['train_target_corpus'])
 
@@ -142,24 +144,24 @@ class DataPreprocess:
         :param text:
         :return:
         """
+        if self.normalize_mode != 'none':
+            # 删除在各个语系外的字符
+            text = tf.strings.regex_replace(text, self.remove_unk, ' ')
 
-        # 删除在各个语系外的字符
-        text = tf.strings.regex_replace(text, self.remove_unk, ' ')
+            # 清除指定单词
+            text = tf.strings.regex_replace(text, self.remove_words, '')
 
-        # 清除指定单词
-        text = tf.strings.regex_replace(text, self.remove_words, '')
+            # NKFC unicode 标准化 +  大小写折叠
+            text = tf_text.case_fold_utf8(text)
 
-        # NKFC unicode 标准化 +  大小写折叠
-        text = tf_text.case_fold_utf8(text)
+            # text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
+            # text = tf.strings.lower(text) # 小写化
 
-        # text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
-        # text = tf.strings.lower(text) # 小写化
+            # 清除句子中的标点符号
+            text = tf.strings.regex_replace(text, self.remove_punc, ' ')  # 空1格
 
-        # 清除句子中的标点符号
-        text = tf.strings.regex_replace(text, self.remove_punc, ' ')  # 空1格
-
-        # 清除句子中的独立数字
-        text = tf.strings.regex_replace(text, self.remove_digits, '')
+            # 清除句子中的独立数字
+            text = tf.strings.regex_replace(text, self.remove_digits, '')
 
         # 清除左右端点的空格
         text = tf.strings.strip(text)
@@ -780,7 +782,7 @@ class Test:
             dataset = dataset.shuffle(int(current_config['buffer_size'])).batch(2)
 
             # 查看 1 个批次的数据
-            for batch_feature, batch_label in tqdm(dataset.take(10)):
+            for batch_feature, batch_label in tqdm(dataset.take(2)):
 
                 source_vector = batch_feature[0]
 
@@ -876,9 +878,9 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess(tag='TEST')
+    # test.test_DataPreprocess(tag='TEST')
 
-    # test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
+    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
     # test.test_VocabTf(tag='TEST')
 
