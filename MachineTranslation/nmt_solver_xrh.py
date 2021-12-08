@@ -417,11 +417,13 @@ class Test_WMT14_Eng_Ge_Dataset:
                 use_pretrain=True
             )
 
-            source_list = list(dataset_obj.test_source_target_dict.keys())
+            source_target_dict = dataset_obj.test_source_target_dict
+
+            source_list = list(source_target_dict.keys())
 
             print('valid source seq num :{}'.format(len(source_list)))
 
-            references = [dataset_obj.test_source_target_dict[source] for source in source_list]
+            references = [source_target_dict[source] for source in source_list]
 
             source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
 
@@ -439,7 +441,15 @@ class Test_WMT14_Eng_Ge_Dataset:
 
             # 输出翻译结果到目标文件夹中
             with open(candidate_file, 'wb') as file:
-                data = '\n'.join(candidates)
+
+                candidate_list = []
+
+                # 去除 [END] 后面的字符(包括 [END])
+                for sentence in candidates:
+                    idx = sentence.find(current_config['_end_str'])
+                    candidate_list.append(sentence[:idx])
+
+                data = '\n'.join(candidate_list)
                 data = data.encode('utf-8')
                 file.write(data)
 
