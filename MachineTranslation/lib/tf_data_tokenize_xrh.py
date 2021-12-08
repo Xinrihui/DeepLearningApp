@@ -18,6 +18,99 @@ from tensorflow.keras.layers import TextVectorization, StringLookup
 import tensorflow_text as tf_text
 
 
+class CorpusNormalize:
+    """
+    使用 tensorflow 库函数 对语料库中的句子进行标准化
+
+    Author: xrh
+    Date: 2021-12-1
+
+    """
+
+    def __init__(self, _start_str, _end_str):
+        """
+
+        :param _start_str: 代表句子开始的控制字符
+        :param _end_str: 代表句子结束的控制字符
+        """
+        self._start_str = _start_str
+        self._end_str = _end_str
+
+        # 删除在各个语系外的字符
+        self.remove_unk = r'[^\p{Latin}|[:print:]]'
+        # \p{Latin} 匹配拉丁语系
+        # [[:print:]] 匹配打印字符 (≡ [A-Za-z0-9!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~] )
+        # ref
+        # [1] https://segmentfault.com/a/1190000021141670
+        # [2] https://github.com/google/re2/wiki/Syntax#perl
+
+        # 需要删除的标点符号
+        punctuation = string.punctuation
+        punctuation = punctuation.replace("'", "")  # 英语中有', 不删除 '
+        punctuation = punctuation.replace("-", "")  #
+
+        self.remove_punc = r'[%s]' % re.escape(punctuation)
+
+        # 删除独立的数字字符
+        # eg. '11 999 avc 10 abc-10 10-abc abc10 50 813 aa 4x4 20'
+        #      ->
+        #     ' avc abc-10 10-abc abc10 aa 4x4  '
+        self.remove_digits = r'^(\d+ )+|( \d+)+ |(\d+)$'
+
+        # 删除特定的单词
+        self.remove_words = r'(##AT##-##AT##|&apos|&quot)'
+
+
+    def simple_sentence(self, text):
+        """
+        对每一个句子 只在首尾加入控制字符, 不做其他标准化操作
+
+        :param text:
+        :return:
+        """
+        # 清除左右端点的空格
+        text = tf.strings.strip(text)
+
+        # 左右端点添加 开始 和 结束的控制字符
+        text = tf.strings.join([self._start_str, text, self._end_str], separator=' ')
+
+        return text
+
+    def normalize_sentence(self, text):
+        """
+        对每一个句子的标准化操作, 并在首尾加入控制字符
+
+        :param text:
+        :return:
+        """
+        # 删除在各个语系外的字符
+        text = tf.strings.regex_replace(text, self.remove_unk, ' ')
+
+        # 清除指定单词
+        text = tf.strings.regex_replace(text, self.remove_words, '')
+
+        # NKFC unicode 标准化 +  大小写折叠
+        text = tf_text.case_fold_utf8(text)
+
+        # text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
+        # text = tf.strings.lower(text) # 小写化
+
+        # 清除句子中的标点符号
+        text = tf.strings.regex_replace(text, self.remove_punc, ' ')  # 空1格
+
+        # 清除句子中的独立数字
+        text = tf.strings.regex_replace(text, self.remove_digits, '')
+
+        # 清除左右端点的空格
+        text = tf.strings.strip(text)
+
+        # 左右端点添加 开始 和 结束的控制字符
+        text = tf.strings.join([self._start_str, text, self._end_str], separator=' ')
+
+        return text
+
+
+
 class DataPreprocess:
     """
     利用 tf.data 数据流水线 + TextVectorization 的数据集预处理
@@ -83,30 +176,8 @@ class DataPreprocess:
         self._end_str = current_config['_end_str']
         self._unk_str = current_config['_unk_str']
 
+        self.corpus_normalize = CorpusNormalize(_start_str=self._start_str, _end_str=self._end_str)
 
-        # 删除在各个语系外的字符
-        self.remove_unk = r'[^\p{Latin}|[:print:]]'
-        # \p{Latin} 匹配拉丁语系
-        # [[:print:]] 匹配打印字符 (≡ [A-Za-z0-9!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~] )
-        # ref
-        # [1] https://segmentfault.com/a/1190000021141670
-        # [2] https://github.com/google/re2/wiki/Syntax#perl
-
-        # 需要删除的标点符号
-        punctuation = string.punctuation
-        punctuation = punctuation.replace("'", "")  # 英语中有', 不删除 '
-        punctuation = punctuation.replace("-", "")  #
-
-        self.remove_punc = r'[%s]' % re.escape(punctuation)
-
-        # 删除独立的数字字符
-        # eg. '11 999 avc 10 abc-10 10-abc abc10 50 813 aa 4x4 20'
-        #      ->
-        #     ' avc abc-10 10-abc abc10 aa 4x4  '
-        self.remove_digits = r'^(\d+ )+|( \d+)+ |(\d+)$'
-
-        # 删除特定的单词
-        self.remove_words = r'(##AT##-##AT##|&apos|&quot)'
 
     def load_corpus_data(self, corpus_file_dir):
         """
@@ -136,44 +207,9 @@ class DataPreprocess:
 
             return text_data
 
-
-    def __tf_lower_and_split_punct(self, text):
-        """
-        对每一个句子的预处理
-
-        :param text:
-        :return:
-        """
-        if self.normalize_mode != 'none':
-            # 删除在各个语系外的字符
-            text = tf.strings.regex_replace(text, self.remove_unk, ' ')
-
-            # 清除指定单词
-            text = tf.strings.regex_replace(text, self.remove_words, '')
-
-            # NKFC unicode 标准化 +  大小写折叠
-            text = tf_text.case_fold_utf8(text)
-
-            # text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
-            # text = tf.strings.lower(text) # 小写化
-
-            # 清除句子中的标点符号
-            text = tf.strings.regex_replace(text, self.remove_punc, ' ')  # 空1格
-
-            # 清除句子中的独立数字
-            text = tf.strings.regex_replace(text, self.remove_digits, '')
-
-        # 清除左右端点的空格
-        text = tf.strings.strip(text)
-
-        # 左右端点添加 开始 和 结束的控制字符
-        text = tf.strings.join([self._start_str, text, self._end_str], separator=' ')
-
-        return text
-
     def preprocess_corpus(self, text_data, batch_size=64):
         """
-        对语料库中的句子进行预处理, 包括删除标点符号
+        对语料库中的句子进行预处理, 包括 标准化文本
 
         :param text_data:
         :param buffer_size:
@@ -184,8 +220,17 @@ class DataPreprocess:
 
         text_dataset = tf.data.Dataset.from_tensor_slices(text_data).batch(batch_size)  # 分块后可以加速计算, 后面每次读取都是一块
 
-        text_preprocess_dataset = text_dataset.map(lambda batch_text:
-            self.__tf_lower_and_split_punct(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
+        text_preprocess_dataset = None
+
+        if self.normalize_mode == 'none':
+
+            text_preprocess_dataset = text_dataset.map(lambda batch_text:
+                self.corpus_normalize.simple_sentence(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
+
+        elif self.normalize_mode == 'normalize':
+
+            text_preprocess_dataset = text_dataset.map(lambda batch_text:
+                self.corpus_normalize.normalize_sentence(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
 
         return text_preprocess_dataset
 
@@ -878,7 +923,7 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DataPreprocess(tag='TEST')
+    test.test_DataPreprocess(tag='TEST')
 
     test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 

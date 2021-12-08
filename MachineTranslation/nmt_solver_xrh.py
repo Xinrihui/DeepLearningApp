@@ -395,6 +395,8 @@ class Test_WMT14_Eng_Ge_Dataset:
 
         infer_device = current_config['infer_device']
 
+        candidate_file = current_config['candidate_file']
+
         # 使用 CPU
         with tf.device(infer_device):
 
@@ -435,6 +437,11 @@ class Test_WMT14_Eng_Ge_Dataset:
             for i in range(0, 10):
                 print('[{}] {}'.format(i, references[i]))
 
+            # 输出翻译结果到目标文件夹中
+            with open(candidate_file, 'wb') as file:
+                data = '\n'.join(candidates)
+                data = data.encode('utf-8')
+                file.write(data)
 
             evaluate_obj = Evaluate(
                 with_unk=True,
@@ -458,6 +465,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training(tag='TEST')
+    # test.test_training(tag='TEST')
 
-    # test.test_evaluating(tag='TEST')
+    test.test_evaluating(tag='TEST')
