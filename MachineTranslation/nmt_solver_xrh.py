@@ -195,16 +195,17 @@ class MachineTranslation:
                                                       )
 
         # Final callbacks
-        callbacks = [model_checkpoint_with_eval]
+        callbacks = [model_checkpoint_with_eval, dynamic_lr]
 
         loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
 
-        optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
+        # optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
 
         # optimizer = tf.keras.optimizers.Adam(learning_rate=0.005, clipnorm=5)
-        # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
-        self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer=optimizer, metrics=['accuracy'])
+        optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
+
+        self.model_obj.model_train.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 
         history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,
@@ -453,6 +454,8 @@ class Test_WMT14_Eng_Ge_Dataset:
                 data = data.encode('utf-8')
                 file.write(data)
 
+            # 输出标准翻译结果到目标文件夹中
+
             evaluate_obj = Evaluate(
                 with_unk=True,
                 use_nltk=True,
@@ -475,6 +478,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training(tag='TEST')
+    test.test_training(tag='TEST')
 
-    test.test_evaluating(tag='TEST')
+    # test.test_evaluating(tag='TEST')

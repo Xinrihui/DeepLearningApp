@@ -91,14 +91,19 @@ class EnsembleSeq2seq:
         self.tokenizer_source = tokenizer_source
         self.tokenizer_target = tokenizer_target
 
+        # 指定参数初始化器
+        self.initializer = tf.keras.initializers.RandomUniform(
+            minval=-0.1, maxval=0.1
+        )
+
         if build_mode == 'Session':
 
             # 建立编码器和解码器
             self.encoder = Encoder(n_embedding=self.n_embedding, n_h=self.n_h, n_vocab=self.n_vocab_source,
-                                   dropout_rates=self.dropout_rates)
+                                   dropout_rates=self.dropout_rates, initializer=self.initializer)
 
             self.train_decoder = TrianDecoder(n_embedding=self.n_embedding, n_h=self.n_h, n_vocab=self.n_vocab_target,
-                                              target_length=self.target_length, dropout_rates=self.dropout_rates)
+                                              target_length=self.target_length, dropout_rates=self.dropout_rates, initializer=self.initializer)
 
             self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target,
                                               vocab_target=self.vocab_target)
@@ -238,23 +243,23 @@ class Encoder(Layer):
 
     """
 
-    def __init__(self, n_embedding, n_h, n_vocab, dropout_rates):
+    def __init__(self, n_embedding, n_h, n_vocab, dropout_rates, initializer):
 
         super(Encoder, self).__init__()
 
         self.embedding_layer = Embedding(n_vocab, n_embedding)
         self.dropout_layer0 = Dropout(dropout_rates[0])
 
-        self.lstm_layer1 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.lstm_layer1 = LSTM(n_h, return_sequences=True, return_state=True, kernel_initializer=initializer, recurrent_initializer=initializer)
         self.dropout_layer1 = Dropout(dropout_rates[1])  # 神经元有 dropout_rates[0] 的概率被弃置
 
-        self.lstm_layer2 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.lstm_layer2 = LSTM(n_h, return_sequences=True, return_state=True, kernel_initializer=initializer, recurrent_initializer=initializer)
         self.dropout_layer2 = Dropout(dropout_rates[2])
 
-        self.lstm_layer3 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.lstm_layer3 = LSTM(n_h, return_sequences=True, return_state=True, kernel_initializer=initializer, recurrent_initializer=initializer)
         self.dropout_layer3 = Dropout(dropout_rates[3])
 
-        self.lstm_layer4 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.lstm_layer4 = LSTM(n_h, return_sequences=True, return_state=True, kernel_initializer=initializer, recurrent_initializer=initializer)
 
     def get_config(self):
         config = super().get_config().copy()
@@ -321,7 +326,7 @@ class TrianDecoder(Layer):
 
     """
 
-    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates):
+    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates, initializer):
         super(TrianDecoder, self).__init__()
 
         self.target_length = target_length
@@ -329,19 +334,19 @@ class TrianDecoder(Layer):
         self.embedding_layer = Embedding(n_vocab, n_embedding)
         self.dropout_layer0 = Dropout(dropout_rates[0])  # 神经元有 dropout_rates[0] 的概率被弃置
 
-        self.lstm_layer1 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.lstm_layer1 = LSTM(n_h, return_sequences=True, return_state=True, kernel_initializer=initializer, recurrent_initializer=initializer)
         self.dropout_layer1 = Dropout(dropout_rates[1])
 
-        self.lstm_layer2 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.lstm_layer2 = LSTM(n_h, return_sequences=True, return_state=True, kernel_initializer=initializer, recurrent_initializer=initializer)
         self.dropout_layer2 = Dropout(dropout_rates[2])
 
-        self.lstm_layer3 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.lstm_layer3 = LSTM(n_h, return_sequences=True, return_state=True, kernel_initializer=initializer, recurrent_initializer=initializer)
         self.dropout_layer3 = Dropout(dropout_rates[3])
 
-        self.lstm_layer4 = LSTM(n_h, return_sequences=True, return_state=True)
+        self.lstm_layer4 = LSTM(n_h, return_sequences=True, return_state=True, kernel_initializer=initializer, recurrent_initializer=initializer)
         self.dropout_layer4 = Dropout(dropout_rates[4])
 
-        self.fc_layer = Dense(n_vocab)
+        self.fc_layer = Dense(n_vocab, kernel_initializer=initializer)
 
         self.softmax_layer = Activation('softmax', dtype='float32')
 
