@@ -195,15 +195,15 @@ class MachineTranslation:
                                                       )
 
         # Final callbacks
-        callbacks = [model_checkpoint_with_eval, dynamic_lr]
+        callbacks = [model_checkpoint_with_eval]
 
         loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
 
-        # optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
+        optimizer = tf.keras.optimizers.RMSprop()
 
         # optimizer = tf.keras.optimizers.Adam(learning_rate=0.005, clipnorm=5)
 
-        optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
+        # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
         self.model_obj.model_train.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 

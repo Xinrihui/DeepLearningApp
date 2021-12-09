@@ -92,9 +92,12 @@ class EnsembleSeq2seq:
         self.tokenizer_target = tokenizer_target
 
         # 指定参数初始化器
-        self.initializer = tf.keras.initializers.RandomUniform(
-            minval=-0.1, maxval=0.1
-        )
+        # self.initializer = tf.keras.initializers.RandomUniform(
+        #     minval=-0.1, maxval=0.1
+        # )
+
+        self.initializer = tf.keras.initializers.GlorotUniform()
+
 
         if build_mode == 'Session':
 
