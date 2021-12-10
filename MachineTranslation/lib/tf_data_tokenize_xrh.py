@@ -827,7 +827,7 @@ class Test:
             dataset = dataset.shuffle(int(current_config['buffer_size'])).batch(2)
 
             # 查看 1 个批次的数据
-            for batch_feature, batch_label in tqdm(dataset.take(2)):
+            for batch_feature, batch_label in tqdm(dataset.take(1)):
 
                 source_vector = batch_feature[0]
 
@@ -854,8 +854,19 @@ class Test:
                 print(target_out_vector)
 
 
-        print('one row of source_target_dict: ')
-        print(list(dataset_infer_obj.test_source_target_dict.items())[0])
+        print('rows of source_target_dict: ')
+
+        for id, (source, target_list) in enumerate(list(dataset_infer_obj.test_source_target_dict.items())[:10]):
+
+            print(id)
+            print('source :')
+            print(source)
+            print(dataset_infer_obj.vocab_source.map_word_to_id(source.split()))
+
+            print('target :')
+            print(target_list[0])
+            print(dataset_infer_obj.vocab_target.map_word_to_id(target_list[0].split()))
+
 
         print('vocab_source: ')
 
@@ -925,7 +936,7 @@ if __name__ == '__main__':
 
     test.test_DataPreprocess(tag='TEST')
 
-    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
+    # test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
     # test.test_VocabTf(tag='TEST')
 

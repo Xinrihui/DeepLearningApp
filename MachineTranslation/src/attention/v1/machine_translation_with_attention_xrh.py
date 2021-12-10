@@ -1076,7 +1076,7 @@ class MachineTranslationV2:
         print(self.infer_model.summary())
 
         # 画出计算图
-        plot_model(self.infer_model, to_file='../../../docs/images/infer_model_attention.png', show_layer_names=True, show_shapes=True)
+        plot_model(self.infer_model, to_file='images/infer_model_attention.png', show_layer_names=True, show_shapes=True)
 
 
         candidate_group_list = []

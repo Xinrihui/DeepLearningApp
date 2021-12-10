@@ -16,8 +16,9 @@ from tensorflow.keras import mixed_precision
 from lib.evaluate_xrh import *
 from lib.tf_data_tokenize_xrh import *
 
-from lib.ensemble_seq2seq_xrh import *
+# from lib.ensemble_seq2seq_xrh import *
 # from lib.seq2seq_xrh import *
+from lib.attention_seq2seq_xrh import *
 
 import time
 import configparser
@@ -109,11 +110,20 @@ class MachineTranslation:
         self.model_path = current_config['model_path']
 
         # 构建模型
-        self.model_obj = EnsembleSeq2seq(n_embedding=self.n_embedding, n_h=self.n_h, max_seq_length=self.max_seq_length,
+        # self.model_obj = EnsembleSeq2seq(n_embedding=self.n_embedding, n_h=self.n_h, max_seq_length=self.max_seq_length,
+        #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
+        #                           vocab_target=self.vocab_target,
+        #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+        #                           _start_target=self._start_target, _null_target=self._null_target,
+        #                           reverse_source=self.reverse_source,
+        #                           build_mode=self.build_mode,
+        #                           dropout_rates=self.dropout_rates)
+
+        self.model_obj = AttentionSeq2seq(n_embedding=self.n_embedding, n_h=self.n_h, max_seq_length=self.max_seq_length,
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
                                   vocab_target=self.vocab_target,
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
-                                  _start_target=self._start_target, _null_target=self._null_target,
+                                  _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target,
                                   reverse_source=self.reverse_source,
                                   build_mode=self.build_mode,
                                   dropout_rates=self.dropout_rates)
@@ -205,7 +215,8 @@ class MachineTranslation:
 
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
-        self.model_obj.model_train.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
+        # self.model_obj._mask_loss_function
+        self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer=optimizer, metrics=['accuracy'])
 
         history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,
@@ -478,6 +489,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training(tag='TEST')
+    # test.test_training(tag='TEST')
 
-    # test.test_evaluating(tag='TEST')
+    test.test_evaluating(tag='TEST')
