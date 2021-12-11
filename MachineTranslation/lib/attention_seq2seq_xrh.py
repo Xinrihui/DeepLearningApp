@@ -147,7 +147,7 @@ class AttentionSeq2seq:
 
 
         # 损失函数对象
-        self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+        self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
 
     def build_train_graph(self):
         """
@@ -379,7 +379,7 @@ class TrianDecoder(Layer):
         self.fc_layer0 = Dense(n_h, activation=tf.math.tanh, use_bias=False, kernel_initializer=initializer)
 
         self.fc_layer1 = Dense(n_vocab, kernel_initializer=initializer)
-        # self.softmax_layer = Activation('softmax', dtype='float32')
+        self.softmax_layer = Activation('softmax', dtype='float32')
 
     def get_config(self):
         config = super().get_config().copy()
@@ -409,7 +409,7 @@ class TrianDecoder(Layer):
             'attention_layer': self.attention_layer,
             'fc_layer0': self.fc_layer0,
             'fc_layer1': self.fc_layer1,
-            # 'softmax_layer': self.softmax_layer,
+            'softmax_layer': self.softmax_layer,
         })
         return config
 
@@ -469,9 +469,9 @@ class TrianDecoder(Layer):
 
         outputs = self.fc_layer1(out_attention)  # shape (N_batch, target_length, n_vocab)
 
-        # outputs_prob = self.softmax_layer(outputs)  # shape (N_batch, target_length, n_vocab)
+        outputs_prob = self.softmax_layer(outputs)  # shape (N_batch, target_length, n_vocab)
 
-        return outputs
+        return outputs_prob
 
 
 class InferDecoder(Layer):
@@ -507,7 +507,7 @@ class InferDecoder(Layer):
         self.fc_layer0 = self.train_decoder_obj.fc_layer0
 
         self.fc_layer1 = self.train_decoder_obj.fc_layer1
-        # self.softmax_layer = self.train_decoder_obj.softmax_layer
+        self.softmax_layer = self.train_decoder_obj.softmax_layer
 
         self.vocab_target = vocab_target
 
@@ -535,7 +535,7 @@ class InferDecoder(Layer):
             'attention_layer': self.attention_layer,
             'fc_layer0': self.fc_layer0,
             'fc_layer1': self.fc_layer1,
-            # 'softmax_layer': self.softmax_layer,
+            'softmax_layer': self.softmax_layer,
         })
         return config
 
@@ -607,7 +607,7 @@ class InferDecoder(Layer):
 
             out = self.fc_layer1(out_attention)  # shape (N_batch, n_vocab)
 
-            # out = self.softmax_layer(out)
+            out = self.softmax_layer(out)
 
             max_idx = tf.math.argmax(out, axis=1)  # shape (N_batch, )
 
