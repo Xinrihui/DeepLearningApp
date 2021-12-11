@@ -59,7 +59,7 @@ class AttentionSeq2seq:
     def __init__(self, n_embedding, n_h, max_seq_length,
                  dropout_rates,
                  n_vocab_source, n_vocab_target, vocab_target,
-                 _null_source, _start_target, _null_target,
+                 _null_source, _start_target, _null_target, _end_target,
                  tokenizer_source=None, tokenizer_target=None,
                  reverse_source=True,
                  build_mode='Eager',
@@ -96,6 +96,9 @@ class AttentionSeq2seq:
         # target 中代表 null 的标号
         self._null_target = _null_target
 
+        # target 中代表 end 的标号
+        self._end_target = _end_target
+
         self.tokenizer_source = tokenizer_source
         self.tokenizer_target = tokenizer_target
 
@@ -116,7 +119,8 @@ class AttentionSeq2seq:
             self.train_decoder = TrianDecoder(n_embedding=self.n_embedding, n_h=self.n_h, n_vocab=self.n_vocab_target,
                                               target_length=self.target_length, dropout_rates=self.dropout_rates, initializer=self.initializer)
 
-            self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target,
+            self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder,
+                                              _start_target=self._start_target, _end_target=self._end_target, _null_target=self._null_target,
                                               vocab_target=self.vocab_target)
 
             # 手工建立计算图
@@ -133,7 +137,8 @@ class AttentionSeq2seq:
             self.encoder = self.model_train.encoder
             self.train_decoder = self.model_train.train_decoder
 
-            self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target,
+            self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder,
+                                              _start_target=self._start_target, _end_target=self._end_target, _null_target=self._null_target,
                                               vocab_target=self.vocab_target)
 
 
@@ -142,7 +147,7 @@ class AttentionSeq2seq:
 
 
         # 损失函数对象
-        self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
+        self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
 
     def build_train_graph(self):
         """
@@ -166,17 +171,20 @@ class AttentionSeq2seq:
 
         return model
 
-    def _mask_loss_function(self, real, pred):
+    def _mask_loss_function(self, y_true, y_pred):
         """
         自定义的损失函数
 
-        :param real: 标签值
-        :param pred: 预测值
+        :param y_true: 标签值
+        :param y_pred: 预测值
         :return:
         """
-        mask = tf.math.logical_not(tf.math.equal(real, self._null_target))  # 输出序列中为空的不计入损失函数
-        loss_ = self.loss_object(real, pred)
+        mask = (y_true != self._null_target)  # 输出序列中为空的不计入损失函数
+
+        loss_ = self.loss_object(y_true, y_pred)
+
         mask = tf.cast(mask, dtype=loss_.dtype)
+
         loss_ *= mask
 
         return tf.reduce_mean(loss_)
@@ -211,9 +219,9 @@ class AttentionSeq2seq:
 
         mask_source = (batch_source != self._null_source)
 
-        layer_state_list, out_encoder = self.encoder.call(batch_source=batch_source)
+        layer_state_list, out_encoder = self.encoder(batch_source=batch_source)
 
-        probs, preds, decode_text = self.infer_decoder.call(target_length=target_length, mask_source=mask_source,
+        probs, preds, decode_text = self.infer_decoder(target_length=target_length, mask_source=mask_source,
                                              layer_state_list=layer_state_list, out_encoder=out_encoder,
                                              training=training)
 
@@ -238,10 +246,12 @@ class AttentionSeq2seq:
             if target_length is None:
                 target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
 
-            _, _, decode_seq = self._test_step(batch_source, target_length)
+            _, _, decode_text = self._test_step(batch_source, target_length)
 
-            for seq in decode_seq:
-                seq_list.append(seq)
+            for sentence in decode_text:
+
+                seq_list.append(sentence)
+
 
         return seq_list
 
@@ -369,7 +379,7 @@ class TrianDecoder(Layer):
         self.fc_layer0 = Dense(n_h, activation=tf.math.tanh, use_bias=False, kernel_initializer=initializer)
 
         self.fc_layer1 = Dense(n_vocab, kernel_initializer=initializer)
-        self.softmax_layer = Activation('softmax', dtype='float32')
+        # self.softmax_layer = Activation('softmax', dtype='float32')
 
     def get_config(self):
         config = super().get_config().copy()
@@ -399,7 +409,7 @@ class TrianDecoder(Layer):
             'attention_layer': self.attention_layer,
             'fc_layer0': self.fc_layer0,
             'fc_layer1': self.fc_layer1,
-            'softmax_layer': self.softmax_layer,
+            # 'softmax_layer': self.softmax_layer,
         })
         return config
 
@@ -459,9 +469,9 @@ class TrianDecoder(Layer):
 
         outputs = self.fc_layer1(out_attention)  # shape (N_batch, target_length, n_vocab)
 
-        outputs_prob = self.softmax_layer(outputs)  # shape (N_batch, target_length, n_vocab)
+        # outputs_prob = self.softmax_layer(outputs)  # shape (N_batch, target_length, n_vocab)
 
-        return outputs_prob
+        return outputs
 
 
 class InferDecoder(Layer):
@@ -470,11 +480,13 @@ class InferDecoder(Layer):
 
     """
 
-    def __init__(self, train_decoder_obj, _start, vocab_target):
+    def __init__(self, train_decoder_obj, _start_target, _end_target, _null_target, vocab_target):
         super(InferDecoder, self).__init__()
 
         self.train_decoder_obj = train_decoder_obj
-        self._start = _start
+        self._start_target = _start_target
+        self._end_target = _end_target
+        self._null_target = _null_target
 
         self.embedding_layer = self.train_decoder_obj.embedding_layer
         self.dropout_layer0 = self.train_decoder_obj.dropout_layer0
@@ -495,7 +507,7 @@ class InferDecoder(Layer):
         self.fc_layer0 = self.train_decoder_obj.fc_layer0
 
         self.fc_layer1 = self.train_decoder_obj.fc_layer1
-        self.softmax_layer = self.train_decoder_obj.softmax_layer
+        # self.softmax_layer = self.train_decoder_obj.softmax_layer
 
         self.vocab_target = vocab_target
 
@@ -523,7 +535,7 @@ class InferDecoder(Layer):
             'attention_layer': self.attention_layer,
             'fc_layer0': self.fc_layer0,
             'fc_layer1': self.fc_layer1,
-            'softmax_layer': self.softmax_layer,
+            # 'softmax_layer': self.softmax_layer,
         })
         return config
 
@@ -560,7 +572,9 @@ class InferDecoder(Layer):
         c4 = layer_state_list[4][1]  # shape: (N_batch, n_h)
 
         N_batch = tf.shape(h1)[0]
-        batch_token = tf.ones(N_batch, dtype=tf.int64) * self._start  # (N_batch, )
+        batch_token = tf.ones(N_batch, dtype=tf.int64) * self._start_target  # (N_batch, )
+
+        done = tf.zeros(N_batch, dtype=tf.bool)
 
         outs_prob = tf.TensorArray(tf.float32, size=target_length, clear_after_read=False)
 
@@ -595,17 +609,25 @@ class InferDecoder(Layer):
 
             out = self.fc_layer1(out_attention)  # shape (N_batch, n_vocab)
 
-            out = self.softmax_layer(out)
+            # out = self.softmax_layer(out)
 
             max_idx = tf.math.argmax(out, axis=1)  # shape (N_batch, )
 
             # print('max_idx', max_idx)
 
-            batch_token = max_idx   # shape (N_batch, )
+            # If a sequence produces an `end_token`, set it `done`
+            done = done | (max_idx == self._end_target)
+            # Once a sequence is done it only produces 0-padding.
+            batch_token = tf.where(done, tf.constant(self._null_target, dtype=tf.int64), max_idx)
+
+            # batch_token = max_idx   # shape (N_batch, )
 
             outs_prob = outs_prob.write(t, out)  # shape (target_length, N_batch, n_vocab)
 
             outs = outs.write(t, max_idx)  # shape (target_length, N_batch)
+
+            if tf.reduce_all(done):
+                break
 
         outputs_prob = tf.transpose(outs_prob.stack(),
                                     perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
@@ -768,6 +790,31 @@ class ModelTrain(tf.keras.Model):
         return outputs_prob
 
 
+
+class MaskedLoss(tf.keras.losses.Loss):
+
+    def __init__(self, _null_target):
+
+        # self.name = 'masked_loss'
+        self._null_target = _null_target
+
+        self.loss = tf.keras.losses.SparseCategoricalCrossentropy(
+            from_logits=True, reduction='none')
+
+    def call(self, y_true, y_pred):
+
+        # Calculate the loss for each item in the batch.
+        loss = self.loss(y_true, y_pred)
+
+        # Mask off the losses on padding.
+        mask = (y_true != self._null_target)
+
+        mask = tf.cast(mask, dtype=loss.dtype)
+
+        loss *= mask
+
+        # Return the total.
+        return tf.reduce_sum(loss)
 
 class Test:
 

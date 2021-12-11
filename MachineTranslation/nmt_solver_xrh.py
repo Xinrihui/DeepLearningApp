@@ -123,7 +123,7 @@ class MachineTranslation:
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
                                   vocab_target=self.vocab_target,
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
-                                  _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target,
+                                  _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
                                   reverse_source=self.reverse_source,
                                   build_mode=self.build_mode,
                                   dropout_rates=self.dropout_rates)
@@ -207,7 +207,9 @@ class MachineTranslation:
         # Final callbacks
         callbacks = [model_checkpoint_with_eval]
 
-        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
+        # loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
+
+        # loss = MaskedLoss(_null_target=self._null_target)
 
         optimizer = tf.keras.optimizers.RMSprop()
 
@@ -489,6 +491,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training(tag='TEST')
+    test.test_training(tag='TEST')
 
-    test.test_evaluating(tag='TEST')
+    # test.test_evaluating(tag='TEST')
