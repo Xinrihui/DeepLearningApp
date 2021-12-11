@@ -143,3 +143,56 @@ class Evaluate:
 
 
         return average_bleu_score_dict
+
+
+    def output_candidate_and_reference(self, candidates,candidate_file, references, reference_dir, ref_corpus_num=1):
+        """
+        输出 机器翻译的文本 和 对照文本
+
+        1.因为对照文本会有多份, 所以会输出多份对照文本文件, 以后缀数字作为区分
+
+        :param candidates: 待打分的候选译文本列表
+        :param candidate_file: 候选译文本输出的路径输出的路径
+        :param references: 对照文本列表
+        :param reference_dir: 对照文本输出的文件夹
+        :param ref_corpus_num: 对照文本的份数
+
+        :return:
+        """
+        # 处理 candidates
+        out_candidates = []
+        for candidate in candidates:  # 对待打分的候选句子进行清理
+
+            # 删除 控制词
+            candidate = self.remove_word_re.sub('', candidate)
+            out_candidates.append(candidate)
+
+        # 输出翻译结果到目标文件夹中
+        with open(candidate_file, 'wb') as file:
+
+            data = '\n'.join(out_candidates)
+            data = data.encode('utf-8')
+            file.write(data)
+
+        # 处理 references
+        out_references = {i: [] for i in range(ref_corpus_num)}
+
+        for reference_list in references:
+
+            for i in range(ref_corpus_num):
+
+                # 删除 控制词
+                reference = self.remove_word_re.sub('', reference_list[i])
+                out_references[i].append(reference)
+
+        for i in range(ref_corpus_num):
+
+            # 输出对照文本
+            with open(reference_dir+str(i)+'.txt', 'wb') as file:
+
+                data = '\n'.join(out_references[i])
+                data = data.encode('utf-8')
+                file.write(data)
+
+
+

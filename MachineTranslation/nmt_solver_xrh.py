@@ -410,6 +410,7 @@ class Test_WMT14_Eng_Ge_Dataset:
         infer_device = current_config['infer_device']
 
         candidate_file = current_config['candidate_file']
+        reference_dir = current_config['reference_dir']
 
         # 使用 CPU
         with tf.device(infer_device):
@@ -440,7 +441,6 @@ class Test_WMT14_Eng_Ge_Dataset:
             references = [source_target_dict[source] for source in source_list]
 
             source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
-
             batch_source_dataset = source_dataset.batch(batch_size)
 
             candidates = infer.inference(batch_source_dataset, max_seq_length)
@@ -453,22 +453,6 @@ class Test_WMT14_Eng_Ge_Dataset:
             for i in range(0, 10):
                 print('[{}] {}'.format(i, references[i]))
 
-            # 输出翻译结果到目标文件夹中
-            with open(candidate_file, 'wb') as file:
-
-                candidate_list = []
-
-                # 去除 [END] 后面的字符(包括 [END])
-                for sentence in candidates:
-                    idx = sentence.find(current_config['_end_str'])
-                    candidate_list.append(sentence[:idx])
-
-                data = '\n'.join(candidate_list)
-                data = data.encode('utf-8')
-                file.write(data)
-
-            # 输出标准翻译结果到目标文件夹中
-
             evaluate_obj = Evaluate(
                 with_unk=True,
                 use_nltk=True,
@@ -479,8 +463,10 @@ class Test_WMT14_Eng_Ge_Dataset:
 
 
             bleu_score = evaluate_obj.evaluate_bleu(references, candidates, bleu_N=4)
-
             print('bleu_score:{}'.format(bleu_score))
+
+            # 输出 机器翻译的文本 和 对照文本
+            evaluate_obj.output_candidate_and_reference(candidates,candidate_file, references, reference_dir)
 
 
 if __name__ == '__main__':
@@ -491,6 +477,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training(tag='TEST')
+    # test.test_training(tag='TEST')
 
-    # test.test_evaluating(tag='TEST')
+    test.test_evaluating(tag='TEST')

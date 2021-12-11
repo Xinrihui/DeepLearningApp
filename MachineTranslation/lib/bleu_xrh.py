@@ -58,9 +58,9 @@ class BleuScore:
         """
         计算整个语料库的所有 candidate 的 bleu 分数
 
-        语料库中有多个 机器翻译后的句子, 每一个机器翻译后的句子对应多条人工翻译的记录
+        1.语料库中有多个 机器翻译后的句子, 每一个机器翻译后的句子对应多条人工翻译的记录
 
-        此处的实现与论文 BLEU: a Method for Automatic Evaluation of Machine Translation 有不同,
+        2.此处的实现与论文 BLEU: a Method for Automatic Evaluation of Machine Translation 不同,
         此函数对于 每一个 candidate 都计算了 bleu 分数, 即 计算 modified precision score 是按照每一个 candidate 单独计算的,
         而 论文中第 3 页的公式显示为 让所有 candidate 计算一个 modified precision score
 

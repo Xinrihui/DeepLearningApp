@@ -221,11 +221,11 @@ class AttentionSeq2seq:
 
         layer_state_list, out_encoder = self.encoder(batch_source=batch_source)
 
-        probs, preds, decode_text = self.infer_decoder(target_length=target_length, mask_source=mask_source,
+        preds, decode_text = self.infer_decoder(target_length=target_length, mask_source=mask_source,
                                              layer_state_list=layer_state_list, out_encoder=out_encoder,
                                              training=training)
 
-        return probs, preds, decode_text
+        return preds, decode_text
 
     def predict(self, source_dataset, target_length=None):
         """
@@ -246,7 +246,7 @@ class AttentionSeq2seq:
             if target_length is None:
                 target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
 
-            _, _, decode_text = self._test_step(batch_source, target_length)
+            _, decode_text = self._test_step(batch_source, target_length)
 
             for sentence in decode_text:
 
@@ -574,13 +574,11 @@ class InferDecoder(Layer):
         N_batch = tf.shape(h1)[0]
         batch_token = tf.ones(N_batch, dtype=tf.int64) * self._start_target  # (N_batch, )
 
-        done = tf.zeros(N_batch, dtype=tf.bool)
-
-        outs_prob = tf.TensorArray(tf.float32, size=target_length, clear_after_read=False)
+        done = tf.zeros(N_batch, dtype=tf.bool)  # 标记序列的解码可以结束
 
         outs = tf.TensorArray(tf.int64, size=target_length, clear_after_read=False)
 
-        for t in tf.range(target_length):
+        for t in tf.range(target_length):  # 使用 tf.range 会触发 tf.autograph 将循环也构成计算图的一部分
 
             batch_token_embbeding = self.embedding_layer(batch_token)  # shape (N_batch, n_embedding)
 
@@ -615,22 +613,16 @@ class InferDecoder(Layer):
 
             # print('max_idx', max_idx)
 
-            # If a sequence produces an `end_token`, set it `done`
+            # 若出现结束标记位, 则置此序列的状态为 '解码结束' (True)
+            # 注意这里是 '或', 也就是只要出现一次结束标记位之后 done 数组中表示此序列的位一直为 True
             done = done | (max_idx == self._end_target)
-            # Once a sequence is done it only produces 0-padding.
+            # 若序列的状态被置为 '解码结束', 则 后面的时间步都填充 null 元素
             batch_token = tf.where(done, tf.constant(self._null_target, dtype=tf.int64), max_idx)
 
-            # batch_token = max_idx   # shape (N_batch, )
-
-            outs_prob = outs_prob.write(t, out)  # shape (target_length, N_batch, n_vocab)
-
-            outs = outs.write(t, max_idx)  # shape (target_length, N_batch)
+            outs = outs.write(t, batch_token)  # shape (target_length, N_batch)
 
             if tf.reduce_all(done):
                 break
-
-        outputs_prob = tf.transpose(outs_prob.stack(),
-                                    perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
 
         outputs = tf.transpose(outs.stack(), perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
 
@@ -638,7 +630,7 @@ class InferDecoder(Layer):
 
         decode_text = tf.strings.reduce_join(decode_seq, axis=1, separator=' ')  # 单词序列 join 成句子
 
-        return outputs_prob, outputs, decode_text
+        return outputs, decode_text
 
 class LuongAttention(Layer):
     """
