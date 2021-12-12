@@ -207,18 +207,16 @@ class MachineTranslation:
         # Final callbacks
         callbacks = [model_checkpoint_with_eval]
 
-        # loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
+        loss_function = self.model_obj._mask_loss_function
 
-        # loss = MaskedLoss(_null_target=self._null_target)
+        # loss_function = MaskedLoss(_null_target=self._null_target) # TODO: 报错, 未找出原因
 
-        optimizer = tf.keras.optimizers.RMSprop()
+        optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
 
         # optimizer = tf.keras.optimizers.Adam(learning_rate=0.005, clipnorm=5)
-
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
-        # self.model_obj._mask_loss_function
-        self.model_obj.model_train.compile(loss=self.model_obj._mask_loss_function, optimizer=optimizer, metrics=['accuracy'])
+        self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
 
         history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,

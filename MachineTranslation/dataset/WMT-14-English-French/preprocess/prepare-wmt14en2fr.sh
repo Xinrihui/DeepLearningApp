@@ -76,41 +76,41 @@ for ((i=0;i<${#URLS[@]};++i)); do
     fi
 done
 
-#gunzip giga-fren.release2.fixed.*.gz
+gunzip giga-fren.release2.fixed.*.gz
 cd ..
-#
-#echo "pre-processing train data..."
-#for l in $src $tgt; do
-#    rm $tmp/train.tags.$lang.tok.$l
-#    for f in "${CORPORA[@]}"; do
-#        cat $orig/$f.$l | \
-#            perl $NORM_PUNC $l | \
-#            perl $REM_NON_PRINT_CHAR | \
-#            perl $TOKENIZER -threads 8 -a -l $l >> $tmp/train.tags.$lang.tok.$l
-#    done
-#done
-#
-#echo "pre-processing test data..."
-#for l in $src $tgt; do
-#    if [ "$l" == "$src" ]; then
-#        t="src"
-#    else
-#        t="ref"
-#    fi
-#    grep '<seg id' $orig/test-full/newstest2014-fren-$t.$l.sgm | \
-#        sed -e 's/<seg id="[0-9]*">\s*//g' | \
-#        sed -e 's/\s*<\/seg>\s*//g' | \
-#        sed -e "s/\’/\'/g" | \
-#    perl $TOKENIZER -threads 8 -a -l $l > $tmp/test.$l
-#    echo ""
-#done
-#
-#echo "splitting train and valid..."
-#for l in $src $tgt; do
-#    awk '{if (NR%1333 == 0)  print $0; }' $tmp/train.tags.$lang.tok.$l > $tmp/valid.$l
-#    awk '{if (NR%1333 != 0)  print $0; }' $tmp/train.tags.$lang.tok.$l > $tmp/train.$l
-#done
-#
+
+echo "pre-processing train data..."
+for l in $src $tgt; do
+    rm $tmp/train.tags.$lang.tok.$l
+    for f in "${CORPORA[@]}"; do
+        cat $orig/$f.$l | \
+            perl $NORM_PUNC $l | \
+            perl $REM_NON_PRINT_CHAR | \
+            perl $TOKENIZER -threads 8 -a -l $l >> $tmp/train.tags.$lang.tok.$l
+    done
+done
+
+echo "pre-processing test data..."
+for l in $src $tgt; do
+    if [ "$l" == "$src" ]; then
+        t="src"
+    else
+        t="ref"
+    fi
+    grep '<seg id' $orig/test-full/newstest2014-fren-$t.$l.sgm | \
+        sed -e 's/<seg id="[0-9]*">\s*//g' | \
+        sed -e 's/\s*<\/seg>\s*//g' | \
+        sed -e "s/\’/\'/g" | \
+    perl $TOKENIZER -threads 8 -a -l $l > $tmp/test.$l
+    echo ""
+done
+
+echo "splitting train and valid..."
+for l in $src $tgt; do
+    awk '{if (NR%1333 == 0)  print $0; }' $tmp/train.tags.$lang.tok.$l > $tmp/valid.$l
+    awk '{if (NR%1333 != 0)  print $0; }' $tmp/train.tags.$lang.tok.$l > $tmp/train.$l
+done
+
 TRAIN=$tmp/train.fr-en
 BPE_CODE=$prep/code
 #rm -f $TRAIN

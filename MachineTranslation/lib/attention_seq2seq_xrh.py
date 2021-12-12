@@ -18,25 +18,29 @@ from tqdm import tqdm
 
 import numpy as np
 
+from lib.attention_layer_xrh import *
+
+
 class AttentionSeq2seq:
     """
 
     Seq2seq with Attention 模型
 
-    1. 解码采用一体化模型 (integrated model)的方式, 即将每一步的解码都在计算图中完成(时间步的循环控制写在计算图里面)
+    1. 解码采用一体化模型 (integrated model)的方式, 即将每一步的解码都在计算图中完成 (时间步的循环控制写在计算图里面)
 
     2. 训练时可以采用两种方式生成 计算图 (Graph):
 
-     (1) 手工建立计算图 (Session execution), 使用静态图可以节约显存并加速训练;
+     (1) 自己建立计算图 (Session execution) ;
+         训练速度: RTX3090 588ms/step
 
-     (2) 使用 Eager execution 构建模型, 调试完成后, 利用框架自动从代码中抽取出计算图 (tf.function) 再喂入大量数据,
-        此方法思路很好, 但是会占用更多的显存
+     (2) 使用 Eager execution 构建模型, 调试完成后, 利用框架提供的 tf.function 从代码中自动抽取出计算图, 再喂入大量数据训练,
+         虽然最终也是做了 graph execution , 但是每一个 iteration 执行速度不如 Session execution ;
+         训练速度: RTX3090 693ms/step)
 
     3. 推理时采用  Eager execution 构建模型：
 
-      (1) 每次推理 1 个 源序列, 在 decoder 预测出 <END> 时结束解码,
-
-      (2) 每次推理 1 个 batch 的源序列, 目标序列的长度设置为固定长度
+      每次推理 1 个 batch 的源序列, 解码的时间步设置为固定长度(测试集中最长的序列的长度),
+      对每一个源序列, 在 decoder 预测出 <END> 时就结束解码, 即剩余的时间步都填充 null
 
     4.使用多层的 LSTM 堆叠, 中间使用 dropout 连接, 并加入 attention 机制
 
@@ -44,12 +48,16 @@ class AttentionSeq2seq:
       (1) dot-product / Luong / general  attention
       (2) additive / Bahdanau / concat attention
 
+    6.关于 mask 机制
+     (1) 对于填充 null 的时间步(padding)不计入损失函数中
+     (2) 根据 输入序列生成 编码器的 mask, Attention 模块不对输入序列中填充 null 的时间步分配注意力
+
     Author: xrh
     Date: 2021-12-5
 
     ref:
     1. Sequence to Sequence Learning with Neural Networks
-    2. Learning Phrase Representations using RNN Encoder–Decoder for Statistical Machine Translation
+    2. Neural machine translation by jointly learning to align and translate
     3. Effective Approaches to Attention-based Neural Machine Translation
     4. https://nlp.stanford.edu/projects/nmt/
     5. https://www.tensorflow.org/text/tutorials/nmt_with_attention
@@ -219,7 +227,7 @@ class AttentionSeq2seq:
 
         mask_source = (batch_source != self._null_source)
 
-        layer_state_list, out_encoder = self.encoder(batch_source=batch_source)
+        layer_state_list, out_encoder = self.encoder(batch_source=batch_source, training=training)
 
         preds, decode_text = self.infer_decoder(target_length=target_length, mask_source=mask_source,
                                              layer_state_list=layer_state_list, out_encoder=out_encoder,
@@ -375,7 +383,7 @@ class TrianDecoder(Layer):
         self.lstm_layer4 = RNN(self.lstm_cell4, return_sequences=True, return_state=True)
         self.dropout_layer4 = Dropout(dropout_rates[4])
 
-        self.attention_layer = LuongAttention()
+        self.attention_layer = DotAttention()
         self.fc_layer0 = Dense(n_h, activation=tf.math.tanh, use_bias=False, kernel_initializer=initializer)
 
         self.fc_layer1 = Dense(n_vocab, kernel_initializer=initializer)
@@ -466,6 +474,7 @@ class TrianDecoder(Layer):
         # context shape (N_batch, target_length, n_h)
         out_concat = tf.concat([context, rnn_output], axis=-1)  # shape (N_batch, target_length, n_h+n_h)
         out_attention = self.fc_layer0(out_concat)  # shape (N_batch, target_length, n_h)
+        # TODO: 加入 attention_layer 后会产生警告: Error in PredictCost() for the op: op: "Softmax" attr, 原因未知
 
         outputs = self.fc_layer1(out_attention)  # shape (N_batch, target_length, n_vocab)
 
@@ -632,104 +641,8 @@ class InferDecoder(Layer):
 
         return outputs, decode_text
 
-class LuongAttention(Layer):
-    """
-    使用对齐函数为 general的 attention
 
-    ref:
-    1.Effective Approaches to Attention-based Neural Machine Translation
-
-    """
-    def __init__(self):
-        super().__init__()
-
-        self.attention = tf.keras.layers.Attention()
-
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({
-            'attention': self.attention,
-        })
-        return config
-
-    def call(self, query, value, mask):
-        """
-
-        :param query: 上一层解码器的输出序列 shape (N_batch, target_length, n_h)
-        :param value: 编码器的输出序列 shape (N_batch, source_length, n_h)
-        :param mask: 编码器的 mask shape (N_batch, source_length)
-        :return:
-            context [c1,... ] shape (N_batch, target_length, n_h)
-
-        """
-
-        query_mask = tf.ones(tf.shape(query)[:-1], dtype=bool)
-        value_mask = mask
-
-        context_vector, attention_weights = self.attention(
-            inputs=[query, value],
-            mask=[query_mask, value_mask],
-            return_attention_scores=True,
-        )
-
-        return context_vector, attention_weights
-
-
-class BahdanauAttention(Layer):
-    """
-    使用对齐函数为 concat 的 attention
-
-    ref:
-    1.Effective Approaches to Attention-based Neural Machine Translation
-
-    """
-
-    def __init__(self, units):
-        super().__init__()
-
-        self.W1 = Dense(units, use_bias=False)
-        self.W2 = Dense(units, use_bias=False)
-
-        self.attention = tf.keras.layers.AdditiveAttention()
-
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({
-            'W1': self.W1,
-            'W2': self.W2,
-            'attention': self.attention,
-        })
-        return config
-
-    def call(self, query, value, mask):
-        """
-
-        :param query: 上一层解码器的输出序列 shape (N_batch, target_length, n_h)
-        :param value: 编码器的输出序列 shape (N_batch, source_length, n_h)
-        :param mask: 编码器的 mask shape (N_batch, source_length)
-        :return:
-            context [c1,... ] shape (N_batch, target_length, n_h)
-
-        """
-
-        w1_query = self.W1(query)
-
-        w2_key = self.W2(value)
-
-        query_mask = tf.ones(tf.shape(query)[:-1], dtype=bool)
-        value_mask = mask
-
-        context_vector, attention_weights = self.attention(
-            inputs=[w1_query, value, w2_key],
-            mask=[query_mask, value_mask],
-            return_attention_scores=True,
-        )
-
-        return context_vector, attention_weights
-
-
-
-class ModelTrain(tf.keras.Model):
+class ModelTrain(Model):
 
     def __init__(self, n_embedding, n_h, target_length,
                  dropout_rates,
@@ -774,9 +687,9 @@ class ModelTrain(tf.keras.Model):
 
         mask_source = (batch_source != self._null_source)
 
-        layer_state_list, out_encoder = self.encoder.call(batch_source=batch_source)
+        layer_state_list, out_encoder = self.encoder(batch_source=batch_source)
 
-        outputs_prob = self.train_decoder.call(batch_target_in=batch_target_in, mask_source=mask_source,
+        outputs_prob = self.train_decoder(batch_target_in=batch_target_in, mask_source=mask_source,
                                                layer_state_list=layer_state_list, out_encoder=out_encoder)
 
         return outputs_prob
@@ -791,7 +704,7 @@ class MaskedLoss(tf.keras.losses.Loss):
         self._null_target = _null_target
 
         self.loss = tf.keras.losses.SparseCategoricalCrossentropy(
-            from_logits=True, reduction='none')
+            from_logits=False, reduction='none')
 
     def call(self, y_true, y_pred):
 
@@ -830,7 +743,7 @@ class Test:
         source_length = 6
 
         batch_source = np.random.randint(10, size=(N_batch, source_length))
-        batch_target_in =np.random.randint(10, size=(N_batch, target_length))
+        batch_target_in = np.random.randint(10, size=(N_batch, target_length))
 
         inputs_tuple = (batch_source, batch_target_in)
 

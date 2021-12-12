@@ -248,7 +248,7 @@ class Encoder(Layer):
 
     """
 
-    def __init__(self, n_embedding, n_h, n_vocab, dropout_rates, initializer):
+    def __init__(self, n_embedding, n_h, n_vocab, dropout_rates, initializer=None):
 
         super(Encoder, self).__init__()
 
@@ -331,7 +331,7 @@ class TrianDecoder(Layer):
 
     """
 
-    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates, initializer):
+    def __init__(self, n_embedding, n_h, n_vocab, target_length, dropout_rates, initializer=None):
         super(TrianDecoder, self).__init__()
 
         self.target_length = target_length
