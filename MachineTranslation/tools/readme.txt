@@ -11,6 +11,6 @@ git clone https://github.com/moses-smt/mosesdecoder
 
 在 linux 命令行下执行:
 
-perl tools/mosesdecoder/scripts/generic/multi-bleu.perl dataset/WMT-14-English-Germa/newstest2014.de < outs/candidates.txt
+perl tools/mosesdecoder/scripts/generic/multi-bleu.perl outs/reference0.txt < outs/candidate.txt
 
 注意确认 newstest2014.de 和 candidates.txt 中句子的数目一致

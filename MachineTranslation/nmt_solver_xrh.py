@@ -14,7 +14,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras import mixed_precision
 
 from lib.evaluate_xrh import *
-from lib.tf_data_tokenize_xrh import *
+from lib.tf_data_prepare_xrh import *
 
 # from lib.ensemble_seq2seq_xrh import *
 # from lib.seq2seq_xrh import *
@@ -67,7 +67,7 @@ class MachineTranslation:
         self.n_h = int(current_config['n_h'])
         self.n_embedding = int(current_config['n_embedding'])
 
-        self.max_seq_length = int(current_config['max_seq_length'])
+        self.max_seq_length = int(current_config['max_seq_length'])+int(self.current_config['increment'])
 
         self.dropout_rates = json.loads(current_config['dropout_rates'])
 
@@ -211,9 +211,9 @@ class MachineTranslation:
 
         # loss_function = MaskedLoss(_null_target=self._null_target) # TODO: 报错, 未找出原因
 
-        optimizer = tf.keras.optimizers.RMSprop(clipnorm=5)
+        optimizer = tf.keras.optimizers.RMSprop()
 
-        # optimizer = tf.keras.optimizers.Adam(learning_rate=0.005, clipnorm=5)
+        # optimizer = tf.keras.optimizers.Adam(learning_rate=0.001, clipnorm=5)
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
         self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
@@ -233,18 +233,18 @@ class MachineTranslation:
 
 
 
-    def inference(self, batch_source_dataset, max_seq_length):
+    def inference(self, batch_source_dataset, target_length):
         """
         使用训练好的模型进行推理
 
         :param batch_source_dataset:
-
+        :param target_length:
         :return:
         """
 
         # batch_source_dataset shape (N_batch, encoder_length)
 
-        decode_result = self.model_obj.predict(batch_source_dataset, max_seq_length)
+        decode_result = self.model_obj.predict(batch_source_dataset, target_length)
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
@@ -418,7 +418,7 @@ class Test_WMT14_Eng_Ge_Dataset:
                                                cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
             batch_size = int(current_config['batch_size'])
-            max_seq_length = int(current_config['test_max_seq_length'])
+            target_length = int(current_config['test_max_seq_length']) + int(current_config['increment'])
 
             # 2.模型推理
 
@@ -441,7 +441,7 @@ class Test_WMT14_Eng_Ge_Dataset:
             source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
             batch_source_dataset = source_dataset.batch(batch_size)
 
-            candidates = infer.inference(batch_source_dataset, max_seq_length)
+            candidates = infer.inference(batch_source_dataset, target_length)
 
             print('\ncandidates:')
             for i in range(0, 10):

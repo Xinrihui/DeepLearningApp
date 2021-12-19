@@ -207,7 +207,7 @@ class AttentionSeq2seq:
 
         batch_source = batch_data
 
-        batch_source_vector = self.tokenizer_source(batch_source).to_tensor()
+        batch_source_vector = self.tokenizer_source(batch_source) #.to_tensor()
 
         if self.reverse_source:
             batch_source_vector = batch_source_vector[:, ::-1]
