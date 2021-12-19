@@ -464,7 +464,7 @@ class Test_WMT14_Eng_Ge_Dataset:
             print('bleu_score:{}'.format(bleu_score))
 
             # 输出 机器翻译的文本 和 对照文本
-            evaluate_obj.output_candidate_and_reference(candidates,candidate_file, references, reference_dir)
+            evaluate_obj.output_candidate_and_reference(candidates, candidate_file, references, reference_dir)
 
 
 if __name__ == '__main__':

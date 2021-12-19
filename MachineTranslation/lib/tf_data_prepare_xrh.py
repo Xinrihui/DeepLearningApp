@@ -13,11 +13,12 @@ import tensorflow as tf
 
 from tensorflow.keras.layers import TextVectorization, StringLookup
 
-# from tensorflow.keras.layers.experimental import preprocessing
 
 import tensorflow_text as tf_text
 
 from tensorflow_text.tools.wordpiece_vocab import bert_vocab_from_dataset as bert_vocab
+
+from lib.tokenizer_xrh import *
 
 class CorpusNormalize:
     """
@@ -107,128 +108,6 @@ class CorpusNormalize:
 
         return text
 
-
-class SubwordTokenizer(tf.keras.Model):
-    """
-    使用 tensorflow_text.BertTokenizer 构建的基于 subword 的分词器
-
-    Author: xrh
-    Date: 2021-12-15
-
-    ref:
-    https://www.tensorflow.org/text/guide/subwords_tokenizer
-
-    """
-
-    def __init__(self, max_seq_length, reserved_tokens, vocab_list):
-        """
-
-        :param max_seq_length
-        :param reserved_tokens: 保留的控制字符,
-                ["[NULL]", "[UNK]", "[START]", "[END]"]
-        :param vocab_list: 词典
-        """
-
-        super(SubwordTokenizer, self).__init__(self)
-
-        self._reserved_tokens = reserved_tokens
-        self.max_seq_length = max_seq_length
-        self.start = tf.argmax(tf.constant(reserved_tokens) == "[START]")
-        self.end = tf.argmax(tf.constant(reserved_tokens) == "[END]")
-
-        lookup = tf.lookup.StaticVocabularyTable(
-            num_oov_buckets=1,
-            initializer=tf.lookup.KeyValueTensorInitializer(
-                keys=vocab_list,
-                values=tf.range(len(vocab_list), dtype=tf.int64)))
-
-        bert_tokenizer_params = dict(lower_case=True)
-
-        self.tokenizer = tf_text.BertTokenizer(lookup, **bert_tokenizer_params)
-
-        self.vocab = tf.Variable(vocab_list)
-
-        ## Create the signatures for export:
-
-        self.tokenize_fixed.get_concrete_function(
-            tf.TensorSpec(shape=[None], dtype=tf.string))
-
-        # Include a tokenize signature for a batch of strings.
-        self.tokenize.get_concrete_function(
-            tf.TensorSpec(shape=[None], dtype=tf.string))
-
-        # Include `detokenize` and `lookup` signatures for:
-        #   * `Tensors` with shapes [tokens] and [batch, tokens]
-        #   * `RaggedTensors` with shape [batch, tokens]
-        self.detokenize.get_concrete_function(
-            tf.TensorSpec(shape=[None, None], dtype=tf.int64))
-
-        self.detokenize.get_concrete_function(
-            tf.RaggedTensorSpec(shape=[None, None], dtype=tf.int64))
-
-        self.lookup.get_concrete_function(
-            tf.TensorSpec(shape=[None, None], dtype=tf.int64))
-
-        self.lookup.get_concrete_function(
-            tf.RaggedTensorSpec(shape=[None, None], dtype=tf.int64))
-
-    def add_start_end(self, batch_ragged):
-        """
-        在句子的首尾添加控制字符
-
-        :param batch_ragged:
-        :return:
-        """
-        N_batch = batch_ragged.bounding_shape()[0]
-        starts = tf.fill([N_batch, 1], self.start)
-        ends = tf.fill([N_batch, 1], self.end)
-
-        return tf.concat([starts, batch_ragged, ends], axis=1)
-
-    # @tf.function(input_signature=[tf.TensorSpec(dtype=tf.string, shape=[None]), tf.TensorSpec(dtype=tf.int64, shape=None)])
-    # TODO: 报错 TypeError: Dimension value must be integer or None
-    @tf.function
-    def tokenize_fixed(self, strings):
-        """
-        返回序列长度(self.max_seq_length)为固定的 tensor
-
-        :param strings:
-        :return:
-        """
-
-        enc = self.tokenizer.tokenize(strings)
-
-        # Merge the `word` and `word-piece` axes.
-        enc = enc.merge_dims(-2, -1)
-        enc = self.add_start_end(enc)
-
-        return enc.to_tensor(shape=[None, self.max_seq_length])
-
-    @tf.function
-    def tokenize(self, strings):
-        """
-        返回不规则的 tensor(RaggedTensor)
-
-        :param strings:
-        :return:
-        """
-
-        enc = self.tokenizer.tokenize(strings)
-
-        # Merge the `word` and `word-piece` axes.
-        enc = enc.merge_dims(-2, -1)
-        enc = self.add_start_end(enc)
-
-        return enc
-
-    @tf.function
-    def detokenize(self, tokenized):
-        words = self.tokenizer.detokenize(tokenized)
-        return words
-
-    @tf.function
-    def lookup(self, token_ids):
-        return tf.gather(self.vocab, token_ids)
 
 
 
@@ -403,7 +282,7 @@ class DataPreprocess:
 
         reserved_tokens = [self._null_str, self._unk_str, self._start_str, self._end_str]
 
-        tokenizer = SubwordTokenizer(max_seq_length=self.max_seq_length+self.increment, reserved_tokens=reserved_tokens, vocab_list=vocab_list)
+        tokenizer = SubwordTokenizer(fixed_seq_length=self.max_seq_length+self.increment, reserved_tokens=reserved_tokens, vocab_list=vocab_list)
         # (1) -output_sequence_length=self.max_seq_length+20, 前面的处理中已经删除了在语料库中长度超过 max_seq_length 的句子
         #       +increment 的原因是考虑句子的前后补充了2个控制字符, 另外将 word 变为 subword 必然导致句子的长度增加
 
@@ -430,19 +309,14 @@ class DataPreprocess:
 
         text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
 
-        tokenizer = TextVectorization(
-                    standardize=None,
-                    output_sequence_length=self.max_seq_length+self.increment,
-                    max_tokens=n_vocab)
+        tokenizer = SpaceTokenizer(corpus=text_preprocess_dataset, max_tokens=n_vocab, fixed_seq_length=self.max_seq_length + self.increment)
         # (1) max_tokens: 保留出现次数最多的 top-k 个单词
-        # (2) -output_sequence_length=None, 自动将本 batch 中最长的句子的长度作为序列的长度,
+        # (2) -fixed_seq_length=None, 自动将本 batch 中最长的句子的长度作为序列的长度,
         #      在 padding 时 不同的 batch 的序列的长度可能不同, 但是在同个 batch 中自然是统一的;
-        #     -output_sequence_length=self.max_seq_length+increment, 前面的处理中已经删除了在语料库中
+        #     -fixed_seq_length=max_seq_length+increment, 前面的处理中已经删除了在语料库中
         #      长度超过 max_seq_length 的句子, +increment 的原因是考虑句子的前后补充了 2个控制字符
 
-        tokenizer.adapt(text_preprocess_dataset)
-
-        vocab_list = tokenizer.get_vocabulary()
+        vocab_list = tokenizer.vocab_list
 
         print('vocab_list length: {}'.format(len(vocab_list)))
 
@@ -451,9 +325,8 @@ class DataPreprocess:
         if do_persist:
             # 持久化 tokenizer
             tokenizer_path = os.path.join(self.cache_data_dir, tokenizer_file)
-            model = tf.keras.Sequential(tokenizer)
-            model.compile()
-            tf.saved_model.save(model, tokenizer_path)
+
+            tf.saved_model.save(tokenizer, tokenizer_path)
 
 
         return text_preprocess_dataset, tokenizer, vocab_list
@@ -478,19 +351,9 @@ class DataPreprocess:
 
         if self.return_mode == 'final':  # 返回最终的符号化后的句子, 模型可以直接加载进入训练
 
-            if self.tokenize_mode == 'space':
-                # 将文本标记化, 每一个 batch 中的 序列的长度相同
-                source_vector = source_dataset.map(lambda batch_text: tokenizer_source(batch_text))
-                target_vector = target_dataset.map(lambda batch_text: tokenizer_target(batch_text))
-
-            elif self.tokenize_mode == 'subword':
-
-                # 将文本标记化, 每一个 batch 中的 序列的长度相同
-                source_vector = source_dataset.map(lambda batch_text: tokenizer_source.tokenize_fixed(batch_text))
-                target_vector = target_dataset.map(lambda batch_text: tokenizer_target.tokenize_fixed(batch_text))
-
-            else:
-                raise Exception('the value of tokenize_mode is {}, which is illegal'.format(self.tokenize_mode))
+            # 将文本标记化, 每一个 batch 中的 序列的长度相同
+            source_vector = source_dataset.map(lambda batch_text: tokenizer_source.tokenize_fixed(batch_text))
+            target_vector = target_dataset.map(lambda batch_text: tokenizer_target.tokenize_fixed(batch_text))
 
             print('tokenize text complete!')
 
@@ -1017,45 +880,21 @@ class Test:
 
         if current_config['return_mode'] == 'mid':
 
-            if current_config['tokenize_mode'] == 'space':
+            # 查看 1 个批次的数据
+            for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
+                print('source:')
+                print(source[:10])
 
-                # 查看 1 个批次的数据
-                for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
-                    print('source:')
-                    print(source[:10])
+                source_vector = dataset_train_obj.tokenizer_source.tokenize(source).to_tensor()
+                print('source_vector:')
+                print(source_vector)
 
-                    source_vector = dataset_train_obj.tokenizer_source(source)  # .to_tensor()
-                    print('source_vector:')
-                    print(source_vector)
+                print('target:')
+                print(target[:10])
 
-                    print('target:')
-                    print(target[:10])
-
-                    target_vector = dataset_train_obj.tokenizer_target(target)  # .to_tensor()
-                    print('target_vector:')
-                    print(target_vector)
-
-            elif current_config['tokenize_mode'] == 'subword':
-
-                # 查看 1 个批次的数据
-                for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
-                    print('source:')
-                    print(source[:10])
-
-                    source_vector = dataset_train_obj.tokenizer_source.tokenize(source).to_tensor()
-                    print('source_vector:')
-                    print(source_vector)
-
-                    print('target:')
-                    print(target[:10])
-
-                    target_vector = dataset_train_obj.tokenizer_target.tokenize(target).to_tensor()
-                    print('target_vector:')
-                    print(target_vector)
-
-            else:
-                raise Exception('the value of tokenize_mode is {}, which is illegal'.format(current_config['tokenize_mode']))
-
+                target_vector = dataset_train_obj.tokenizer_target.tokenize(target).to_tensor()
+                print('target_vector:')
+                print(target_vector)
 
 
         elif current_config['return_mode'] == 'final':
@@ -1148,22 +987,10 @@ class Test:
             for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
 
                 source_list = source[:10]
-
                 print('source:')
                 print(source_list)
 
-                if current_config['tokenize_mode'] == 'space':
-
-                    source_vector = dataset_train_obj.tokenizer_source(source)#.to_tensor()
-
-                elif current_config['tokenize_mode'] == 'subword':
-
-                    source_vector = dataset_train_obj.tokenizer_source.tokenize(source).to_tensor()
-
-                else:
-                    raise Exception(
-                        'the value of tokenize_mode is {}, which is illegal'.format(current_config['tokenize_mode']))
-
+                source_vector = dataset_train_obj.tokenizer_source.tokenize(source).to_tensor()
                 print('source_vector:')
                 print(source_vector)
 
@@ -1183,9 +1010,9 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess(tag='TEST')
+    # test.test_DataPreprocess(tag='TEST')
 
-    # test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
+    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
     # test.test_VocabTf(tag='TEST')
 
