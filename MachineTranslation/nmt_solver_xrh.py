@@ -16,9 +16,11 @@ from tensorflow.keras import mixed_precision
 from lib.evaluate_xrh import *
 from lib.tf_data_prepare_xrh import *
 
-# from lib.ensemble_seq2seq_xrh import *
 # from lib.seq2seq_xrh import *
+# from lib.ensemble_seq2seq_xrh import *
 from lib.attention_seq2seq_xrh import *
+
+from lib.transformer_seq2seq_xrh import *
 
 import time
 import configparser
@@ -64,13 +66,6 @@ class MachineTranslation:
 
         self.current_config = current_config
 
-        self.n_h = int(current_config['n_h'])
-        self.n_embedding = int(current_config['n_embedding'])
-
-        self.max_seq_length = int(current_config['max_seq_length'])+int(self.current_config['increment'])
-
-        self.dropout_rates = json.loads(current_config['dropout_rates'])
-
         self.reverse_source = bool(int(self.current_config['reverse_source']))
 
         _null_str = current_config['_null_str']
@@ -87,12 +82,6 @@ class MachineTranslation:
         # 目标语言的词表大小
         self.n_vocab_target = self.vocab_target.n_vocab
 
-
-        print('model architecture param:')
-        print('n_h:{}, n_embedding:{}, n_vocab_source:{}, n_vocab_target:{}'.format(self.n_h, self.n_embedding, self.n_vocab_source,
-                                                                                    self.n_vocab_target))
-        print('-------------------------')
-
         self._null = int(self.vocab_source.map_word_to_id(_null_str))  # 空
         self._start = int(self.vocab_source.map_word_to_id(_start_str))  # 句子的开始
         self._end = int(self.vocab_source.map_word_to_id(_end_str))  # 句子的结束
@@ -106,10 +95,13 @@ class MachineTranslation:
 
         self.build_mode = current_config['build_mode']
         self.save_mode = current_config['save_mode']
-
         self.model_path = current_config['model_path']
 
+        max_seq_length = int(current_config['max_seq_length'])+int(self.current_config['increment'])
+        dropout_rates = json.loads(current_config['dropout_rates'])
+
         # 构建模型
+        # 1.EnsembleSeq2seq
         # self.model_obj = EnsembleSeq2seq(n_embedding=self.n_embedding, n_h=self.n_h, max_seq_length=self.max_seq_length,
         #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
         #                           vocab_target=self.vocab_target,
@@ -119,14 +111,31 @@ class MachineTranslation:
         #                           build_mode=self.build_mode,
         #                           dropout_rates=self.dropout_rates)
 
-        self.model_obj = AttentionSeq2seq(n_embedding=self.n_embedding, n_h=self.n_h, max_seq_length=self.max_seq_length,
+        # 2.AttentionSeq2seq
+        # self.model_obj = AttentionSeq2seq(
+        #                           n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']),
+        #                           max_seq_length=max_seq_length,
+        #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
+        #                           vocab_target=self.vocab_target,
+        #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+        #                           _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
+        #                           reverse_source=self.reverse_source,
+        #                           build_mode=self.build_mode,
+        #                           dropout_rates=dropout_rates)
+
+        # 3.TransformerSeq2seq
+
+        self.model_obj = TransformerSeq2seq(
+                                  num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
+                                  num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']),
+                                  maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
+                                  max_seq_length=max_seq_length,
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
-                                  vocab_target=self.vocab_target,
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                   _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
                                   reverse_source=self.reverse_source,
                                   build_mode=self.build_mode,
-                                  dropout_rates=self.dropout_rates)
+                                  dropout_rates=dropout_rates)
 
 
         if use_pretrain:  # 载入训练好的模型
@@ -135,10 +144,12 @@ class MachineTranslation:
 
                 self.model_obj.model_train.load_weights(self.model_path)
 
-            elif self.save_mode == 'SavedModel':
+            # elif self.save_mode == 'SavedModel':
+            #
+            #     self.model_obj.model_train = tf.saved_model.load(self.model_path)
 
-                self.model_obj.model_train = tf.saved_model.load(self.model_path)
-
+            else:
+                raise Exception("Invalid param value, save_mode= ", self.save_mode)
 
     def _shuffle_dataset(self, dataset, buffer_size, batch_size):
         """
@@ -155,9 +166,9 @@ class MachineTranslation:
         # shuffle 后不能进行任何的 map 操作, 因为会改变 batch 中的数据行的组合
         dataset = dataset.shuffle(buffer_size).batch(batch_size)
 
-        final_dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+        train_dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
 
-        return final_dataset
+        return train_dataset
 
     def fit_tf_data(self, train_dataset, valid_dataset, valid_source_target_dict, epoch_num,
                     batch_size, buffer_size,
@@ -202,21 +213,22 @@ class MachineTranslation:
         model_checkpoint_with_eval = CheckoutCallback(current_config=self.current_config,
                                                       model_obj=self.model_obj,
                                                       vocab_obj=self.vocab_target, valid_source_target_dict=valid_source_target_dict,
+                                                      print_res=True
                                                       )
 
         # Final callbacks
         callbacks = [model_checkpoint_with_eval]
 
-        loss_function = self.model_obj._mask_loss_function
-
+        # loss_function = self.model_obj._mask_loss_function
         # loss_function = MaskedLoss(_null_target=self._null_target) # TODO: 报错, 未找出原因
 
-        optimizer = tf.keras.optimizers.RMSprop()
-
-        # optimizer = tf.keras.optimizers.Adam(learning_rate=0.001, clipnorm=5)
+        # optimizer = tf.keras.optimizers.RMSprop()
+        # optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
-        self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
+        # self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
+
+        self.model_obj.model_train.compile()
 
         history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,
@@ -227,10 +239,6 @@ class MachineTranslation:
             )
 
         print('final learning_rate:', round(self.model_obj.model_train.optimizer.lr.numpy(), 5))
-
-        # 将训练好的模型持久化
-        # self.model_obj.model_train.save(self.model_path)
-
 
 
     def inference(self, batch_source_dataset, target_length):
@@ -259,6 +267,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
     def __init__(self, current_config,
                  model_obj, vocab_obj, valid_source_target_dict,
+                 print_res=False,
                  ):
         """
 
@@ -266,16 +275,19 @@ class CheckoutCallback(keras.callbacks.Callback):
         :param model_obj: 模型对象
         :param vocab_obj: 目标语言的词典对象
         :param valid_source_target_dict: 源序列到目标序列的词典
+        :param print_res: 是否打印模型的翻译结果
 
         """
 
         keras.callbacks.Callback.__init__(self)
 
+        self.print_res = print_res
+
         self.model_obj = model_obj
         self.vocab_obj = vocab_obj
 
         self.save_mode = current_config['save_mode']
-        self.max_seq_length = int(current_config['max_seq_length'])
+        self.max_seq_length = int(current_config['max_seq_length']) + int(current_config['increment'])
 
         self.batch_source_dataset, self.references = self.prepare_data(batch_size=int(current_config['batch_size']),
                                                                            valid_source_target_dict=valid_source_target_dict)
@@ -324,6 +336,17 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
+        if self.print_res:
+
+            print('\ncandidates:')
+            for i in range(0, 5):
+                print('[{}] {}'.format(i, candidates[i]))
+
+            print('\nreferences:')
+            for i in range(0, 5):
+                print('[{}] {}'.format(i, self.references[i]))
+
+
         bleu_score = self.evaluate_obj.evaluate_bleu(self.references, candidates, bleu_N=4)
 
         print()
@@ -339,16 +362,19 @@ class CheckoutCallback(keras.callbacks.Callback):
             fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f.h5')
             self.model_obj.model_train.save(fmt % (epoch, logs['val_loss']))
 
-        elif self.save_mode == 'SavedModel':
-
-            # 使用 SavedModel 保存整个模型
-            fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
-            tf.saved_model.save(self.model_obj.model_train, fmt % (epoch, logs['val_loss']))
+        # elif self.save_mode == 'SavedModel':
+        #
+        #     # 使用 SavedModel 保存整个模型
+        #     fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
+        #     tf.saved_model.save(self.model_obj.model_train, fmt % (epoch, logs['val_loss']))
 
         elif self.save_mode == 'weight':
             # 'weight' 只保存权重
             fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
             self.model_obj.model_train.save_weights(fmt % (epoch, logs['val_loss']))  # 保存模型的参数
+
+        else:
+            raise Exception("Invalid param value, save_mode= ", self.save_mode)
 
         # 计算 bleu 分数
         self.inference_bleu()
@@ -356,7 +382,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
 class Test_WMT14_Eng_Ge_Dataset:
 
-    def test_training(self, config_path='lib/config.ini', tag='DEFAULT'):
+    def test_training(self, config_path='config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         # 0. 读取配置文件
 
@@ -394,7 +420,7 @@ class Test_WMT14_Eng_Ge_Dataset:
                             valid_source_target_dict=dataset_obj.valid_source_target_dict,
                             epoch_num=epoch_num, batch_size=batch_size, buffer_size=buffer_size)
 
-    def test_evaluating(self, config_path='lib/config.ini', tag='DEFAULT'):
+    def test_evaluating(self, config_path='config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         # 0. 读取配置文件
         config = configparser.ConfigParser()
@@ -415,7 +441,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
             # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
             dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
-                                               cache_data_folder=current_config['cache_data_folder'], mode='infer')
+                                               cache_data_folder=current_config['cache_data_folder'], mode='train')
 
             batch_size = int(current_config['batch_size'])
             target_length = int(current_config['test_max_seq_length']) + int(current_config['increment'])
@@ -430,7 +456,9 @@ class Test_WMT14_Eng_Ge_Dataset:
                 use_pretrain=True
             )
 
-            source_target_dict = dataset_obj.test_source_target_dict
+            # source_target_dict = dataset_obj.test_source_target_dict
+
+            source_target_dict = dataset_obj.valid_source_target_dict
 
             source_list = list(source_target_dict.keys())
 

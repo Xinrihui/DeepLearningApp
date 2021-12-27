@@ -164,7 +164,6 @@ class DataPreprocess:
 
         self.reverse_source = bool(int(self.current_config['reverse_source']))
 
-
         self.train_source_corpus_dir = os.path.join(base_dir, current_config['train_source_corpus'])
         self.train_target_corpus_dir = os.path.join(base_dir, current_config['train_target_corpus'])
 
@@ -173,7 +172,6 @@ class DataPreprocess:
 
         self.test_source_corpus_dir = os.path.join(base_dir,  current_config['test_source_corpus'])
         self.test_target_corpus_dir = os.path.join(base_dir,  current_config['test_target_corpus'])
-
 
         self._null_str = current_config['_null_str']
         self._start_str = current_config['_start_str']
@@ -858,7 +856,7 @@ class WMT14_Eng_Ge_Dataset:
 
 class Test:
 
-    def test_DataPreprocess(self, config_path='config.ini', tag='DEFAULT'):
+    def test_DataPreprocess(self, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
@@ -869,7 +867,7 @@ class Test:
         process_obj.do_mian(batch_size=int(current_config['batch_size']), n_vocab_source=int(current_config['n_vocab_source']),
                             n_vocab_target=int(current_config['n_vocab_target']), max_seq_length=int(current_config['max_seq_length']), test_max_seq_length=int(current_config['test_max_seq_length']))
 
-    def test_WMT14_Eng_Ge_Dataset(self, config_path='config.ini', tag='DEFAULT'):
+    def test_WMT14_Eng_Ge_Dataset(self, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
@@ -888,6 +886,10 @@ class Test:
                 source_vector = dataset_train_obj.tokenizer_source.tokenize(source).to_tensor()
                 print('source_vector:')
                 print(source_vector)
+
+                print('detokenize source vector')
+                detoken = dataset_train_obj.tokenizer_source.detokenize(source_vector)
+                print(tf.strings.reduce_join(detoken, separator=' ', axis=-1))
 
                 print('target:')
                 print(target[:10])
@@ -974,7 +976,7 @@ class Test:
         print('word ämter index: ', int(dataset_infer_obj.vocab_target.map_word_to_id('ämter')))
 
 
-    def test_VocabTf(self, config_path='config.ini', tag='DEFAULT'):
+    def test_VocabTf(self, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')

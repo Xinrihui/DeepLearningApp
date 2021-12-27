@@ -19,6 +19,7 @@ class SubwordTokenizer(tf.keras.Model):
 
     ref:
     https://www.tensorflow.org/text/guide/subwords_tokenizer
+    https://www.tensorflow.org/text/api_docs/python/text/BertTokenizer
 
     """
 
@@ -141,7 +142,7 @@ class SpaceTokenizer(tf.keras.Model):
     Date: 2021-12-15
 
     ref:
-    https://www.tensorflow.org/text/guide/subwords_tokenizer
+    https://www.tensorflow.org/api_docs/python/tf/keras/layers/TextVectorization
 
     """
 
@@ -274,22 +275,26 @@ class Test:
         for batch_seq in target_dataset.take(1):
             print(batch_seq.numpy())
 
-        token_batch = tokenizer.tokenize(batch_seq)
-        print(token_batch)
+        token_vector_fixed = tokenizer.tokenize_fixed(batch_seq)
+        print(token_vector_fixed)
 
-        token_batch = tokenizer.tokenize_fixed(batch_seq)
-        print(token_batch)
+        token_vector = tokenizer.tokenize(batch_seq)
+        print(token_vector)
 
+        sentence = tokenizer.detokenize(token_vector)
+        sentence = tf.strings.reduce_join(sentence, separator=' ', axis=-1)
+        print(sentence)
 
-
+        tokens = tokenizer.lookup(token_vector)
+        print(tokens)
 
 if __name__ == '__main__':
 
     test = Test()
 
-    test.test_SpaceTokenizer()
+    # test.test_SpaceTokenizer()
 
-    # test.test_SubwordTokenizer()
+    test.test_SubwordTokenizer()
 
 
 
