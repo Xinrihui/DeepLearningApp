@@ -167,9 +167,12 @@ class TransformerSeq2seq:
     #   shape=None 表示标量
     @tf.function(input_signature=[tf.TensorSpec(dtype=tf.int64, shape=[None, None]), tf.TensorSpec(dtype=tf.int32, shape=None)])
     def test_step(self, batch_source, target_length):
+        """
 
-        # batch_source  shape (N_batch, source_length)
-
+        :param batch_source: shape (N_batch, source_length)
+        :param target_length:
+        :return:
+        """
         training = False
 
         encoder_padding_mask = create_padding_mask(batch_source, self._null_source)

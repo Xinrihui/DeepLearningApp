@@ -76,9 +76,23 @@ class CorpusNormalize:
 
         return text
 
-    def standard_normalize(self, text):
+    def normalize(self, text):
         """
-        对每一个句子的标准化操作, 并在首尾加入控制字符
+        对每一个句子进行标准化
+
+        :param text:
+        :return:
+        """
+        # NKFC unicode 标准化 +  大小写折叠
+        # text = tf_text.case_fold_utf8(text)
+
+        text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
+
+        return text
+
+    def all(self, text):
+        """
+        对每一个句子进行所有预处理操作, 包括标准化和在首尾加入控制字符
 
         :param text:
         :return:
@@ -113,7 +127,7 @@ class CorpusNormalize:
 
 class DataPreprocess:
     """
-    利用 tf.data.Dataset 数据流水线 + TextVectorization 的数据集预处理
+    利用 tf.data.Dataset 数据流水线的数据集预处理
 
     主流程见 do_main()
 
@@ -157,7 +171,7 @@ class DataPreprocess:
 
         self.tokenize_mode = current_config['tokenize_mode']
         self.return_mode = current_config['return_mode']
-        self.normalize_mode = current_config['normalize_mode']
+        self.preprocess_mode = current_config['preprocess_mode']
 
         self.max_seq_length = int(self.current_config['max_seq_length'])
         self.increment = int(self.current_config['increment'])
@@ -209,34 +223,47 @@ class DataPreprocess:
 
             return text_data
 
-    def preprocess_corpus(self, text_data, normalize_mode=None, batch_size=64):
+    def preprocess_corpus(self, text_data, preprocess_mode=None, batch_size=64):
         """
         对语料库中的句子进行预处理, 包括 标准化文本
 
         :param text_data:
-        :param normalize_mode: 预处理模式
+        :param preprocess_mode: 预处理模式
         :param batch_size:
 
         :return:
         """
 
-        if normalize_mode is None:
-            normalize_mode = self.normalize_mode
+        if preprocess_mode is None:  # 若未定义局部的 preprocess_mode 则使用全局的
+            preprocess_mode = self.preprocess_mode
 
         text_dataset = tf.data.Dataset.from_tensor_slices(text_data).batch(batch_size)  # 分块后可以加速计算, 后面每次读取都是一块
 
-        if normalize_mode == 'add_control':
+        if preprocess_mode == 'none':
+
+            text_preprocess_dataset = text_dataset
+
+        elif preprocess_mode == 'normalize':
+
+            text_preprocess_dataset = text_dataset.map(lambda batch_text:
+                self.corpus_normalize.normalize(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
+
+
+        elif preprocess_mode == 'add_control_token':
 
             text_preprocess_dataset = text_dataset.map(lambda batch_text:
                 self.corpus_normalize.add_control_token(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
 
-        elif normalize_mode == 'standard':
+        elif preprocess_mode == 'all':
 
             text_preprocess_dataset = text_dataset.map(lambda batch_text:
-                self.corpus_normalize.standard_normalize(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
+                self.corpus_normalize.all(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
 
         else:
-            text_preprocess_dataset = text_dataset
+
+            raise Exception('the value of preprocess_mode is {}, which is illegal'.format(preprocess_mode))
+
+
 
         return text_preprocess_dataset
 
@@ -255,9 +282,9 @@ class DataPreprocess:
 
         text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
 
-        bert_tokenizer_params = dict(lower_case=False)
         reserved_tokens = [self._null_str, self._unk_str, self._start_str, self._end_str]
 
+        bert_tokenizer_params = dict(lower_case=False)
         bert_vocab_args = dict(
             # The target vocabulary size
             vocab_size=n_vocab,
@@ -270,7 +297,7 @@ class DataPreprocess:
         )
 
         vocab_list = bert_vocab.bert_vocab_from_dataset(
-            text_preprocess_dataset.prefetch(buffer_size=tf.data.AUTOTUNE),
+            text_preprocess_dataset.unbatch().batch(2048).prefetch(buffer_size=tf.data.AUTOTUNE),
             **bert_vocab_args
         )
 
@@ -278,9 +305,10 @@ class DataPreprocess:
 
         print('vocab_list: ', vocab_list[:20])
 
-        reserved_tokens = [self._null_str, self._unk_str, self._start_str, self._end_str]
-
-        tokenizer = SubwordTokenizer(fixed_seq_length=self.max_seq_length+self.increment, reserved_tokens=reserved_tokens, vocab_list=vocab_list)
+        tokenizer = SubwordTokenizer(fixed_seq_length=self.max_seq_length+self.increment,
+                                     reserved_tokens=reserved_tokens, vocab_list=vocab_list,
+                                     _start_str=self._start_str, _end_str=self._end_str
+                                     )
         # (1) -output_sequence_length=self.max_seq_length+20, 前面的处理中已经删除了在语料库中长度超过 max_seq_length 的句子
         #       +increment 的原因是考虑句子的前后补充了2个控制字符, 另外将 word 变为 subword 必然导致句子的长度增加
 
@@ -329,12 +357,14 @@ class DataPreprocess:
 
         return text_preprocess_dataset, tokenizer, vocab_list
 
+
     def tf_data_pipline(self, source_dataset, target_dataset, tokenizer_source=None, tokenizer_target=None, do_persist=False, dataset_file=None):
         """
         利用 tf.data.Dataset 数据流水线 建立数据集,
 
         :param source_dataset:
         :param target_target:
+
         :param tokenizer_source:
         :param tokenizer_target:
 
@@ -346,6 +376,7 @@ class DataPreprocess:
         assert len(source_dataset) == len(target_dataset)
 
         print('dataset batch num: ', len(source_dataset))
+
 
         if self.return_mode == 'final':  # 返回最终的符号化后的句子, 模型可以直接加载进入训练
 
@@ -468,7 +499,7 @@ class DataPreprocess:
 
     def filter_by_seq_length(self, source_seq_list, target_seq_list, max_seq_length):
         """
-        过滤掉超出设定长度的序列
+        过滤掉超出设定长度(句子中用空格分隔的 token 的个数)的序列
 
         :param source_seq_list:
         :param target_seq_list:
@@ -504,6 +535,32 @@ class DataPreprocess:
 
         return res_source_seq_list, res_target_seq_list
 
+    def sort_by_seq_length(self, source_seq_list, target_seq_list):
+        """
+        按照长度(句子中用空格分隔的 token 的个数))对 序列 进行排序,
+        注意 source_seq_list 和 target_seq_list 要按照原来的顺序对应上
+
+        :param source_seq_list:
+        :param target_seq_list:
+        :return:
+        """
+
+        assert len(source_seq_list) == len(target_seq_list)  # 平行语料, 序列的个数必须相同
+
+        # 使用 source seq 的长度进行排序
+        source_length_dict = self.__get_seq_length(source_seq_list)
+
+        source_ordered_list = sorted(source_length_dict.items(), key=lambda d: d[1], reverse=True)
+
+        source_ordered_idx = [id for id, length in source_ordered_list]
+
+        source_seq_arr = np.array(source_seq_list)
+        target_seq_arr = np.array(target_seq_list)
+
+        source_seq_arr = source_seq_arr[source_ordered_idx]
+        target_seq_arr = target_seq_arr[source_ordered_idx]
+
+        return list(source_seq_arr), list(target_seq_arr)
 
     def do_mian(self, batch_size, n_vocab_source, n_vocab_target, max_seq_length, test_max_seq_length):
         """
@@ -528,6 +585,8 @@ class DataPreprocess:
         # 过滤掉长度 大于 max_seq_length 的序列
         train_source_text, train_target_text = self.filter_by_seq_length(train_source_text, train_target_text, max_seq_length)
 
+        # 按照长度对 序列 进行排序
+        train_source_text, train_target_text = self.sort_by_seq_length(train_source_text, train_target_text)
 
         if self.tokenize_mode == 'space':
 
@@ -571,6 +630,10 @@ class DataPreprocess:
         # 过滤掉长度 大于 max_seq_length 的序列
         valid_source_text, valid_target_text = self.filter_by_seq_length(valid_source_text, valid_target_text, max_seq_length)
 
+        # 按照长度对 序列 进行排序
+        valid_source_text, valid_target_text = self.sort_by_seq_length(valid_source_text, valid_target_text)
+
+
         valid_source_dataset = self.preprocess_corpus(valid_source_text,  batch_size=batch_size)
         valid_target_dataset = self.preprocess_corpus(valid_target_text,  batch_size=batch_size)
 
@@ -580,8 +643,8 @@ class DataPreprocess:
 
 
         # 验证数据 source_target_dict
-        self.build_source_target_dict(source_text=self.preprocess_corpus(valid_source_text, normalize_mode='add_control', batch_size=batch_size),
-                                      target_text=self.preprocess_corpus(valid_target_text, normalize_mode='add_control', batch_size=batch_size),
+        self.build_source_target_dict(source_text=self.preprocess_corpus(valid_source_text, preprocess_mode='add_control_token', batch_size=batch_size),
+                                      target_text=self.preprocess_corpus(valid_target_text, preprocess_mode='add_control_token', batch_size=batch_size),
                                       do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
 
 
@@ -595,10 +658,13 @@ class DataPreprocess:
         # 过滤掉长度 大于 test_max_seq_length 的序列
         test_source_text, test_target_text = self.filter_by_seq_length(test_source_text, test_target_text, max_seq_length=test_max_seq_length)
 
+        # 按照长度对 序列 进行排序
+        test_source_text, test_target_text = self.sort_by_seq_length(test_source_text, test_target_text)
+
 
         # 测试数据 source_target_dict
-        self.build_source_target_dict(source_text=self.preprocess_corpus(test_source_text, normalize_mode='add_control', batch_size=batch_size),
-                                      target_text=self.preprocess_corpus(test_target_text, normalize_mode='add_control', batch_size=batch_size),
+        self.build_source_target_dict(source_text=self.preprocess_corpus(test_source_text, preprocess_mode='add_control_token', batch_size=batch_size),
+                                      target_text=self.preprocess_corpus(test_target_text, preprocess_mode='add_control_token', batch_size=batch_size),
                                       do_persist=True, source_target_dict_file='test_source_target_dict.bin')
 
 
@@ -880,8 +946,12 @@ class Test:
 
             # 查看 1 个批次的数据
             for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
+
+                source = source[:4]
+                target = target[:4]
+
                 print('source:')
-                print(source[:10])
+                print(source)
 
                 source_vector = dataset_train_obj.tokenizer_source.tokenize(source).to_tensor()
                 print('source_vector:')
@@ -892,11 +962,15 @@ class Test:
                 print(tf.strings.reduce_join(detoken, separator=' ', axis=-1))
 
                 print('target:')
-                print(target[:10])
+                print(target)
 
                 target_vector = dataset_train_obj.tokenizer_target.tokenize(target).to_tensor()
                 print('target_vector:')
                 print(target_vector)
+
+                print('detokenize target vector')
+                detoken = dataset_train_obj.tokenizer_target.detokenize(target_vector)
+                print(tf.strings.reduce_join(detoken, separator=' ', axis=-1))
 
 
         elif current_config['return_mode'] == 'final':
@@ -1012,7 +1086,7 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DataPreprocess(tag='TEST')
+    test.test_DataPreprocess(tag='TEST')
 
     test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 

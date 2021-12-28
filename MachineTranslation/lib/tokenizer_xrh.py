@@ -23,21 +23,23 @@ class SubwordTokenizer(tf.keras.Model):
 
     """
 
-    def __init__(self, fixed_seq_length, reserved_tokens, vocab_list):
+    def __init__(self, fixed_seq_length, reserved_tokens, vocab_list, _start_str, _end_str):
         """
 
         :param fixed_seq_length: 指定的序列长度
         :param reserved_tokens: 保留的控制字符,
                 ["[NULL]", "[UNK]", "[START]", "[END]"]
         :param vocab_list: 词典
+        :param _start_str: 句子的开始
+        :param _end_str: 句子的结束
         """
 
         super(SubwordTokenizer, self).__init__(self)
 
         self._reserved_tokens = reserved_tokens
         self.fixed_seq_length = fixed_seq_length
-        self.start = tf.argmax(tf.constant(reserved_tokens) == "[START]")
-        self.end = tf.argmax(tf.constant(reserved_tokens) == "[END]")
+        self.start = tf.constant(reserved_tokens.index(_start_str), dtype=tf.int64)
+        self.end = tf.constant(reserved_tokens.index(_end_str), dtype=tf.int64)
 
         lookup = tf.lookup.StaticVocabularyTable(
             num_oov_buckets=1,
@@ -45,14 +47,13 @@ class SubwordTokenizer(tf.keras.Model):
                 keys=vocab_list,
                 values=tf.range(len(vocab_list), dtype=tf.int64)))
 
-        bert_tokenizer_params = dict(lower_case=True)
+        bert_tokenizer_params = dict(lower_case=False)
 
         self.tokenizer = tf_text.BertTokenizer(lookup, **bert_tokenizer_params)
 
         self.vocab = tf.Variable(vocab_list)
 
-        ## Create the signatures for export:
-
+        # Include a tokenize_fixed signature for a batch of strings.
         self.tokenize_fixed.get_concrete_function(
             tf.TensorSpec(shape=[None], dtype=tf.string))
 
@@ -250,7 +251,7 @@ class Test:
 
         target_dataset = tf.data.Dataset.from_tensor_slices(corpus).batch(2)
 
-        bert_tokenizer_params = dict(lower_case=True)
+        bert_tokenizer_params = dict(lower_case=False)
         reserved_tokens = ["", "[UNK]", "[START]", "[END]"]
 
         bert_vocab_args = dict(
@@ -270,7 +271,8 @@ class Test:
         )
 
         fixed_seq_length = 50
-        tokenizer = SubwordTokenizer(fixed_seq_length, reserved_tokens, target_vocab)
+        tokenizer = SubwordTokenizer(fixed_seq_length, reserved_tokens, target_vocab,
+                                     _start_str="[START]", _end_str="[END]")
 
         for batch_seq in target_dataset.take(1):
             print(batch_seq.numpy())
