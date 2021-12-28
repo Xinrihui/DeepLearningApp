@@ -54,7 +54,7 @@ class TransformerSeq2seq:
 
     """
 
-    def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates,
+    def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates, label_smoothing,
                  maximum_position_source, maximum_position_target,
                  max_seq_length,
                  n_vocab_source, n_vocab_target,
@@ -70,6 +70,7 @@ class TransformerSeq2seq:
         :param num_heads: 并行注意力层的个数(头数)
         :param dff: Position-wise Feed-Forward 的中间层的维度
         :param dropout_rates: dropout 的弃置率
+        :param label_smoothing: 标签平滑
         :param maximum_position_source: 源句子的可能最大长度
         :param maximum_position_target: 目标句子的可能最大长度
         :param max_seq_length: 最大的序列长度
@@ -127,7 +128,7 @@ class TransformerSeq2seq:
         if build_mode == 'Eager':
 
             self.model_train = TrainModel(
-                num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, dropout_rates=dropout_rates,
+                num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, dropout_rates=dropout_rates, label_smoothing=label_smoothing,
                 n_vocab_source=n_vocab_source, n_vocab_target=n_vocab_target,
                 _null_source=_null_source, _null_target=_null_target,
                 maximum_position_source=maximum_position_source, maximum_position_target=maximum_position_target,
@@ -642,6 +643,8 @@ class InferDecoder(Layer):
 
         outputs = tf.transpose(outs.stack(), perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
 
+        outputs = outputs[:, 1:]  # 第1个时间步是开始标记可以忽略
+
         vectors = self.tokenizer_target.detokenize(outputs)
         text = tf.strings.reduce_join(vectors, separator=' ', axis=-1)
 
@@ -650,7 +653,7 @@ class InferDecoder(Layer):
 
 class TrainModel(Model):
 
-    def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates,
+    def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates, label_smoothing,
                  maximum_position_source, maximum_position_target,
                  n_vocab_source, n_vocab_target,
                  _null_source, _null_target,
@@ -663,6 +666,7 @@ class TrainModel(Model):
         :param num_heads: 并行注意力层的个数(头数)
         :param dff: Position-wise Feed-Forward Networks 的中间层的维度
         :param dropout_rates: dropout 的弃置率
+        :param label_smoothing: 标签平滑
         :param maximum_position_source: 源句子的可能最大长度
         :param maximum_position_target: 目标句子的可能最大长度
         :param n_vocab_source: 源语言的词表大小
@@ -682,6 +686,8 @@ class TrainModel(Model):
         self._null_source = _null_source
         self._null_target = _null_target
 
+        self.n_vocab_target = n_vocab_target
+
         self.tokenizer_source = tokenizer_source
         self.tokenizer_target = tokenizer_target
 
@@ -692,7 +698,10 @@ class TrainModel(Model):
                                     n_vocab_target, PE_target.pos_encoding, dropout_rates)
 
         # 损失函数对象
-        self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
+        # self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
+
+        self.loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction='none', label_smoothing=label_smoothing)
+
 
         self.loss_tracker = tf.keras.metrics.Mean(name='train_loss')
         self.accuracy_metric = tf.keras.metrics.Mean(name='train_accuracy')
@@ -733,7 +742,9 @@ class TrainModel(Model):
         :param y_pred: 预测值
         :return:
         """
-        mask = (y_true != self._null_target)  # 输出序列中为空的不计入损失函数
+        y_true_dense = tf.argmax(y_true, axis=-1)
+
+        mask = (y_true_dense != self._null_target)  # 输出序列中为空的不计入损失函数
 
         loss_ = self.loss_object(y_true, y_pred)
 
@@ -750,9 +761,10 @@ class TrainModel(Model):
         :param y_pred: 预测值
         :return:
         """
+        y_true_dense = tf.argmax(y_true, axis=-1)
 
-        accuracies = tf.equal(y_true, tf.argmax(y_pred, axis=2))
-        mask = tf.math.logical_not(tf.math.equal(y_true, self._null_target))
+        accuracies = tf.equal(y_true_dense, tf.argmax(y_pred, axis=-1))
+        mask = tf.math.logical_not(tf.math.equal(y_true_dense, self._null_target))
 
         accuracies = tf.math.logical_and(mask, accuracies)
 
@@ -770,13 +782,18 @@ class TrainModel(Model):
         :return:
         """
 
-        batch_source_vector = self.tokenizer_source.tokenize(source).to_tensor()
-        batch_target_vector = self.tokenizer_target.tokenize(target).to_tensor()
+        source_vector = self.tokenizer_source.tokenize(source).to_tensor()
+        target_vector = self.tokenizer_target.tokenize(target).to_tensor()
 
-        batch_target_in = batch_target_vector[:, :-1]
-        batch_target_out = batch_target_vector[:, 1:]
+        target_in = target_vector[:, :-1]
+        target_out = target_vector[:, 1:]
 
-        return (batch_source_vector, batch_target_in), batch_target_out
+        target_out_one_hot = tf.one_hot(indices=target_out, depth=self.n_vocab_target,
+                                       on_value=1, off_value=0, dtype=tf.int64,
+                                       axis=-1)
+
+
+        return (source_vector, target_in), target_out_one_hot
 
     # @tf.function 将 train_step 编译为 计算图，以便更快地执行;
     # input_signature 指定了 输入张量的 shape, 可以避免重复建立计算图,
@@ -889,11 +906,11 @@ class Test:
         dropout_rates = [0.1, 0.1, 0.1, 0.1, 0.1]
 
         model = TrainModel(
-            num_layers=num_layers, d_model=n_h, num_heads=num_heads, dff=2048,
+            num_layers=num_layers, d_model=n_h, num_heads=num_heads, dff=2048, dropout_rates=dropout_rates, label_smoothing=0.1,
             n_vocab_source=n_vocab_source, n_vocab_target=n_vocab_target,
             _null_source=_null_source, _null_target=_null_target,
             maximum_position_source=maximum_position_source, maximum_position_target=maximum_position_target,
-            dropout_rates=dropout_rates)
+            )
 
         N_batch = 4
         source_length = 6

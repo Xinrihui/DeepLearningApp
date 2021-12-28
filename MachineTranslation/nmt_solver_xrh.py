@@ -127,7 +127,8 @@ class MachineTranslation:
 
         self.model_obj = TransformerSeq2seq(
                                   num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
-                                  num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']),
+                                  num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
+                                  label_smoothing=float(current_config['label_smoothing']),
                                   maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
                                   max_seq_length=max_seq_length,
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
@@ -135,7 +136,7 @@ class MachineTranslation:
                                   _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
                                   reverse_source=self.reverse_source,
                                   build_mode=self.build_mode,
-                                  dropout_rates=dropout_rates)
+                                  )
 
 
         if use_pretrain:  # 载入训练好的模型
@@ -159,12 +160,14 @@ class MachineTranslation:
         :return:
         """
 
-        # 解开 batch, 数据集的粒度变为行
-        dataset = dataset.unbatch()
+        # 解开 batch, 数据集的粒度变为行(row)
+        # dataset = dataset.unbatch()
 
         # tf.data 的数据混洗,分批和预取,
         # shuffle 后不能进行任何的 map 操作, 因为会改变 batch 中的数据行的组合
-        dataset = dataset.shuffle(buffer_size).batch(batch_size)
+        # dataset = dataset.shuffle(buffer_size).batch(batch_size)  #  shuffle 的粒度为 row
+
+        dataset = dataset.shuffle(buffer_size)  # shuffle 的粒度为 batch
 
         train_dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
 
@@ -441,7 +444,7 @@ class Test_WMT14_Eng_Ge_Dataset:
 
             # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
             dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
-                                               cache_data_folder=current_config['cache_data_folder'], mode='train')
+                                               cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
             batch_size = int(current_config['batch_size'])
             target_length = int(current_config['test_max_seq_length']) + int(current_config['increment'])
@@ -456,9 +459,9 @@ class Test_WMT14_Eng_Ge_Dataset:
                 use_pretrain=True
             )
 
-            # source_target_dict = dataset_obj.test_source_target_dict
+            source_target_dict = dataset_obj.test_source_target_dict
 
-            source_target_dict = dataset_obj.valid_source_target_dict
+            # source_target_dict = dataset_obj.valid_source_target_dict
 
             source_list = list(source_target_dict.keys())
 
