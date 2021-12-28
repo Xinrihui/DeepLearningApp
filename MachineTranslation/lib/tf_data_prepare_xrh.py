@@ -83,6 +83,9 @@ class CorpusNormalize:
         :param text:
         :return:
         """
+        # 删除在各个语系外的字符
+        # text = tf.strings.regex_replace(text, self.remove_unk, ' ')
+
         # NKFC unicode 标准化 +  大小写折叠
         # text = tf_text.case_fold_utf8(text)
 
@@ -267,11 +270,11 @@ class DataPreprocess:
 
         return text_preprocess_dataset
 
-    def build_subword_tokenizer(self, text_data, n_vocab, tokenizer_file, do_persist=True, batch_size=64):
+    def build_subword_tokenizer(self, preprocess_dataset, n_vocab, tokenizer_file, do_persist=True, batch_size=64):
         """
         构建 subword 分词器
 
-        :param text_data: 句子的列表
+        :param preprocess_dataset: 预处理后的数据集
         :param n_vocab: 词表大小
         :param tokenizer_file: 标记模型的文件
         :param do_persist: 是否持久化标记模型
@@ -280,7 +283,7 @@ class DataPreprocess:
         :return:
         """
 
-        text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
+        # text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
 
         reserved_tokens = [self._null_str, self._unk_str, self._start_str, self._end_str]
 
@@ -297,7 +300,7 @@ class DataPreprocess:
         )
 
         vocab_list = bert_vocab.bert_vocab_from_dataset(
-            text_preprocess_dataset.unbatch().batch(2048).prefetch(buffer_size=tf.data.AUTOTUNE),
+            preprocess_dataset.unbatch().batch(2048).prefetch(buffer_size=tf.data.AUTOTUNE),
             **bert_vocab_args
         )
 
@@ -317,14 +320,14 @@ class DataPreprocess:
             tokenizer_path = os.path.join(self.cache_data_dir, tokenizer_file)
             tf.saved_model.save(tokenizer, tokenizer_path)
 
-        return text_preprocess_dataset, tokenizer, vocab_list
+        return tokenizer, vocab_list
 
-    def build_space_tokenizer(self, text_data, n_vocab, tokenizer_file, do_persist=True, batch_size=64):
+    def build_space_tokenizer(self, preprocess_dataset, n_vocab, tokenizer_file, do_persist=True, batch_size=64):
         """
 
         构建传统的空格分词器(tokenizer)
 
-        :param text_data: 句子的列表
+        :param preprocess_dataset: 预处理后的数据集
         :param n_vocab: 词表大小
         :param tokenizer_file: 标记模型的文件
         :param do_persist: 是否持久化标记模型
@@ -333,9 +336,9 @@ class DataPreprocess:
         :return:
         """
 
-        text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
+        # text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
 
-        tokenizer = SpaceTokenizer(corpus=text_preprocess_dataset, max_tokens=n_vocab, fixed_seq_length=self.max_seq_length + self.increment)
+        tokenizer = SpaceTokenizer(corpus=preprocess_dataset, max_tokens=n_vocab, fixed_seq_length=self.max_seq_length + self.increment)
         # (1) max_tokens: 保留出现次数最多的 top-k 个单词
         # (2) -fixed_seq_length=None, 自动将本 batch 中最长的句子的长度作为序列的长度,
         #      在 padding 时 不同的 batch 的序列的长度可能不同, 但是在同个 batch 中自然是统一的;
@@ -354,8 +357,7 @@ class DataPreprocess:
 
             tf.saved_model.save(tokenizer, tokenizer_path)
 
-
-        return text_preprocess_dataset, tokenizer, vocab_list
+        return tokenizer, vocab_list
 
 
     def tf_data_pipline(self, source_dataset, target_dataset, tokenizer_source=None, tokenizer_target=None, do_persist=False, dataset_file=None):
@@ -562,11 +564,12 @@ class DataPreprocess:
 
         return list(source_seq_arr), list(target_seq_arr)
 
-    def do_mian(self, batch_size, n_vocab_source, n_vocab_target, max_seq_length, test_max_seq_length):
+    def do_mian(self, batch_size, build_tokenizer, n_vocab_source, n_vocab_target, max_seq_length, test_max_seq_length):
         """
         数据集预处理的主流程
 
         :param batch_size: 一个批次的大小
+        :param build_tokenizer: 是否建立分词器
         :param n_vocab_source: 源语言的词典大小
         :param n_vocab_target: 目标语言的词典大小
         :param max_seq_length: 最大序列的长度(训练集和验证集)
@@ -588,34 +591,45 @@ class DataPreprocess:
         # 按照长度对 序列 进行排序
         train_source_text, train_target_text = self.sort_by_seq_length(train_source_text, train_target_text)
 
-        if self.tokenize_mode == 'space':
+        train_source_dataset = self.preprocess_corpus(train_source_text, batch_size=batch_size)
+        train_target_dataset = self.preprocess_corpus(train_target_text, batch_size=batch_size)
 
-            print('build {} tokenizer ...'.format(self.tokenize_mode))
-            train_source_dataset, tokenizer_source, vocab_source_list = self.build_space_tokenizer(text_data=train_source_text, n_vocab=n_vocab_source, batch_size=batch_size, tokenizer_file='tokenizer_source_model')
+        if build_tokenizer: # 重新建立分词器
 
-            train_target_dataset, tokenizer_target, vocab_target_list = self.build_space_tokenizer(text_data=train_target_text, n_vocab=n_vocab_target, batch_size=batch_size, tokenizer_file='tokenizer_target_model')
+            # 建立分词器
+            if self.tokenize_mode == 'space':
 
-        elif self.tokenize_mode == 'subword':
+                print('build source {} tokenizer ...'.format(self.tokenize_mode))
+                tokenizer_source, vocab_source_list = self.build_space_tokenizer(preprocess_dataset=train_source_dataset, n_vocab=n_vocab_source, batch_size=batch_size, tokenizer_file='tokenizer_source_model')
 
-            print('build {} tokenizer ...'.format(self.tokenize_mode))
-            train_source_dataset, tokenizer_source, vocab_source_list = self.build_subword_tokenizer(text_data=train_source_text, n_vocab=n_vocab_source, batch_size=batch_size, tokenizer_file='tokenizer_source_model')
+                print('build target {} tokenizer ...'.format(self.tokenize_mode))
+                tokenizer_target, vocab_target_list = self.build_space_tokenizer(preprocess_dataset=train_target_dataset, n_vocab=n_vocab_target, batch_size=batch_size, tokenizer_file='tokenizer_target_model')
 
-            train_target_dataset, tokenizer_target, vocab_target_list = self.build_subword_tokenizer(text_data=train_target_text, n_vocab=n_vocab_target, batch_size=batch_size, tokenizer_file='tokenizer_target_model')
+            elif self.tokenize_mode == 'subword':
 
-        else:
-            raise Exception('the value of tokenize_mode is {}, which is illegal'.format(self.tokenize_mode))
+                print('build source {} tokenizer ...'.format(self.tokenize_mode))
+                tokenizer_source, vocab_source_list = self.build_subword_tokenizer(preprocess_dataset=train_source_dataset, n_vocab=n_vocab_source, batch_size=batch_size, tokenizer_file='tokenizer_source_model')
 
-        # 建立字典
-        print('--------------------------------')
-        print('build the vocab...')
-        vocab_source = VocabTf(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.txt'))
-        vocab_target = VocabTf(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.txt'))
+                print('build target {} tokenizer ...'.format(self.tokenize_mode))
+                tokenizer_target, vocab_target_list = self.build_subword_tokenizer(preprocess_dataset=train_target_dataset, n_vocab=n_vocab_target, batch_size=batch_size, tokenizer_file='tokenizer_target_model')
 
-        # vocab_source = Vocab(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.txt'))
-        # vocab_target = Vocab(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.txt'))
+            else:
+                raise Exception('the value of tokenize_mode is {}, which is illegal'.format(self.tokenize_mode))
 
+            # 建立字典
+            print('--------------------------------')
+            print('build the vocab...')
+            vocab_source = VocabTf(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.txt'))
+            vocab_target = VocabTf(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.txt'))
 
-        # 训练数据集
+            # vocab_source = Vocab(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.txt'))
+            # vocab_target = Vocab(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.txt'))
+
+        else:  # 已有分词器
+            tokenizer_source = tf.saved_model.load(os.path.join(self.cache_data_dir, 'tokenizer_source_model'))
+            tokenizer_target = tf.saved_model.load(os.path.join(self.cache_data_dir, 'tokenizer_target_model'))
+
+        # 形成训练数据集并持久化
         train_dataset = self.tf_data_pipline(train_source_dataset, train_target_dataset, tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                              do_persist=True, dataset_file='train_dataset.bin')
 
@@ -637,7 +651,7 @@ class DataPreprocess:
         valid_source_dataset = self.preprocess_corpus(valid_source_text,  batch_size=batch_size)
         valid_target_dataset = self.preprocess_corpus(valid_target_text,  batch_size=batch_size)
 
-        # 验证数据集
+        # 形成训练数据集并持久化
         valid_dataset = self.tf_data_pipline(valid_source_dataset, valid_target_dataset, tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                              do_persist=True, dataset_file='valid_dataset.bin')
 
@@ -922,7 +936,7 @@ class WMT14_Eng_Ge_Dataset:
 
 class Test:
 
-    def test_DataPreprocess(self, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
+    def test_DataPreprocess(self, build_tokenizer=True, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
@@ -930,8 +944,9 @@ class Test:
 
         process_obj = DataPreprocess(config_path=config_path, tag=tag, cache_data_folder=current_config['cache_data_folder'])
 
-        process_obj.do_mian(batch_size=int(current_config['batch_size']), n_vocab_source=int(current_config['n_vocab_source']),
-                            n_vocab_target=int(current_config['n_vocab_target']), max_seq_length=int(current_config['max_seq_length']), test_max_seq_length=int(current_config['test_max_seq_length']))
+        process_obj.do_mian(batch_size=int(current_config['batch_size']), build_tokenizer=build_tokenizer, n_vocab_source=int(current_config['n_vocab_source']),
+                        n_vocab_target=int(current_config['n_vocab_target']), max_seq_length=int(current_config['max_seq_length']), test_max_seq_length=int(current_config['test_max_seq_length']))
+
 
     def test_WMT14_Eng_Ge_Dataset(self, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
@@ -1086,7 +1101,7 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess(tag='TEST')
+    test.test_DataPreprocess(build_tokenizer=False, tag='TEST')
 
     test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 

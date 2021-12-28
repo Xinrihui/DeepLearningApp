@@ -743,6 +743,7 @@ class TrainModel(Model):
         :return:
         """
         y_true_dense = tf.argmax(y_true, axis=-1)
+        # y_true_dense = y_true
 
         mask = (y_true_dense != self._null_target)  # 输出序列中为空的不计入损失函数
 
@@ -762,6 +763,7 @@ class TrainModel(Model):
         :return:
         """
         y_true_dense = tf.argmax(y_true, axis=-1)
+        # y_true_dense = y_true
 
         accuracies = tf.equal(y_true_dense, tf.argmax(y_pred, axis=-1))
         mask = tf.math.logical_not(tf.math.equal(y_true_dense, self._null_target))
