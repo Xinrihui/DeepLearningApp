@@ -51,7 +51,7 @@ class TransformerSeq2seq:
 
     def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates, label_smoothing,
                  maximum_position_source, maximum_position_target,
-                 max_seq_length,
+                 fixed_seq_length,
                  n_vocab_source, n_vocab_target,
                  _null_source, _start_target, _null_target, _end_target,
                  tokenizer_source, tokenizer_target,
@@ -92,13 +92,13 @@ class TransformerSeq2seq:
         self.maximum_position_target = maximum_position_target
 
         # 最大的序列长度
-        self.max_seq_length = max_seq_length
+        self.fixed_seq_length = fixed_seq_length
 
         # 训练数据中源序列的长度
-        self.source_length = self.max_seq_length
+        self.source_length = self.fixed_seq_length
 
         # 训练数据中目标序列的长度
-        self.target_length = self.max_seq_length - 1
+        self.target_length = self.fixed_seq_length - 1
 
         self.n_vocab_source = n_vocab_source
         self.n_vocab_target = n_vocab_target
@@ -200,7 +200,7 @@ class TransformerSeq2seq:
             batch_source = self._preprocess_infer(batch_data)
 
             if target_length is None:
-                target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
+                target_length = tf.shape(batch_source)[1] + 50  # 源句子的长度决定了推理出的目标句子的长度
 
             _, decode_text = self.test_step(batch_source, target_length)
 
@@ -678,6 +678,8 @@ class TrainModel(Model):
         PE_source = SinusoidalPE(maximum_position=maximum_position_source, d_model=d_model)
         PE_target = SinusoidalPE(maximum_position=maximum_position_target, d_model=d_model)
 
+        self.label_smoothing = label_smoothing
+
         self._null_source = _null_source
         self._null_target = _null_target
 
@@ -693,10 +695,10 @@ class TrainModel(Model):
                                     n_vocab_target, PE_target.pos_encoding, dropout_rates)
 
         # 损失函数对象
-        # self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
-
-        self.loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction='none', label_smoothing=label_smoothing)
-
+        if label_smoothing == 0:  # 不开启 label_smoothing
+            self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
+        else:
+            self.loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction='none', label_smoothing=label_smoothing)
 
         self.loss_tracker = tf.keras.metrics.Mean(name='train_loss')
         self.accuracy_metric = tf.keras.metrics.Mean(name='train_accuracy')
@@ -737,8 +739,11 @@ class TrainModel(Model):
         :param y_pred: 预测值
         :return:
         """
-        y_true_dense = tf.argmax(y_true, axis=-1)
-        # y_true_dense = y_true
+
+        if self.label_smoothing == 0: # 不开启 label_smoothing
+            y_true_dense = y_true
+        else:
+            y_true_dense = tf.argmax(y_true, axis=-1)
 
         mask = (y_true_dense != self._null_target)  # 输出序列中为空的不计入损失函数
 
@@ -757,8 +762,11 @@ class TrainModel(Model):
         :param y_pred: 预测值
         :return:
         """
-        y_true_dense = tf.argmax(y_true, axis=-1)
-        # y_true_dense = y_true
+
+        if self.label_smoothing == 0:  # 不开启 label_smoothing
+            y_true_dense = y_true
+        else:
+            y_true_dense = tf.argmax(y_true, axis=-1)
 
         accuracies = tf.equal(y_true_dense, tf.argmax(y_pred, axis=-1))
         mask = tf.math.logical_not(tf.math.equal(y_true_dense, self._null_target))
@@ -780,14 +788,14 @@ class TrainModel(Model):
         """
 
         target_in = target_vector[:, :-1]
-        target_out = target_vector[:, 1:]
 
-        target_out_one_hot = tf.one_hot(indices=target_out, depth=self.n_vocab_target,
-                                       on_value=1, off_value=0, dtype=tf.int64,
-                                       axis=-1)
+        if self.label_smoothing == 0:  # 不开启 label_smoothing
+            target_out = target_vector[:, 1:]
+        else:
+            target_out = tf.one_hot(indices=target_vector[:, 1:], depth=self.n_vocab_target,
+                                           on_value=1, off_value=0, dtype=tf.int64, axis=-1)
 
-
-        return (source_vector, target_in), target_out_one_hot
+        return (source_vector, target_in), target_out
 
     # @tf.function 将 train_step 编译为 计算图，以便更快地执行;
     # input_signature 指定了 输入张量的 shape, 可以避免重复建立计算图,
@@ -872,14 +880,14 @@ class TrainModel(Model):
         return {"loss": self.loss_tracker.result(), "accuracy": self.accuracy_metric.result()}
 
 
-    # @property
-    # def metrics(self):
-    #     # We list our `Metric` objects here so that `reset_states()` can be
-    #     # called automatically at the start of each epoch
-    #     # or at the start of `evaluate()`.
-    #     # If you don't implement this property, you have to call
-    #     # `reset_states()` yourself at the time of your choosing.
-    #     return [self.loss_tracker, self.accuracy_metric]
+    @property
+    def metrics(self):
+        # We list our `Metric` objects here so that `reset_states()` can be
+        # called automatically at the start of each epoch
+        # or at the start of `evaluate()`.
+        # If you don't implement this property, you have to call
+        # `reset_states()` yourself at the time of your choosing.
+        return [self.loss_tracker, self.accuracy_metric]
 
 class Test:
 

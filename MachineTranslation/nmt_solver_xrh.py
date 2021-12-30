@@ -92,12 +92,12 @@ class MachineTranslation:
         self.save_mode = current_config['save_mode']
         self.model_path = current_config['model_path']
 
-        max_seq_length = int(current_config['max_seq_length'])+int(self.current_config['increment'])
+        fixed_seq_length = int(current_config['fixed_seq_length'])
         dropout_rates = json.loads(current_config['dropout_rates'])
 
         # 构建模型
         # 1.EnsembleSeq2seq
-        # self.model_obj = EnsembleSeq2seq(n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']), max_seq_length=max_seq_length,
+        # self.model_obj = EnsembleSeq2seq(n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']), max_seq_length=fixed_seq_length,
         #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
         #                           vocab_target=self.vocab_target,
         #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
@@ -109,7 +109,7 @@ class MachineTranslation:
         # 2.AttentionSeq2seq
         # self.model_obj = AttentionSeq2seq(
         #                           n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']),
-        #                           max_seq_length=max_seq_length,
+        #                           max_seq_length=fixed_seq_length,
         #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
         #                           vocab_target=self.vocab_target,
         #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
@@ -125,7 +125,7 @@ class MachineTranslation:
                                   num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
                                   label_smoothing=float(current_config['label_smoothing']),
                                   maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
-                                  max_seq_length=max_seq_length,
+                                  fixed_seq_length=fixed_seq_length,
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                   _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
@@ -246,7 +246,7 @@ class MachineTranslation:
         print('final learning_rate:', round(self.model_obj.model_train.optimizer.lr.numpy(), 5))
 
 
-    def inference(self, batch_source_dataset, target_length):
+    def inference(self, batch_source_dataset, target_length=None):
         """
         使用训练好的模型进行推理
 
@@ -290,7 +290,7 @@ class CheckoutCallback(keras.callbacks.Callback):
         self.vocab_obj = vocab_obj
 
         self.save_mode = current_config['save_mode']
-        self.max_seq_length = int(current_config['max_seq_length']) + int(current_config['increment'])
+        self.infer_target_length = int(current_config['infer_target_length'])
 
         self.batch_source_dataset, self.references = self.prepare_data(batch_size=int(current_config['batch_size']),
                                                                            valid_source_target_dict=valid_source_target_dict)
@@ -335,7 +335,7 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         # batch_source_dataset shape (N_batch, encoder_length)
 
-        decode_result = self.model_obj.predict(self.batch_source_dataset, self.max_seq_length)
+        decode_result = self.model_obj.predict(self.batch_source_dataset, self.infer_target_length)
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
@@ -447,7 +447,7 @@ class Test_WMT14_Eng_Ge_Dataset:
                                                cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
             batch_size = int(current_config['batch_size'])
-            target_length = int(current_config['test_max_seq_length']) + int(current_config['increment'])
+            target_length = int(current_config['infer_target_length'])
 
             # 2.模型推理
 
@@ -472,7 +472,7 @@ class Test_WMT14_Eng_Ge_Dataset:
             source_dataset = tf.data.Dataset.from_tensor_slices(source_list)
             batch_source_dataset = source_dataset.batch(batch_size)
 
-            candidates = infer.inference(batch_source_dataset, target_length)
+            candidates = infer.inference(batch_source_dataset)
 
             print('\ncandidates:')
             for i in range(0, 10):

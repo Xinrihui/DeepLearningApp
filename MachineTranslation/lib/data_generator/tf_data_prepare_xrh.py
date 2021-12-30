@@ -146,7 +146,7 @@ class DatasetGenerate:
 
     def __init__(self,
                  config_path, tag,
-                 base_dir='../dataset/WMT-14-English-Germa',
+                 base_dir='../../dataset/WMT-14-English-Germa',
                  cache_data_folder='cache_data',
 
                  tensor_int_type=tf.int32,
@@ -175,8 +175,7 @@ class DatasetGenerate:
         self.return_mode = current_config['return_mode']
         self.preprocess_mode = current_config['preprocess_mode']
 
-        self.max_seq_length = int(self.current_config['max_seq_length'])
-        self.increment = int(self.current_config['increment'])
+        self.fixed_seq_length = int(self.current_config['fixed_seq_length'])
 
         self.reverse_source = bool(int(self.current_config['reverse_source']))
 
@@ -305,11 +304,11 @@ class DatasetGenerate:
 
         print('vocab_list: ', vocab_list[:20])
 
-        tokenizer = SubwordTokenizer(fixed_seq_length=self.max_seq_length+self.increment,
+        tokenizer = SubwordTokenizer(fixed_seq_length=self.fixed_seq_length,
                                      reserved_tokens=reserved_tokens, vocab_list=vocab_list,
                                      _start_str=self._start_str, _end_str=self._end_str
                                      )
-        # (1) -output_sequence_length=self.max_seq_length+20, 前面的处理中已经删除了在语料库中长度超过 max_seq_length 的句子
+        # (1) -fixed_seq_length= org_seq_length+increment, 前面的处理中已经删除了在语料库中长度超过 org_seq_length 的句子
         #       +increment 的原因是考虑句子的前后补充了2个控制字符, 另外将 word 变为 subword 必然导致句子的长度增加
 
         if do_persist:
@@ -333,12 +332,12 @@ class DatasetGenerate:
         :return:
         """
 
-        tokenizer = SpaceTokenizer(corpus=preprocess_dataset, max_tokens=n_vocab, fixed_seq_length=self.max_seq_length + self.increment)
+        tokenizer = SpaceTokenizer(corpus=preprocess_dataset, max_tokens=n_vocab, fixed_seq_length=self.fixed_seq_length)
         # (1) max_tokens: 保留出现次数最多的 top-k 个单词
         # (2) -fixed_seq_length=None, 自动将本 batch 中最长的句子的长度作为序列的长度,
         #      在 padding 时 不同的 batch 的序列的长度可能不同, 但是在同个 batch 中自然是统一的;
-        #     -fixed_seq_length=max_seq_length+increment, 前面的处理中已经删除了在语料库中
-        #      长度超过 max_seq_length 的句子, +increment 的原因是考虑句子的前后补充了 2个控制字符
+        #     -fixed_seq_length = org_seq_length+increment, 前面的处理中已经删除了在语料库中
+        #      长度超过 org_seq_length 的句子, +increment=2 的原因是考虑句子的前后补充了 2个控制字符
 
         vocab_list = tokenizer.vocab_list
 
@@ -580,7 +579,7 @@ class DatasetGenerate:
 
         return list(source_seq_arr), list(target_seq_arr)
 
-    def do_mian(self, batch_size, build_tokenizer, n_vocab_source, n_vocab_target, max_seq_length, test_max_seq_length):
+    def do_mian(self, batch_size, build_tokenizer, n_vocab_source, n_vocab_target, org_seq_length, test_org_seq_length):
         """
         数据集生成的主流程
 
@@ -588,8 +587,8 @@ class DatasetGenerate:
         :param build_tokenizer: 是否建立分词器
         :param n_vocab_source: 源语言的词典大小
         :param n_vocab_target: 目标语言的词典大小
-        :param max_seq_length: 最大序列的长度(训练集和验证集)
-        :param test_max_seq_length: 最大序列的长度(测试集)
+        :param org_seq_length: 最大序列的长度(训练集和验证集)
+        :param test_org_seq_length: 最大序列的长度(测试集)
 
         :return:
         """
@@ -601,8 +600,8 @@ class DatasetGenerate:
         train_source_text = self.load_corpus_data(corpus_file_dir=self.train_source_corpus_dir)
         train_target_text = self.load_corpus_data(corpus_file_dir=self.train_target_corpus_dir)
 
-        # 过滤掉长度 大于 max_seq_length 的序列
-        train_source_text, train_target_text = self.filter_by_seq_length(train_source_text, train_target_text, max_seq_length)
+        # 过滤掉长度 大于 org_seq_length 的序列
+        train_source_text, train_target_text = self.filter_by_seq_length(train_source_text, train_target_text, org_seq_length)
 
         # 按照长度对 序列 进行排序
         train_source_text, train_target_text = self.sort_by_seq_length(train_source_text, train_target_text)
@@ -657,8 +656,8 @@ class DatasetGenerate:
         valid_source_text = self.load_corpus_data(corpus_file_dir=self.valid_source_corpus_dir)
         valid_target_text = self.load_corpus_data(corpus_file_dir=self.valid_target_corpus_dir)
 
-        # 过滤掉长度 大于 max_seq_length 的序列
-        valid_source_text, valid_target_text = self.filter_by_seq_length(valid_source_text, valid_target_text, max_seq_length)
+        # 过滤掉长度 大于 org_seq_length 的序列
+        valid_source_text, valid_target_text = self.filter_by_seq_length(valid_source_text, valid_target_text, org_seq_length)
 
         # 按照长度对 序列 进行排序
         valid_source_text, valid_target_text = self.sort_by_seq_length(valid_source_text, valid_target_text)
@@ -685,8 +684,8 @@ class DatasetGenerate:
         test_source_text = self.load_corpus_data(corpus_file_dir=self.test_source_corpus_dir)
         test_target_text = self.load_corpus_data(corpus_file_dir=self.test_target_corpus_dir)
 
-        # 过滤掉长度 大于 test_max_seq_length 的序列
-        test_source_text, test_target_text = self.filter_by_seq_length(test_source_text, test_target_text, max_seq_length=test_max_seq_length)
+        # 过滤掉长度 大于 test_org_seq_length 的序列
+        test_source_text, test_target_text = self.filter_by_seq_length(test_source_text, test_target_text, test_org_seq_length)
 
         # 按照长度对 序列 进行排序
         test_source_text, test_target_text = self.sort_by_seq_length(test_source_text, test_target_text)
@@ -806,7 +805,7 @@ class Test:
         process_obj = DatasetGenerate(config_path=config_path, tag=tag, cache_data_folder=current_config['cache_data_folder'])
 
         process_obj.do_mian(batch_size=int(current_config['batch_size']), build_tokenizer=build_tokenizer, n_vocab_source=int(current_config['n_vocab_source']),
-                        n_vocab_target=int(current_config['n_vocab_target']), max_seq_length=int(current_config['max_seq_length']), test_max_seq_length=int(current_config['test_max_seq_length']))
+                        n_vocab_target=int(current_config['n_vocab_target']), org_seq_length=int(current_config['org_seq_length']), test_org_seq_length=int(current_config['test_org_seq_length']))
 
 
     def test_WMT14_Eng_Ge_Dataset(self, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
@@ -959,7 +958,7 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DatasetGenerate(build_tokenizer=False, config_path='config/transformer_seq2seq.ini', tag='TEST')
+    test.test_DatasetGenerate(build_tokenizer=False, config_path='../../config/transformer_seq2seq.ini', tag='TEST')
 
     test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
