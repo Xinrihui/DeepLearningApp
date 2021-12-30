@@ -20,6 +20,10 @@ from tensorflow_text.tools.wordpiece_vocab import bert_vocab_from_dataset as ber
 
 from lib.tokenizer_xrh import *
 
+from lib.vocab_xrh import *
+
+from lib.dynamic_dataset_split_xrh import *
+
 class CorpusNormalize:
     """
     使用 tensorflow 库函数 对语料库中的句子进行标准化
@@ -65,7 +69,7 @@ class CorpusNormalize:
 
     def add_control_token(self, text):
         """
-        对每一个句子 只在首尾加入控制字符, 不做其他标准化操作
+        对每一个句子 在首尾加入控制字符, 不做其他标准化操作
 
         :param text:
         :return:
@@ -78,7 +82,7 @@ class CorpusNormalize:
 
     def normalize(self, text):
         """
-        对每一个句子进行标准化
+        对每一个句子进行 unicode 标准化
 
         :param text:
         :return:
@@ -95,7 +99,7 @@ class CorpusNormalize:
 
     def all(self, text):
         """
-        对每一个句子进行所有预处理操作, 包括标准化和在首尾加入控制字符
+        对每一个句子进行所有预处理操作, 包括 unicode 标准化和在首尾加入控制字符
 
         :param text:
         :return:
@@ -128,9 +132,9 @@ class CorpusNormalize:
 
 
 
-class DataPreprocess:
+class DatasetGenerate:
     """
-    利用 tf.data.Dataset 数据流水线的数据集预处理
+    利用 tf.data.Dataset 数据流水线的数据集生成
 
     主流程见 do_main()
 
@@ -228,7 +232,7 @@ class DataPreprocess:
 
     def preprocess_corpus(self, text_data, preprocess_mode=None, batch_size=64):
         """
-        对语料库中的句子进行预处理, 包括 标准化文本
+        对语料库中的句子进行预处理
 
         :param text_data:
         :param preprocess_mode: 预处理模式
@@ -283,8 +287,6 @@ class DataPreprocess:
         :return:
         """
 
-        # text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
-
         reserved_tokens = [self._null_str, self._unk_str, self._start_str, self._end_str]
 
         bert_tokenizer_params = dict(lower_case=False)
@@ -336,8 +338,6 @@ class DataPreprocess:
         :return:
         """
 
-        # text_preprocess_dataset = self.preprocess_corpus(text_data, batch_size=batch_size)
-
         tokenizer = SpaceTokenizer(corpus=preprocess_dataset, max_tokens=n_vocab, fixed_seq_length=self.max_seq_length + self.increment)
         # (1) max_tokens: 保留出现次数最多的 top-k 个单词
         # (2) -fixed_seq_length=None, 自动将本 batch 中最长的句子的长度作为序列的长度,
@@ -379,10 +379,9 @@ class DataPreprocess:
 
         print('dataset batch num: ', len(source_dataset))
 
+        if self.return_mode == 'symbolic':  # 返回符号化后的句子, 模型可以直接加载进入训练
 
-        if self.return_mode == 'final':  # 返回最终的符号化后的句子, 模型可以直接加载进入训练
-
-            # 将文本标记化, 每一个 batch 中的 序列的长度相同
+            # 将文本标记化, 所有 batch 的 序列的长度均相同
             source_vector = source_dataset.map(lambda batch_text: tokenizer_source.tokenize_fixed(batch_text))
             target_vector = target_dataset.map(lambda batch_text: tokenizer_target.tokenize_fixed(batch_text))
 
@@ -402,9 +401,31 @@ class DataPreprocess:
 
             dataset = tf.data.Dataset.zip((features, labels))
 
-        elif self.return_mode == 'mid':  # 返回文本形式的句子, 模型需要做进一步预处理
+        elif self.return_mode == 'dynamic_batch':  # 返回符号化后的句子, 并动态划分 batch
+
+            source_vector = source_dataset.map(lambda batch_text: tokenizer_source.tokenize(batch_text))
+            target_vector = target_dataset.map(lambda batch_text: tokenizer_target.tokenize(batch_text))
+
+            print('tokenize text complete!')
+
+            dataset = tf.data.Dataset.zip((source_vector, target_vector)).unbatch()
+
+            # 划分动态的 batch
+            ret = batching_scheme(batch_size=int(self.current_config['token_in_batch']))
+
+            dataset = dataset.map(lambda x, y: (x, y))  # 将数据集(Dataset)转换为生成器(generato)
+
+            dataset = dataset.bucket_by_sequence_length(
+                element_length_func=lambda x, y: tf.cast(tf.shape(x)[0], tf.int32),
+                bucket_boundaries=ret["boundaries"],
+                bucket_batch_sizes=ret["batch_sizes"],
+            )
+
+
+        elif self.return_mode == 'text':  # 返回文本形式的句子, 模型需要做进一步预处理
 
             dataset = tf.data.Dataset.zip((source_dataset, target_dataset))
+
 
         else:
             raise Exception('the value of return_mode is {}, which is illegal'.format(self.return_mode))
@@ -566,7 +587,7 @@ class DataPreprocess:
 
     def do_mian(self, batch_size, build_tokenizer, n_vocab_source, n_vocab_target, max_seq_length, test_max_seq_length):
         """
-        数据集预处理的主流程
+        数据集生成的主流程
 
         :param batch_size: 一个批次的大小
         :param build_tokenizer: 是否建立分词器
@@ -682,161 +703,6 @@ class DataPreprocess:
                                       do_persist=True, source_target_dict_file='test_source_target_dict.bin')
 
 
-class Vocab:
-    """
-    使用 python 的 dict 的 语料库词典
-
-    """
-
-    def __init__(self, vocab_list_path, vocab_list=None, _unk_str='[UNK]'):
-        """
-        词典的初始化
-
-        :param vocab_path: 词典持久化的路径
-        :param vocab_list:  (建立新的词典时必填)
-
-        """
-        self.vocab_list_path = vocab_list_path
-        self._unk_str = _unk_str
-
-        if vocab_list is not None:  # 建立新的词典
-
-            self.vocab_list = vocab_list
-
-            self.n_vocab = len(self.vocab_list)  # 字典的长度
-
-            with open(self.vocab_list_path, 'w', encoding='utf-8') as f:
-
-                for token in vocab_list:
-                    print(token, file=f)
-
-        else:  # 读取已有的词典
-
-            with open(self.vocab_list_path, 'r', encoding='utf-8') as f:
-
-                lines = f.readlines()
-
-            self.vocab_list = [word.strip() for word in lines]
-            
-            self.n_vocab = len(self.vocab_list)  # 字典的长度
-
-
-        self.word_to_id = {}
-        for i, word in enumerate(self.vocab_list):
-
-            self.word_to_id[word] = i
-
-        self.id_to_word = {}
-        for i, word in enumerate(self.vocab_list):
-
-            self.id_to_word[i] = word
-
-
-    def map_id_to_word(self, id):
-        """
-        输入单词标号, 返回单词
-
-        1.若单词标号未在 逆词典中, 返回 '<UNK>'
-
-        :param id:
-        :return:
-        """
-        if id not in self.id_to_word:
-            return self._unk_str
-        else:
-            return self.id_to_word[id]
-
-    def map_word_to_id(self, word):
-        """
-        输入单词, 返回单词标号
-
-        考虑未登录词:
-        1.若输入的单词不在词典中, 返回 '<UNK>' 的标号
-
-        :param word: 单词
-        :return:
-        """
-
-        if word not in self.word_to_id:
-            return self.word_to_id[self._unk_str]
-        else:
-            return self.word_to_id[word]
-
-
-
-
-class VocabTf:
-    """
-    使用 tf 的 StringLookup 构建语料库词典
-
-    """
-
-    def __init__(self, vocab_list_path, vocab_list=None):
-        """
-        词典的初始化
-
-        :param vocab_path: 词典持久化的路径
-        :param vocab_list:  (建立新的词典时必填)
-
-        """
-        self.vocab_list_path = vocab_list_path
-        
-        if vocab_list is not None:  # 建立新的词典
-
-            self.vocab_list = vocab_list
-
-            self.n_vocab = len(self.vocab_list)  # 字典的长度
-
-            with open(self.vocab_list_path, 'w', encoding='utf-8') as f:
-
-                for token in vocab_list:
-                    print(token, file=f)
-
-        else:  # 读取已有的词典
-
-            with open(self.vocab_list_path, 'r', encoding='utf-8') as f:
-
-                lines = f.readlines()
-
-            self.vocab_list = [word.strip() for word in lines]
-
-            self.n_vocab = len(self.vocab_list)  # 字典的长度
-
-
-    def map_id_to_word(self, ids):
-        """
-        输入单词标号列表, 返回单词列表
-
-        1.若单词标号未在 逆词典中, 返回 '<UNK>'
-
-        :param ids:
-        :return:
-        """
-
-        id_to_word = StringLookup(
-            vocabulary=self.vocab_list,
-            mask_token='',
-            invert=True)
-
-        return id_to_word(ids)
-
-    def map_word_to_id(self, words):
-        """
-        输入单词列表, 返回单词标号列表
-
-        考虑未登录词:
-        1.若输入的单词不在词典中, 返回 '<UNK>' 的标号
-
-        :param word: 单词
-        :return:
-        """
-
-        word_to_id = StringLookup(
-                    vocabulary=self.vocab_list,
-                    mask_token='',
-                    )
-
-        return word_to_id(words)
 
 
 class WMT14_Eng_Ge_Dataset:
@@ -936,13 +802,13 @@ class WMT14_Eng_Ge_Dataset:
 
 class Test:
 
-    def test_DataPreprocess(self, build_tokenizer=True, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
+    def test_DatasetGenerate(self, build_tokenizer=True, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
         current_config = config[tag]
 
-        process_obj = DataPreprocess(config_path=config_path, tag=tag, cache_data_folder=current_config['cache_data_folder'])
+        process_obj = DatasetGenerate(config_path=config_path, tag=tag, cache_data_folder=current_config['cache_data_folder'])
 
         process_obj.do_mian(batch_size=int(current_config['batch_size']), build_tokenizer=build_tokenizer, n_vocab_source=int(current_config['n_vocab_source']),
                         n_vocab_target=int(current_config['n_vocab_target']), max_seq_length=int(current_config['max_seq_length']), test_max_seq_length=int(current_config['test_max_seq_length']))
@@ -1022,6 +888,32 @@ class Test:
                 print('target_out_vector:')
                 print(target_out_vector)
 
+        elif current_config['return_mode'] == 'dynamic_batch':
+
+            dataset = dataset_train_obj.train_dataset
+
+            dataset = dataset.shuffle(int(current_config['buffer_size']))
+            # shuffle 的粒度为 batch
+
+            # 查看 1 个批次的数据
+            for batch_feature in tqdm(dataset.take(1)):
+
+                source_vector = batch_feature[0]
+                target_vector = batch_feature[1]
+
+                print('source_vector:')
+                print(source_vector)
+
+                print('detokenize source vector')
+                detoken = dataset_train_obj.tokenizer_source.detokenize(source_vector)
+                print(tf.strings.reduce_join(detoken, separator=' ', axis=-1))
+
+                print('target_vector:')
+                print(target_vector)
+
+                print('detokenize target vector')
+                detoken = dataset_train_obj.tokenizer_target.detokenize(target_vector)
+                print(tf.strings.reduce_join(detoken, separator=' ', axis=-1))
 
         print('rows of source_target_dict: ')
 
@@ -1065,35 +957,6 @@ class Test:
         print('word ämter index: ', int(dataset_infer_obj.vocab_target.map_word_to_id('ämter')))
 
 
-    def test_VocabTf(self, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
-
-        config = configparser.ConfigParser()
-        config.read(config_path, 'utf-8')
-        current_config = config[tag]
-
-        dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], use_tf_vocab=True, mode='train')
-
-        if current_config['return_mode'] == 'mid':
-            # 查看 1 个批次的数据
-            for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
-
-                source_list = source[:10]
-                print('source:')
-                print(source_list)
-
-                source_vector = dataset_train_obj.tokenizer_source.tokenize(source).to_tensor()
-                print('source_vector:')
-                print(source_vector)
-
-                decode_result = dataset_train_obj.vocab_source.map_id_to_word(source_vector)
-
-                decode_result = tf.strings.reduce_join(decode_result, axis=1,
-                                                       separator=' ')
-
-                decode_result = [sentence.numpy().decode('utf-8') for sentence in decode_result]
-
-                print('decode_result:')
-                print(decode_result)
 
 
 if __name__ == '__main__':
@@ -1101,7 +964,7 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DataPreprocess(build_tokenizer=False, tag='TEST')
+    test.test_DatasetGenerate(build_tokenizer=False, tag='TEST')
 
     test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 

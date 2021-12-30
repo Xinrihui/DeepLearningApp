@@ -775,17 +775,14 @@ class TrainModel(Model):
 
         return tf.reduce_sum(accuracies) / tf.reduce_sum(mask)
 
-    def _preprocess_train(self, source, target):
+    def _preprocess_train(self, source_vector, target_vector):
         """
         对数据集的 一个批次的数据的预处理
 
-        :param source: shape (N_batch, )
-        :param target: shape (N_batch, )
+        :param source_vector: shape (N_batch, source_length)
+        :param target_vector: shape (N_batch, target_length)
         :return:
         """
-
-        source_vector = self.tokenizer_source.tokenize(source).to_tensor()
-        target_vector = self.tokenizer_target.tokenize(target).to_tensor()
 
         target_in = target_vector[:, :-1]
         target_out = target_vector[:, 1:]
@@ -802,8 +799,8 @@ class TrainModel(Model):
     # 若不指定 shape, 一个 epoch 的最后一批数据的 N_batch 与之前不同, 会触发耗时的 trace 操作
     signature = [
         (
-            tf.TensorSpec(shape=(None, ), dtype=tf.string),
-            tf.TensorSpec(shape=(None, ), dtype=tf.string)
+            tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+            tf.TensorSpec(shape=(None, None), dtype=tf.int64)
         )
     ]
     @tf.function(input_signature=signature)

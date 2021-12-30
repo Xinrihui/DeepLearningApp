@@ -93,6 +93,8 @@ class MachineTranslation:
         self._end_target = int(self.vocab_target.map_word_to_id(_end_str))  # 句子的结束
         self._unk_target = int(self.vocab_target.map_word_to_id(_unk_str))  # 未登录词
 
+        self.shuffle_mode = current_config['shuffle_mode']
+
         self.build_mode = current_config['build_mode']
         self.save_mode = current_config['save_mode']
         self.model_path = current_config['model_path']
@@ -102,14 +104,14 @@ class MachineTranslation:
 
         # 构建模型
         # 1.EnsembleSeq2seq
-        # self.model_obj = EnsembleSeq2seq(n_embedding=self.n_embedding, n_h=self.n_h, max_seq_length=self.max_seq_length,
+        # self.model_obj = EnsembleSeq2seq(n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']), max_seq_length=max_seq_length,
         #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
         #                           vocab_target=self.vocab_target,
         #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
         #                           _start_target=self._start_target, _null_target=self._null_target,
         #                           reverse_source=self.reverse_source,
         #                           build_mode=self.build_mode,
-        #                           dropout_rates=self.dropout_rates)
+        #                           dropout_rates=dropout_rates)
 
         # 2.AttentionSeq2seq
         # self.model_obj = AttentionSeq2seq(
@@ -160,14 +162,21 @@ class MachineTranslation:
         :return:
         """
 
-        # 解开 batch, 数据集的粒度变为行(row)
-        # dataset = dataset.unbatch()
+        if self.shuffle_mode == 'row':
 
-        # tf.data 的数据混洗,分批和预取,
-        # shuffle 后不能进行任何的 map 操作, 因为会改变 batch 中的数据行的组合
-        # dataset = dataset.shuffle(buffer_size).batch(batch_size)  #  shuffle 的粒度为 row
+            # 解开 batch, 数据集的粒度变为行(row)
+            dataset = dataset.unbatch()
 
-        dataset = dataset.shuffle(buffer_size)  # shuffle 的粒度为 batch
+            # tf.data 的数据混洗,分批和预取,
+            # shuffle 后不能进行任何的 map 操作, 因为会改变 batch 中的数据行的组合
+            dataset = dataset.shuffle(buffer_size).batch(batch_size)  #  shuffle 的粒度为 row
+
+        elif self.shuffle_mode == 'batch':
+
+            dataset = dataset.shuffle(buffer_size)  # shuffle 的粒度为 batch
+
+        else:
+            raise Exception('the value of shuffle_mode is {}, which is illegal'.format(self.shuffle_mode))
 
         train_dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
 
@@ -248,12 +257,10 @@ class MachineTranslation:
         """
         使用训练好的模型进行推理
 
-        :param batch_source_dataset:
+        :param batch_source_dataset:  shape (N_batch, encoder_length)
         :param target_length:
         :return:
         """
-
-        # batch_source_dataset shape (N_batch, encoder_length)
 
         decode_result = self.model_obj.predict(batch_source_dataset, target_length)
 
@@ -506,6 +513,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training(tag='TEST')
+    test.test_training(tag='TEST')
 
-    test.test_evaluating(tag='TEST')
+    # test.test_evaluating(tag='TEST')
