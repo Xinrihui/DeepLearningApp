@@ -3,28 +3,23 @@
 
 #  适用于 tensorflow >= 2.0, keras 被直接集成到 tensorflow 的内部
 
-from tensorflow.keras.layers import Layer, Input, Dense, Embedding, \
+from tensorflow.keras.layers import Embedding, \
     Dropout, Activation, LayerNormalization
-
-from tensorflow.keras.utils import plot_model
 
 from tensorflow.keras.models import Model
 
-import tensorflow as tf
-
 from tqdm import tqdm
 
-import numpy as np
 import time
 
 
-from lib.attention_layer_xrh import *
+from lib.layers.attention_layer_xrh import *
 
-from lib.position_encode_xrh import *
+from lib.models.position_encode_xrh import *
 
-from lib.mask_xrh import *
+from lib.utils.mask_xrh import *
 
-from lib.optimizer_xrh import *
+from lib.models.optimizer_xrh import *
 
 class TransformerSeq2seq:
     """

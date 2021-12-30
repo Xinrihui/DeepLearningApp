@@ -9,20 +9,15 @@ from collections import *
 import string
 import configparser
 
-import tensorflow as tf
-
-from tensorflow.keras.layers import TextVectorization, StringLookup
-
-
 import tensorflow_text as tf_text
 
 from tensorflow_text.tools.wordpiece_vocab import bert_vocab_from_dataset as bert_vocab
 
-from lib.tokenizer_xrh import *
+from lib.data_generator.tokenizer_xrh import *
 
-from lib.vocab_xrh import *
+from lib.data_generator.vocab_xrh import *
 
-from lib.dynamic_dataset_split_xrh import *
+from lib.data_generator.dynamic_batch_xrh import *
 
 class CorpusNormalize:
     """
@@ -717,7 +712,7 @@ class WMT14_Eng_Ge_Dataset:
 
     """
     def __init__(self,
-                 base_dir='../dataset/WMT-14-English-Germa',
+                 base_dir='../../dataset/WMT-14-English-Germa',
                  cache_data_folder='cache_data',
 
                  vocab_source_file='vocab_source.txt',
@@ -802,7 +797,7 @@ class WMT14_Eng_Ge_Dataset:
 
 class Test:
 
-    def test_DatasetGenerate(self, build_tokenizer=True, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
+    def test_DatasetGenerate(self, build_tokenizer=True, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
@@ -814,7 +809,7 @@ class Test:
                         n_vocab_target=int(current_config['n_vocab_target']), max_seq_length=int(current_config['max_seq_length']), test_max_seq_length=int(current_config['test_max_seq_length']))
 
 
-    def test_WMT14_Eng_Ge_Dataset(self, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
+    def test_WMT14_Eng_Ge_Dataset(self, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
@@ -964,9 +959,8 @@ if __name__ == '__main__':
 
     #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DatasetGenerate(build_tokenizer=False, tag='TEST')
+    test.test_DatasetGenerate(build_tokenizer=False, config_path='config/transformer_seq2seq.ini', tag='TEST')
 
     test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
 
-    # test.test_VocabTf(tag='TEST')
 

@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from tensorflow.keras.layers import StringLookup
 
-from lib.tf_data_prepare_xrh import *
+from lib.data_generator.tf_data_prepare_xrh import *
 
 
 class Vocab:
@@ -160,7 +160,7 @@ class VocabTf:
 
 class Test:
 
-    def test_VocabTf(self, config_path='../config/transformer_seq2seq.ini', tag='DEFAULT'):
+    def test_VocabTf(self, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
@@ -172,7 +172,7 @@ class Test:
             # 查看 1 个批次的数据
             for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
 
-                source_list = source[:10]
+                source_list = source[:5]
                 print('source:')
                 print(source_list)
 
@@ -189,3 +189,9 @@ class Test:
 
                 print('decode_result:')
                 print(decode_result)
+
+if __name__ == '__main__':
+
+    test = Test()
+
+    test.test_VocabTf(tag='TEST')

@@ -4,21 +4,14 @@
 #  适用于 tensorflow >= 2.0, keras 被直接集成到 tensorflow 的内部
 #  ref: https://keras.io/about/
 
-from tensorflow.keras.layers import Layer, Input, RNN, LSTM, TimeDistributed, Bidirectional, Dense, Embedding, \
+from tensorflow.keras.layers import Input, RNN, LSTM, Embedding, \
     Dropout, Activation, LSTMCell
-
-from tensorflow.keras.utils import plot_model
-
 
 from tensorflow.keras.models import Model
 
-import tensorflow as tf
-
 from tqdm import tqdm
 
-import numpy as np
-
-from lib.attention_layer_xrh import *
+from lib.layers.attention_layer_xrh import *
 
 
 class AttentionSeq2seq:

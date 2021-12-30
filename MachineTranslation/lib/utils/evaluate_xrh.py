@@ -2,8 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 import re
-import string
-from lib.bleu_xrh import *
+from lib.utils.bleu_xrh import *
 from nltk.translate.bleu_score import corpus_bleu
 
 class Evaluate:

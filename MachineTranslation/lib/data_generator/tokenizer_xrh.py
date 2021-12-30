@@ -225,7 +225,7 @@ class Test:
 
     def test_SpaceTokenizer(self):
 
-        corpus = self.load_corpus_data('../dataset/WMT-14-English-Germa/newstest2012.de')
+        corpus = self.load_corpus_data('../../dataset/WMT-14-English-Germa/newstest2012.de')
 
         # 首尾添加 控制字符
         corpus = ['[START] ' + sentence + ' [END]' for sentence in corpus]
@@ -247,7 +247,7 @@ class Test:
 
     def test_SubwordTokenizer(self):
 
-        corpus = self.load_corpus_data('../dataset/WMT-14-English-Germa/newstest2012.de')
+        corpus = self.load_corpus_data('../../dataset/WMT-14-English-Germa/newstest2012.de')
 
         target_dataset = tf.data.Dataset.from_tensor_slices(corpus).batch(2)
 

@@ -5,24 +5,17 @@
 #  ref: https://keras.io/about/
 
 
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.utils import plot_model
+from tensorflow.keras.callbacks import EarlyStopping
 import tensorflow.keras as keras
 
-from tensorflow.keras.models import Model
+from lib.utils.evaluate_xrh import *
+from lib.data_generator.tf_data_prepare_xrh import *
 
-from tensorflow.keras import mixed_precision
+# from lib.models.seq2seq_xrh import *
+# from lib.models.ensemble_seq2seq_xrh import *
 
-from lib.evaluate_xrh import *
-from lib.tf_data_prepare_xrh import *
+from lib.models.transformer_seq2seq_xrh import *
 
-# from lib.seq2seq_xrh import *
-# from lib.ensemble_seq2seq_xrh import *
-from lib.attention_seq2seq_xrh import *
-
-from lib.transformer_seq2seq_xrh import *
-
-import time
 import configparser
 import json
 
@@ -513,6 +506,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training(tag='TEST')
+    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST')
 
-    # test.test_evaluating(tag='TEST')
+    # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='TEST')
