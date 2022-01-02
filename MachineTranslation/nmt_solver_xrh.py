@@ -123,7 +123,7 @@ class MachineTranslation:
         self.model_obj = TransformerSeq2seq(
                                   num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
                                   num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
-                                  label_smoothing=float(current_config['label_smoothing']),
+                                  label_smoothing=float(current_config['label_smoothing']), warmup_steps=int(current_config['warmup_steps']),
                                   maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
                                   fixed_seq_length=fixed_seq_length,
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
@@ -216,15 +216,16 @@ class MachineTranslation:
 
         # [4] 计算在验证集上的 bleu 指标
         model_checkpoint_with_eval = CheckoutCallback(current_config=self.current_config,
-                                                      model_obj=self.model_obj,
+                                                      nmt_obj=self,
                                                       vocab_obj=self.vocab_target, valid_source_target_dict=valid_source_target_dict,
-                                                      print_res=True
+                                                      evaluate_bleu=False
                                                       )
 
         # Final callbacks
         callbacks = [model_checkpoint_with_eval]
 
         # loss_function = self.model_obj._mask_loss_function
+
         # loss_function = MaskedLoss(_null_target=self._null_target) # TODO: 报错, 未找出原因
 
         # optimizer = tf.keras.optimizers.RMSprop()
@@ -255,11 +256,13 @@ class MachineTranslation:
         :return:
         """
 
-        decode_result = self.model_obj.predict(batch_source_dataset, target_length)
+        decode_result = self.model_obj.model_infer.predict(batch_source_dataset, target_length)
 
         candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
 
         return candidates
+
+
 
 class CheckoutCallback(keras.callbacks.Callback):
     """
@@ -269,24 +272,27 @@ class CheckoutCallback(keras.callbacks.Callback):
     """
 
     def __init__(self, current_config,
-                 model_obj, vocab_obj, valid_source_target_dict,
-                 print_res=False,
+                 nmt_obj, vocab_obj, valid_source_target_dict,
+                 evaluate_bleu=True,
                  ):
         """
 
         :param current_config: 配置中心
-        :param model_obj: 模型对象
+        :param nmt_obj: NMT 对象
         :param vocab_obj: 目标语言的词典对象
         :param valid_source_target_dict: 源序列到目标序列的词典
-        :param print_res: 是否打印模型的翻译结果
+        :param evaluate_bleu: 是否使用 bleu 评价验证集
 
         """
 
         keras.callbacks.Callback.__init__(self)
 
-        self.print_res = print_res
+        self.evaluate_bleu = evaluate_bleu
 
-        self.model_obj = model_obj
+        self.nmt_obj = nmt_obj
+
+        self.model_obj = nmt_obj.model_obj
+
         self.vocab_obj = vocab_obj
 
         self.save_mode = current_config['save_mode']
@@ -335,19 +341,15 @@ class CheckoutCallback(keras.callbacks.Callback):
 
         # batch_source_dataset shape (N_batch, encoder_length)
 
-        decode_result = self.model_obj.predict(self.batch_source_dataset, self.infer_target_length)
+        candidates = self.nmt_obj.inference(batch_source_dataset=self.batch_source_dataset)
 
-        candidates = [sentence.numpy().decode('utf-8').strip() for sentence in decode_result]
+        print('\ncandidates:')
+        for i in range(0, 5):
+            print('[{}] {}'.format(i, candidates[i]))
 
-        if self.print_res:
-
-            print('\ncandidates:')
-            for i in range(0, 5):
-                print('[{}] {}'.format(i, candidates[i]))
-
-            print('\nreferences:')
-            for i in range(0, 5):
-                print('[{}] {}'.format(i, self.references[i]))
+        print('\nreferences:')
+        for i in range(0, 5):
+            print('[{}] {}'.format(i, self.references[i]))
 
 
         bleu_score = self.evaluate_obj.evaluate_bleu(self.references, candidates, bleu_N=4)
@@ -379,8 +381,9 @@ class CheckoutCallback(keras.callbacks.Callback):
         else:
             raise Exception("Invalid param value, save_mode= ", self.save_mode)
 
-        # 计算 bleu 分数
-        self.inference_bleu()
+        if self.evaluate_bleu:
+            # 计算 bleu 分数
+            self.inference_bleu()
 
 
 class Test_WMT14_Eng_Ge_Dataset:
@@ -506,6 +509,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST')
+    # test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST')  # DEFAULT
 
-    # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='TEST')
+    test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='TEST') # DEFAULT

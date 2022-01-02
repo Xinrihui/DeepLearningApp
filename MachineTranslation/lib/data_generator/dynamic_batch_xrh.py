@@ -1,16 +1,15 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 
-import six
-
 import tensorflow as tf
 
 """
-数据集的动态划分
+数据集的动态划分(Dynamic Batch)
 
 1.长度相近的序列放到同个 batch 中
 2.batch_size 随着该 batch 中的序列的长度动态变化, 
   若 batch 中的序列长度很长, 为了避免 OOM, 要降低 batch_size
+3.显然 这个划分是固定的，即之后的 shuffle 操作的粒度为 batch 
 
 Author: xrh
 Date: 2021-12-25

@@ -49,7 +49,8 @@ class TransformerSeq2seq:
 
     """
 
-    def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates, label_smoothing,
+    def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates,
+                 label_smoothing, warmup_steps,
                  maximum_position_source, maximum_position_target,
                  fixed_seq_length,
                  n_vocab_source, n_vocab_target,
@@ -66,6 +67,7 @@ class TransformerSeq2seq:
         :param dff: Position-wise Feed-Forward 的中间层的维度
         :param dropout_rates: dropout 的弃置率
         :param label_smoothing: 标签平滑
+        :param warmup_steps: 优化器学习率的预热步骤
         :param maximum_position_source: 源句子的可能最大长度
         :param maximum_position_target: 目标句子的可能最大长度
         :param max_seq_length: 最大的序列长度
@@ -83,13 +85,6 @@ class TransformerSeq2seq:
 
         super().__init__()
 
-        self.num_layers = num_layers
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.dff = dff
-        self.dropout_rates = dropout_rates
-        self.maximum_position_source = maximum_position_source
-        self.maximum_position_target = maximum_position_target
 
         # 最大的序列长度
         self.fixed_seq_length = fixed_seq_length
@@ -100,114 +95,26 @@ class TransformerSeq2seq:
         # 训练数据中目标序列的长度
         self.target_length = self.fixed_seq_length - 1
 
-        self.n_vocab_source = n_vocab_source
-        self.n_vocab_target = n_vocab_target
-
-        self.reverse_source = reverse_source
-
-        # source 中代表 null 的标号
-        self._null_source = _null_source
-
-        # target 中代表 start 的标号
-        self._start_target = _start_target
-
-        # target 中代表 null 的标号
-        self._null_target = _null_target
-
-        # target 中代表 end 的标号
-        self._end_target = _end_target
-
-        self.tokenizer_source = tokenizer_source
-        self.tokenizer_target = tokenizer_target
 
         if build_mode == 'Eager':
 
             self.model_train = TrainModel(
-                num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, dropout_rates=dropout_rates, label_smoothing=label_smoothing,
+                num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, dropout_rates=dropout_rates,
+                label_smoothing=label_smoothing, warmup_steps=warmup_steps,
                 n_vocab_source=n_vocab_source, n_vocab_target=n_vocab_target,
                 _null_source=_null_source, _null_target=_null_target,
                 maximum_position_source=maximum_position_source, maximum_position_target=maximum_position_target,
                 tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target
                 )
 
-            self.encoder = self.model_train.encoder
-            self.train_decoder = self.model_train.decoder
-
-            self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder,
-                                              _start_target=self._start_target, _end_target=self._end_target,
-                                              _null_target=self._null_target,
-                                              tokenizer_target=self.tokenizer_target)
+            self.model_infer = InferModel(model_train=self.model_train,
+                                          _null_source = _null_source,
+                                          _start_target=_start_target, _end_target=_end_target, _null_target=_null_target,
+                                          tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target)
 
         else:
             raise Exception("Invalid param value, build_mode= ", build_mode)
 
-
-    def _preprocess_infer(self, batch_data):
-        """
-        对数据集的 一个批次的数据的预处理
-
-        :param batch_data:
-        :return:
-        """
-
-        batch_source = batch_data
-
-        batch_source_vector = self.tokenizer_source.tokenize(batch_source).to_tensor()
-
-        return batch_source_vector
-
-
-    # 1.调试的时候去掉  @tf.function 装饰器
-    # 2.input_signature 规定了函数参数的类型, 在重复收到规定类型的输入不会重新构建计算图
-    #   shape=[None, None] 表示张量的维度是2维, None 表示可以取任意值
-    #   shape=None 表示标量
-    @tf.function(input_signature=[tf.TensorSpec(dtype=tf.int64, shape=[None, None]), tf.TensorSpec(dtype=tf.int32, shape=None)])
-    def test_step(self, batch_source, target_length):
-        """
-
-        :param batch_source: shape (N_batch, source_length)
-        :param target_length:
-        :return:
-        """
-        training = False
-
-        encoder_padding_mask = create_padding_mask(batch_source, self._null_source)
-
-        encoder_output = self.encoder(x=batch_source, training=training, padding_mask=encoder_padding_mask)
-        # encoder_output shape (N_batch, source_length, d_model)
-
-        # outputs shape  (N_batch, target_length, n_vocab_target)
-        preds, decode_text = self.infer_decoder(
-            target_length=target_length, encoder_output=encoder_output, training=training,
-            padding_mask=encoder_padding_mask)
-
-        return preds, decode_text
-
-    def predict(self, source_dataset, target_length=None):
-        """
-        输出预测的单词序列
-
-        :param source_dataset:
-        :param target_length:
-        :return:
-        """
-
-        seq_list = []
-
-        # 遍历数据集
-        for batch_data in tqdm(source_dataset):
-
-            batch_source = self._preprocess_infer(batch_data)
-
-            if target_length is None:
-                target_length = tf.shape(batch_source)[1] + 50  # 源句子的长度决定了推理出的目标句子的长度
-
-            _, decode_text = self.test_step(batch_source, target_length)
-
-            for sentence in decode_text:
-                seq_list.append(sentence)
-
-        return seq_list
 
 
 class PointWiseFeedForward(Layer):
@@ -448,7 +355,7 @@ class Encoder(Layer):
         x = self.dropout(out_embed, training=training)
 
         for i in range(self.num_layers):
-            x = self.enc_layers[i](x, training, padding_mask)
+            x = self.enc_layers[i](x=x, training=training, padding_mask=padding_mask)
 
         return x  # shape (N_batch, source_length, d_model)
 
@@ -535,8 +442,8 @@ class TrainDecoder(Layer):
         x = self.dropout(out_embed, training=training)
 
         for i in range(self.num_layers):
-            x, block1, block2 = self.dec_layer_list[i](x, encoder_output, training,
-                                                       look_ahead_mask, padding_mask)
+            x, block1, block2 = self.dec_layer_list[i](x=x, encoder_output=encoder_output, training=training,
+                                                       look_ahead_mask=look_ahead_mask, padding_mask=padding_mask)
 
             attention_weights[f'decoder_layer{i + 1}_block1'] = block1
             attention_weights[f'decoder_layer{i + 1}_block2'] = block2
@@ -593,14 +500,16 @@ class InferDecoder(Layer):
 
         start_token = tf.ones((N_batch,), dtype=tf.int64) * self._start_target  # (N_batch, )
 
-        outs = tf.TensorArray(dtype=tf.int64, size=0, dynamic_size=True)
-        outs = outs.write(0, start_token)  # shape (1, N_batch)
+        out_list = tf.TensorArray(dtype=tf.int64, size=0, dynamic_size=True, clear_after_read=False)
+        out_list = out_list.write(0, start_token)  # shape (1, N_batch)
 
         done = tf.zeros((N_batch, ), dtype=tf.bool)  # 标记序列的解码可以结束
 
         for t in tf.range(target_length):  # 使用 tf.range 会触发 tf.autograph 将循环也构成计算图的一部分
 
-            batch_tokens = tf.transpose(outs.stack())  # shape (N_batch, t+1)
+            batch_tokens = tf.transpose(out_list.stack())  # shape (N_batch, t+1)
+
+            look_ahead_mask = create_target_look_ahead_mask(batch_tokens, self._null_target)
 
             out_embed = self.embedding(batch_tokens)  # shape (N_batch, t+1, d_model)
 
@@ -614,7 +523,7 @@ class InferDecoder(Layer):
 
             for i in range(self.num_layers):
                 x, block1, block2 = self.dec_layer_list[i](x=x, encoder_output=encoder_output, training=training,
-                                                           look_ahead_mask=None, padding_mask=padding_mask)
+                                                           look_ahead_mask=look_ahead_mask, padding_mask=padding_mask)
 
             x = self.fc(x)  # shape (N_batch, t+1, n_vocab_target)
 
@@ -629,14 +538,14 @@ class InferDecoder(Layer):
             # 注意这里是 '或', 也就是只要出现一次结束标记位之后 done 数组中表示此序列的位一直为 True
             done = done | (max_idx == self._end_target)  # shape (N_batch, )
             # 若序列的状态被置为 '解码结束', 则 后面的时间步都填充 null 元素
-            batch_token = tf.where(done, tf.constant(self._null_target, dtype=tf.int64), max_idx)  # shape (N_batch, )
+            batch_token_t = tf.where(condition=done, x=tf.constant(self._null_target, dtype=tf.int64), y=max_idx)  # shape (N_batch, )
 
-            outs = outs.write(t+1, batch_token)  # shape (t+2, N_batch)
+            out_list = out_list.write(t+1, batch_token_t)  # shape (t+2, N_batch)
 
             if tf.reduce_all(done):
                 break
 
-        outputs = tf.transpose(outs.stack(), perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
+        outputs = tf.transpose(out_list.stack(), perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
 
         outputs = outputs[:, 1:]  # 第1个时间步是开始标记可以忽略
 
@@ -648,7 +557,8 @@ class InferDecoder(Layer):
 
 class TrainModel(Model):
 
-    def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates, label_smoothing,
+    def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates,
+                 label_smoothing, warmup_steps,
                  maximum_position_source, maximum_position_target,
                  n_vocab_source, n_vocab_target,
                  _null_source, _null_target,
@@ -662,6 +572,7 @@ class TrainModel(Model):
         :param dff: Position-wise Feed-Forward Networks 的中间层的维度
         :param dropout_rates: dropout 的弃置率
         :param label_smoothing: 标签平滑
+        :param warmup_steps: 优化器学习率的预热步骤
         :param maximum_position_source: 源句子的可能最大长度
         :param maximum_position_target: 目标句子的可能最大长度
         :param n_vocab_source: 源语言的词表大小
@@ -703,7 +614,8 @@ class TrainModel(Model):
         self.loss_tracker = tf.keras.metrics.Mean(name='train_loss')
         self.accuracy_metric = tf.keras.metrics.Mean(name='train_accuracy')
 
-        learning_rate = WarmupSchedule(d_model)
+        learning_rate = WarmupSchedule(d_model, warmup_steps)
+        # learning_rate = 3e-4
         self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                              epsilon=1e-9)
 
@@ -774,6 +686,7 @@ class TrainModel(Model):
         accuracies = tf.math.logical_and(mask, accuracies)
 
         accuracies = tf.cast(accuracies, dtype=tf.float32)
+
         mask = tf.cast(mask, dtype=tf.float32)
 
         return tf.reduce_sum(accuracies) / tf.reduce_sum(mask)
@@ -845,7 +758,6 @@ class TrainModel(Model):
             self.loss_tracker.reset_states()
             self.accuracy_metric.reset_states()
 
-
             for (batch, batch_data) in enumerate(x):
 
                 self.train_step(batch_data)
@@ -871,7 +783,8 @@ class TrainModel(Model):
         # tf.print(source.numpy())
 
         predictions, _ = self([batch_source_vector, batch_target_in],
-                                     training=True)
+                                     training=False)
+
         loss = self._mask_loss_function(batch_target_out, predictions)
 
         self.loss_tracker.update_state(loss)
@@ -888,6 +801,103 @@ class TrainModel(Model):
         # If you don't implement this property, you have to call
         # `reset_states()` yourself at the time of your choosing.
         return [self.loss_tracker, self.accuracy_metric]
+
+
+class InferModel(Model):
+
+    def __init__(self, model_train, _null_source,  _start_target, _end_target, _null_target, tokenizer_source, tokenizer_target):
+
+        super(InferModel, self).__init__()
+
+        self._null_source = _null_source
+
+        self._start_target = _start_target
+        self._end_target = _end_target
+        self._null_target = _null_target
+
+        self.tokenizer_source = tokenizer_source
+        self.tokenizer_target = tokenizer_target
+
+        self.encoder = model_train.encoder
+
+        self.infer_decoder = InferDecoder(train_decoder_obj=model_train.decoder,
+                                          _start_target=_start_target, _end_target=_end_target,
+                                          _null_target=_null_target,
+                                          tokenizer_target=tokenizer_target)
+
+    def _preprocess_infer(self, batch_data):
+        """
+        对数据集的 一个批次的数据的预处理
+
+        :param batch_data:
+        :return:
+        """
+
+        batch_source = batch_data
+
+        batch_source_vector = self.tokenizer_source.tokenize(batch_source).to_tensor()
+
+        return batch_source_vector
+
+    # 1.调试的时候去掉  @tf.function 装饰器
+    # 2.input_signature 规定了函数参数的类型, 在重复收到规定类型的输入不会重新构建计算图
+    #   shape=[None, None] 表示张量的维度是2维, None 表示可以取任意值
+    #   shape=None 表示标量
+    @tf.function(input_signature=[tf.TensorSpec(dtype=tf.int64, shape=[None, None]), tf.TensorSpec(dtype=tf.int32, shape=None)])
+    def call(self, batch_source, target_length):
+        """
+
+        :param batch_source: shape (N_batch, source_length)
+        :param target_length:
+        :return:
+        """
+        training = False
+
+        encoder_padding_mask = create_padding_mask(batch_source, self._null_source)
+
+        encoder_output = self.encoder(x=batch_source, training=training, padding_mask=encoder_padding_mask)
+        # encoder_output shape (N_batch, source_length, d_model)
+
+        # outputs shape  (N_batch, target_length, n_vocab_target)
+        preds, decode_text = self.infer_decoder(
+            target_length=target_length, encoder_output=encoder_output, training=training,
+            padding_mask=encoder_padding_mask)
+
+        return preds, decode_text
+
+
+    def test_step(self, data, target_length=None):
+
+        batch_source = self._preprocess_infer(data)
+
+        if target_length is None:
+            target_length = tf.shape(batch_source)[1] + 50  # 源句子的长度决定了推理出的目标句子的长度
+
+        _, decode_text = self(batch_source, target_length)
+
+        return decode_text
+
+    def predict(self, source_dataset, target_length=None):
+        """
+        输出预测的单词序列
+
+        :param source_dataset:
+        :param target_length:
+        :return:
+        """
+
+        seq_list = []
+
+        # 遍历数据集
+        for batch_data in tqdm(source_dataset):
+
+            decode_text = self.test_step(batch_data, target_length)
+
+            for sentence in decode_text:
+                seq_list.append(sentence)
+
+        return seq_list
+
 
 class Test:
 
@@ -908,7 +918,8 @@ class Test:
         dropout_rates = [0.1, 0.1, 0.1, 0.1, 0.1]
 
         model = TrainModel(
-            num_layers=num_layers, d_model=n_h, num_heads=num_heads, dff=2048, dropout_rates=dropout_rates, label_smoothing=0.1,
+            num_layers=num_layers, d_model=n_h, num_heads=num_heads, dff=2048, dropout_rates=dropout_rates,
+            label_smoothing=0.1, warmup_steps=4000,
             n_vocab_source=n_vocab_source, n_vocab_target=n_vocab_target,
             _null_source=_null_source, _null_target=_null_target,
             maximum_position_source=maximum_position_source, maximum_position_target=maximum_position_target,

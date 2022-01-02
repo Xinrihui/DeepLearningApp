@@ -19,6 +19,7 @@ from lib.data_generator.vocab_xrh import *
 
 from lib.data_generator.dynamic_batch_xrh import *
 
+
 class CorpusNormalize:
     """
     使用 tensorflow 库函数 对语料库中的句子进行标准化
@@ -60,7 +61,6 @@ class CorpusNormalize:
 
         # 删除特定的单词
         self.remove_words = r'(##AT##-##AT##|&apos|&quot)'
-
 
     def add_control_token(self, text):
         """
@@ -125,8 +125,6 @@ class CorpusNormalize:
         return text
 
 
-
-
 class DatasetGenerate:
     """
     利用 tf.data.Dataset 数据流水线的数据集生成
@@ -182,11 +180,11 @@ class DatasetGenerate:
         self.train_source_corpus_dir = os.path.join(base_dir, current_config['train_source_corpus'])
         self.train_target_corpus_dir = os.path.join(base_dir, current_config['train_target_corpus'])
 
-        self.valid_source_corpus_dir = os.path.join(base_dir,  current_config['valid_source_corpus'])
-        self.valid_target_corpus_dir = os.path.join(base_dir,  current_config['valid_target_corpus'])
+        self.valid_source_corpus_dir = os.path.join(base_dir, current_config['valid_source_corpus'])
+        self.valid_target_corpus_dir = os.path.join(base_dir, current_config['valid_target_corpus'])
 
-        self.test_source_corpus_dir = os.path.join(base_dir,  current_config['test_source_corpus'])
-        self.test_target_corpus_dir = os.path.join(base_dir,  current_config['test_target_corpus'])
+        self.test_source_corpus_dir = os.path.join(base_dir, current_config['test_source_corpus'])
+        self.test_target_corpus_dir = os.path.join(base_dir, current_config['test_target_corpus'])
 
         self._null_str = current_config['_null_str']
         self._start_str = current_config['_start_str']
@@ -194,7 +192,6 @@ class DatasetGenerate:
         self._unk_str = current_config['_unk_str']
 
         self.corpus_normalize = CorpusNormalize(_start_str=self._start_str, _end_str=self._end_str)
-
 
     def load_corpus_data(self, corpus_file_dir):
         """
@@ -209,12 +206,10 @@ class DatasetGenerate:
         """
 
         with open(corpus_file_dir, encoding='utf-8') as corpus_file:
-
             lines = corpus_file.readlines()
             text_data = []
 
             for line in lines:
-
                 sentence = line.strip()
 
                 # 句子的左右端点统一补充 1个空格
@@ -247,24 +242,25 @@ class DatasetGenerate:
         elif preprocess_mode == 'normalize':
 
             text_preprocess_dataset = text_dataset.map(lambda batch_text:
-                self.corpus_normalize.normalize(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
+                                                       self.corpus_normalize.normalize(batch_text),
+                                                       num_parallel_calls=tf.data.AUTOTUNE)
 
 
         elif preprocess_mode == 'add_control_token':
 
             text_preprocess_dataset = text_dataset.map(lambda batch_text:
-                self.corpus_normalize.add_control_token(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
+                                                       self.corpus_normalize.add_control_token(batch_text),
+                                                       num_parallel_calls=tf.data.AUTOTUNE)
 
         elif preprocess_mode == 'all':
 
             text_preprocess_dataset = text_dataset.map(lambda batch_text:
-                self.corpus_normalize.all(batch_text), num_parallel_calls=tf.data.AUTOTUNE)
+                                                       self.corpus_normalize.all(batch_text),
+                                                       num_parallel_calls=tf.data.AUTOTUNE)
 
         else:
 
             raise Exception('the value of preprocess_mode is {}, which is illegal'.format(preprocess_mode))
-
-
 
         return text_preprocess_dataset
 
@@ -332,7 +328,8 @@ class DatasetGenerate:
         :return:
         """
 
-        tokenizer = SpaceTokenizer(corpus=preprocess_dataset, max_tokens=n_vocab, fixed_seq_length=self.fixed_seq_length)
+        tokenizer = SpaceTokenizer(corpus=preprocess_dataset, max_tokens=n_vocab,
+                                   fixed_seq_length=self.fixed_seq_length)
         # (1) max_tokens: 保留出现次数最多的 top-k 个单词
         # (2) -fixed_seq_length=None, 自动将本 batch 中最长的句子的长度作为序列的长度,
         #      在 padding 时 不同的 batch 的序列的长度可能不同, 但是在同个 batch 中自然是统一的;
@@ -353,8 +350,8 @@ class DatasetGenerate:
 
         return tokenizer, vocab_list
 
-
-    def tf_data_pipline(self, source_dataset, target_dataset, tokenizer_source=None, tokenizer_target=None, do_persist=False, dataset_file=None):
+    def tf_data_pipline(self, source_dataset, target_dataset, tokenizer_source=None, tokenizer_target=None,
+                        do_persist=False, dataset_file=None):
         """
         利用 tf.data.Dataset 数据流水线 建立数据集,
 
@@ -384,7 +381,7 @@ class DatasetGenerate:
             # 将源序列倒置
             if self.reverse_source:
                 source_vector = source_vector.map(lambda batch_text: batch_text[:, ::-1],
-                                               num_parallel_calls=tf.data.AUTOTUNE)
+                                                  num_parallel_calls=tf.data.AUTOTUNE)
 
             # 输入 和 输出的 target 要错开一位
             target_out = target_vector.map(lambda batch_text: batch_text[:, 1:], num_parallel_calls=tf.data.AUTOTUNE)
@@ -407,13 +404,15 @@ class DatasetGenerate:
             # 划分动态的 batch
             ret = batching_scheme(batch_size=int(self.current_config['token_in_batch']))
 
-            dataset = dataset.map(lambda x, y: (x, y))  # 将数据集(Dataset)转换为生成器(generato)
+            dataset = dataset.map(lambda source, target: (source, target))  # 将数据集(Dataset)转换为生成器(generato)
 
             dataset = dataset.bucket_by_sequence_length(
-                element_length_func=lambda x, y: tf.cast(tf.shape(x)[0], tf.int32),
+                element_length_func=lambda source, target: tf.cast(tf.maximum(tf.shape(source)[0], tf.shape(target)[0]),
+                                                                   tf.int32),
                 bucket_boundaries=ret["boundaries"],
                 bucket_batch_sizes=ret["batch_sizes"],
             )
+            # tf.maximum(tf.shape(source)[0], tf.shape(target)[0]) 取源序列长度和目标序列长度的最大值作为划分桶的依据
 
 
         elif self.return_mode == 'text':  # 返回文本形式的句子, 模型需要做进一步预处理
@@ -429,7 +428,6 @@ class DatasetGenerate:
             tf.data.experimental.save(dataset, dataset_path)
 
         return dataset
-
 
     def build_source_target_dict(self, source_text, target_text, do_persist=False, source_target_dict_file=None):
         """
@@ -456,13 +454,10 @@ class DatasetGenerate:
         source_target_dict = {}
 
         for source, target in zip(source_text, target_text):
-
             key = source.numpy().decode('utf-8')
             source_target_dict[key] = [target.numpy().decode('utf-8')]
 
-
         if do_persist:
-
             save_dict = {}
             save_dict['source_target_dict'] = source_target_dict
             source_target_dict_path = os.path.join(self.cache_data_dir, source_target_dict_file)
@@ -483,7 +478,6 @@ class DatasetGenerate:
         length_dict = {}
 
         for i, seq in enumerate(seq_list):
-
             seq_arr = seq.split(" ")
 
             length_dict[i] = len(seq_arr)
@@ -542,7 +536,6 @@ class DatasetGenerate:
         for i in range(len(source_seq_list)):
 
             if source_length_dict[i] <= max_seq_length and target_length_dict[i] <= max_seq_length:
-
                 res_source_seq_list.append(source_seq_list[i])
                 res_target_seq_list.append(target_seq_list[i])
 
@@ -601,7 +594,8 @@ class DatasetGenerate:
         train_target_text = self.load_corpus_data(corpus_file_dir=self.train_target_corpus_dir)
 
         # 过滤掉长度 大于 org_seq_length 的序列
-        train_source_text, train_target_text = self.filter_by_seq_length(train_source_text, train_target_text, org_seq_length)
+        train_source_text, train_target_text = self.filter_by_seq_length(train_source_text, train_target_text,
+                                                                         org_seq_length)
 
         # 按照长度对 序列 进行排序
         train_source_text, train_target_text = self.sort_by_seq_length(train_source_text, train_target_text)
@@ -609,24 +603,32 @@ class DatasetGenerate:
         train_source_dataset = self.preprocess_corpus(train_source_text, batch_size=batch_size)
         train_target_dataset = self.preprocess_corpus(train_target_text, batch_size=batch_size)
 
-        if build_tokenizer: # 重新建立分词器
+        if build_tokenizer:  # 重新建立分词器
 
             # 建立分词器
             if self.tokenize_mode == 'space':
 
                 print('build source {} tokenizer ...'.format(self.tokenize_mode))
-                tokenizer_source, vocab_source_list = self.build_space_tokenizer(preprocess_dataset=train_source_dataset, n_vocab=n_vocab_source, batch_size=batch_size, tokenizer_file='tokenizer_source_model')
+                tokenizer_source, vocab_source_list = self.build_space_tokenizer(
+                    preprocess_dataset=train_source_dataset, n_vocab=n_vocab_source, batch_size=batch_size,
+                    tokenizer_file='tokenizer_source_model')
 
                 print('build target {} tokenizer ...'.format(self.tokenize_mode))
-                tokenizer_target, vocab_target_list = self.build_space_tokenizer(preprocess_dataset=train_target_dataset, n_vocab=n_vocab_target, batch_size=batch_size, tokenizer_file='tokenizer_target_model')
+                tokenizer_target, vocab_target_list = self.build_space_tokenizer(
+                    preprocess_dataset=train_target_dataset, n_vocab=n_vocab_target, batch_size=batch_size,
+                    tokenizer_file='tokenizer_target_model')
 
             elif self.tokenize_mode == 'subword':
 
                 print('build source {} tokenizer ...'.format(self.tokenize_mode))
-                tokenizer_source, vocab_source_list = self.build_subword_tokenizer(preprocess_dataset=train_source_dataset, n_vocab=n_vocab_source, batch_size=batch_size, tokenizer_file='tokenizer_source_model')
+                tokenizer_source, vocab_source_list = self.build_subword_tokenizer(
+                    preprocess_dataset=train_source_dataset, n_vocab=n_vocab_source, batch_size=batch_size,
+                    tokenizer_file='tokenizer_source_model')
 
                 print('build target {} tokenizer ...'.format(self.tokenize_mode))
-                tokenizer_target, vocab_target_list = self.build_subword_tokenizer(preprocess_dataset=train_target_dataset, n_vocab=n_vocab_target, batch_size=batch_size, tokenizer_file='tokenizer_target_model')
+                tokenizer_target, vocab_target_list = self.build_subword_tokenizer(
+                    preprocess_dataset=train_target_dataset, n_vocab=n_vocab_target, batch_size=batch_size,
+                    tokenizer_file='tokenizer_target_model')
 
             else:
                 raise Exception('the value of tokenize_mode is {}, which is illegal'.format(self.tokenize_mode))
@@ -634,8 +636,10 @@ class DatasetGenerate:
             # 建立字典
             print('--------------------------------')
             print('build the vocab...')
-            vocab_source = VocabTf(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.txt'))
-            vocab_target = VocabTf(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.txt'))
+            vocab_source = VocabTf(vocab_list=vocab_source_list,
+                                   vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.txt'))
+            vocab_target = VocabTf(vocab_list=vocab_target_list,
+                                   vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.txt'))
 
             # vocab_source = Vocab(vocab_list=vocab_source_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_source.txt'))
             # vocab_target = Vocab(vocab_list=vocab_target_list, vocab_list_path=os.path.join(self.cache_data_dir, 'vocab_target.txt'))
@@ -645,9 +649,9 @@ class DatasetGenerate:
             tokenizer_target = tf.saved_model.load(os.path.join(self.cache_data_dir, 'tokenizer_target_model'))
 
         # 形成训练数据集并持久化
-        train_dataset = self.tf_data_pipline(train_source_dataset, train_target_dataset, tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+        train_dataset = self.tf_data_pipline(train_source_dataset, train_target_dataset,
+                                             tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                              do_persist=True, dataset_file='train_dataset.bin')
-
 
         # 2.验证数据处理
         print('--------------------------------')
@@ -657,25 +661,27 @@ class DatasetGenerate:
         valid_target_text = self.load_corpus_data(corpus_file_dir=self.valid_target_corpus_dir)
 
         # 过滤掉长度 大于 org_seq_length 的序列
-        valid_source_text, valid_target_text = self.filter_by_seq_length(valid_source_text, valid_target_text, org_seq_length)
+        valid_source_text, valid_target_text = self.filter_by_seq_length(valid_source_text, valid_target_text,
+                                                                         org_seq_length)
 
         # 按照长度对 序列 进行排序
         valid_source_text, valid_target_text = self.sort_by_seq_length(valid_source_text, valid_target_text)
 
-
-        valid_source_dataset = self.preprocess_corpus(valid_source_text,  batch_size=batch_size)
-        valid_target_dataset = self.preprocess_corpus(valid_target_text,  batch_size=batch_size)
+        valid_source_dataset = self.preprocess_corpus(valid_source_text, batch_size=batch_size)
+        valid_target_dataset = self.preprocess_corpus(valid_target_text, batch_size=batch_size)
 
         # 形成训练数据集并持久化
-        valid_dataset = self.tf_data_pipline(valid_source_dataset, valid_target_dataset, tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+        valid_dataset = self.tf_data_pipline(valid_source_dataset, valid_target_dataset,
+                                             tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                              do_persist=True, dataset_file='valid_dataset.bin')
 
-
         # 验证数据 source_target_dict
-        self.build_source_target_dict(source_text=self.preprocess_corpus(valid_source_text, preprocess_mode='add_control_token', batch_size=batch_size),
-                                      target_text=self.preprocess_corpus(valid_target_text, preprocess_mode='add_control_token', batch_size=batch_size),
-                                      do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
-
+        self.build_source_target_dict(
+            source_text=self.preprocess_corpus(valid_source_text, preprocess_mode='add_control_token',
+                                               batch_size=batch_size),
+            target_text=self.preprocess_corpus(valid_target_text, preprocess_mode='add_control_token',
+                                               batch_size=batch_size),
+            do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
 
         # 3.测试数据处理
         print('--------------------------------')
@@ -685,18 +691,19 @@ class DatasetGenerate:
         test_target_text = self.load_corpus_data(corpus_file_dir=self.test_target_corpus_dir)
 
         # 过滤掉长度 大于 test_org_seq_length 的序列
-        test_source_text, test_target_text = self.filter_by_seq_length(test_source_text, test_target_text, test_org_seq_length)
+        test_source_text, test_target_text = self.filter_by_seq_length(test_source_text, test_target_text,
+                                                                       test_org_seq_length)
 
         # 按照长度对 序列 进行排序
         test_source_text, test_target_text = self.sort_by_seq_length(test_source_text, test_target_text)
 
-
         # 测试数据 source_target_dict
-        self.build_source_target_dict(source_text=self.preprocess_corpus(test_source_text, preprocess_mode='add_control_token', batch_size=batch_size),
-                                      target_text=self.preprocess_corpus(test_target_text, preprocess_mode='add_control_token', batch_size=batch_size),
-                                      do_persist=True, source_target_dict_file='test_source_target_dict.bin')
-
-
+        self.build_source_target_dict(
+            source_text=self.preprocess_corpus(test_source_text, preprocess_mode='add_control_token',
+                                               batch_size=batch_size),
+            target_text=self.preprocess_corpus(test_target_text, preprocess_mode='add_control_token',
+                                               batch_size=batch_size),
+            do_persist=True, source_target_dict_file='test_source_target_dict.bin')
 
 
 class WMT14_Eng_Ge_Dataset:
@@ -710,6 +717,7 @@ class WMT14_Eng_Ge_Dataset:
     Date: 2021-11-15
 
     """
+
     def __init__(self,
                  base_dir='../../dataset/WMT-14-English-Germa',
                  cache_data_folder='cache_data',
@@ -759,7 +767,6 @@ class WMT14_Eng_Ge_Dataset:
             self.vocab_source = Vocab(os.path.join(self.cache_data_dir, vocab_source_file))
             self.vocab_target = Vocab(os.path.join(self.cache_data_dir, vocab_target_file))
 
-
         self.tokenizer_source = tf.saved_model.load(os.path.join(self.cache_data_dir, tokenizer_source_file))
         self.tokenizer_target = tf.saved_model.load(os.path.join(self.cache_data_dir, tokenizer_target_file))
 
@@ -776,7 +783,8 @@ class WMT14_Eng_Ge_Dataset:
             # 验证数据
             self.valid_dataset = tf.data.experimental.load(valid_dataset_path)
 
-            valid_source_target_dict_path = os.path.join(self.cache_data_dir, '{}{}'.format(preffix, valid_source_target_dict_file))
+            valid_source_target_dict_path = os.path.join(self.cache_data_dir,
+                                                         '{}{}'.format(preffix, valid_source_target_dict_file))
 
             with open(valid_source_target_dict_path, 'rb') as f:
                 save_dict = pickle.load(f)
@@ -786,7 +794,8 @@ class WMT14_Eng_Ge_Dataset:
 
         elif mode == 'infer':
 
-            test_source_target_dict_path = os.path.join(self.cache_data_dir, '{}{}'.format(preffix, test_source_target_dict_file))
+            test_source_target_dict_path = os.path.join(self.cache_data_dir,
+                                                        '{}{}'.format(preffix, test_source_target_dict_file))
 
             with open(test_source_target_dict_path, 'rb') as f:
                 save_dict = pickle.load(f)
@@ -796,17 +805,21 @@ class WMT14_Eng_Ge_Dataset:
 
 class Test:
 
-    def test_DatasetGenerate(self, build_tokenizer=True, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
+    def test_DatasetGenerate(self, build_tokenizer=True, config_path='../../config/transformer_seq2seq.ini',
+                             tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
         current_config = config[tag]
 
-        process_obj = DatasetGenerate(config_path=config_path, tag=tag, cache_data_folder=current_config['cache_data_folder'])
+        process_obj = DatasetGenerate(config_path=config_path, tag=tag,
+                                      cache_data_folder=current_config['cache_data_folder'])
 
-        process_obj.do_mian(batch_size=int(current_config['batch_size']), build_tokenizer=build_tokenizer, n_vocab_source=int(current_config['n_vocab_source']),
-                        n_vocab_target=int(current_config['n_vocab_target']), org_seq_length=int(current_config['org_seq_length']), test_org_seq_length=int(current_config['test_org_seq_length']))
-
+        process_obj.do_mian(batch_size=int(current_config['batch_size']), build_tokenizer=build_tokenizer,
+                            n_vocab_source=int(current_config['n_vocab_source']),
+                            n_vocab_target=int(current_config['n_vocab_target']),
+                            org_seq_length=int(current_config['org_seq_length']),
+                            test_org_seq_length=int(current_config['test_org_seq_length']))
 
     def test_WMT14_Eng_Ge_Dataset(self, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
@@ -821,7 +834,6 @@ class Test:
 
             # 查看 1 个批次的数据
             for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
-
                 source = source[:4]
                 target = target[:4]
 
@@ -857,7 +869,6 @@ class Test:
 
             # 查看 1 个批次的数据
             for batch_feature, batch_label in tqdm(dataset.take(1)):
-
                 source_vector = batch_feature[0]
 
                 target_in_vector = batch_feature[1]
@@ -890,8 +901,7 @@ class Test:
             # shuffle 的粒度为 batch
 
             # 查看 1 个批次的数据
-            for batch_feature in tqdm(dataset.take(1)):
-
+            for batch_feature in tqdm(dataset.take(20)):
                 source_vector = batch_feature[0]
                 target_vector = batch_feature[1]
 
@@ -912,7 +922,6 @@ class Test:
         print('rows of source_target_dict: ')
 
         for id, (source, target_list) in enumerate(list(dataset_infer_obj.test_source_target_dict.items())[:2]):
-
             print(id)
             print('source :')
             print(source)
@@ -922,7 +931,6 @@ class Test:
             print(target_list[0])
             print(dataset_infer_obj.vocab_target.map_word_to_id(target_list[0].split()))
 
-
         print('vocab_source: ')
 
         print('word [START] index: ', dataset_infer_obj.vocab_source.map_word_to_id('[START]'))
@@ -931,7 +939,6 @@ class Test:
         print('word [NULL] index: ', dataset_infer_obj.vocab_source.map_word_to_id(''))
         print('word a index: ', dataset_infer_obj.vocab_source.map_word_to_id('a'))
         print('word -= index: ', dataset_infer_obj.vocab_source.map_word_to_id('-='))
-
 
         print('vocab_target: ')
 
@@ -951,15 +958,11 @@ class Test:
         print('word ämter index: ', int(dataset_infer_obj.vocab_target.map_word_to_id('ämter')))
 
 
-
-
 if __name__ == '__main__':
     test = Test()
 
-    #TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
+    # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DatasetGenerate(build_tokenizer=False, config_path='../../config/transformer_seq2seq.ini', tag='TEST')
+    # test.test_DatasetGenerate(build_tokenizer=False, config_path='../../config/transformer_seq2seq.ini', tag='TEST') # DEFAULT
 
-    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')
-
-
+    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')  # DEFAULT

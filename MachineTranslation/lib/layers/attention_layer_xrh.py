@@ -213,7 +213,7 @@ class MultiHeadAttention(Layer):
 
     def scaled_dot_product_attention(self, q, k, v, mask):
         """
-        缩放后的对齐函数为 dot 的 attention
+        经过缩放的(scaled)对齐函数为 dot 的 attention
 
         :param q: shape (..., seq_len_q, depth) ... 代表可以有多个维度
         :param k: shape (..., seq_len_k, depth)
@@ -236,9 +236,10 @@ class MultiHeadAttention(Layer):
 
         # softmax 归一化作用于张量的最后一个维度(轴) 上
         attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)  # shape (..., seq_len_q, seq_len_k)
-        # seq_len_q == seq_len_k
+        # seq_len_q == seq_len_k == seq_len_v
 
         output = tf.matmul(attention_weights, v)
+        # attention_weights shape (..., seq_len_q, seq_len_k), v shape (..., seq_len_v, depth)
         # output shape (..., seq_len_q, depth)
 
         return output, attention_weights
