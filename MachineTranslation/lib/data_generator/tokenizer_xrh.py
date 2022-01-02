@@ -127,11 +127,23 @@ class SubwordTokenizer(tf.keras.Model):
 
     @tf.function
     def detokenize(self, tokenized):
+        """
+        合并所有的 subword 并返回单词列表
+
+        :param tokenized:
+        :return:
+        """
         words = self.tokenizer.detokenize(tokenized)
         return words
 
     @tf.function
     def lookup(self, token_ids):
+        """
+        返回 subword 的 token 列表
+
+        :param token_ids:
+        :return:
+        """
         return tf.gather(self.vocab, token_ids)
 
 
@@ -168,6 +180,21 @@ class SpaceTokenizer(tf.keras.Model):
 
         self.vocab_list = self.tokenizer.get_vocabulary()
 
+        # Include `detokenize` and `lookup` signatures for:
+        #   * `Tensors` with shapes [tokens] and [batch, tokens]
+        #   * `RaggedTensors` with shape [batch, tokens]
+        self.detokenize.get_concrete_function(
+            tf.TensorSpec(shape=[None, None], dtype=tf.int64))
+
+        self.detokenize.get_concrete_function(
+            tf.RaggedTensorSpec(shape=[None, None], dtype=tf.int64))
+
+        self.lookup.get_concrete_function(
+            tf.TensorSpec(shape=[None, None], dtype=tf.int64))
+
+        self.lookup.get_concrete_function(
+            tf.RaggedTensorSpec(shape=[None, None], dtype=tf.int64))
+
     @tf.function(input_signature=[tf.TensorSpec(dtype=tf.string, shape=[None])])
     def tokenize_fixed(self, strings):
         """
@@ -196,6 +223,23 @@ class SpaceTokenizer(tf.keras.Model):
 
         return ragged
 
+    @tf.function
+    def detokenize(self, tokenized):
+        """
+        返回单词列表
+        :param tokenized:
+        :return:
+        """
+        return tf.gather(self.vocab_list, tokenized)
+
+    @tf.function
+    def lookup(self, token_ids):
+        """
+        返回单词列表
+        :param token_ids:
+        :return:
+        """
+        return tf.gather(self.vocab_list, token_ids)
 
 class Test:
 
@@ -244,6 +288,12 @@ class Test:
         corpus_vector_fixed = corpus_dataset.map(lambda batch_text: model_tokenizer.tokenize_fixed(batch_text))
 
         print(list(corpus_vector_fixed)[0])
+
+        corpus_str = corpus_vector.map(lambda batch: model_tokenizer.detokenize(batch))
+        vectors = list(corpus_str)[0]
+        print(vectors)
+        text = tf.strings.reduce_join(vectors, separator=' ', axis=-1)
+        print(text)
 
     def test_SubwordTokenizer(self):
 
@@ -294,9 +344,9 @@ if __name__ == '__main__':
 
     test = Test()
 
-    # test.test_SpaceTokenizer()
+    test.test_SpaceTokenizer()
 
-    test.test_SubwordTokenizer()
+    # test.test_SubwordTokenizer()
 
 
 
