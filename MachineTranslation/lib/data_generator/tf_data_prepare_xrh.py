@@ -813,6 +813,7 @@ class Test:
         current_config = config[tag]
 
         process_obj = DatasetGenerate(config_path=config_path, tag=tag,
+                                      base_dir='../../dataset/TED-Portuguese-English',
                                       cache_data_folder=current_config['cache_data_folder'])
 
         process_obj.do_mian(batch_size=int(current_config['batch_size']), build_tokenizer=build_tokenizer,
@@ -963,6 +964,6 @@ if __name__ == '__main__':
 
     # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DatasetGenerate(build_tokenizer=False, config_path='../../config/transformer_seq2seq.ini', tag='TEST') # DEFAULT
+    test.test_DatasetGenerate(build_tokenizer=True, config_path='../../config/transformer_seq2seq.ini', tag='TEST-1') # DEFAULT
 
-    test.test_WMT14_Eng_Ge_Dataset(tag='TEST')  # DEFAULT
+    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini', tag='TEST')  # DEFAULT

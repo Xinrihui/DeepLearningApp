@@ -509,6 +509,6 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST')  # DEFAULT
+    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST-1')  # DEFAULT
 
-    test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='TEST') # DEFAULT
+    # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='TEST-1') # DEFAULT
