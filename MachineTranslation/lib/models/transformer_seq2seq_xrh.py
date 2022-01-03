@@ -777,9 +777,9 @@ class TrainModel(Model):
                     print(
                         f'Epoch {epoch + 1} Batch {batch} Loss {self.loss_tracker.result():.4f} Accuracy {self.accuracy_metric.result():.4f}')
 
-                if (epoch + 1) % 5 == 0:
-                    ckpt_save_path = ckpt_manager.save()
-                    print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
+            if (epoch + 1) % 5 == 0:
+                ckpt_save_path = ckpt_manager.save()
+                print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
 
             print(f'Epoch {epoch + 1} Loss {self.loss_tracker.result():.4f} Accuracy {self.accuracy_metric.result():.4f}')
 

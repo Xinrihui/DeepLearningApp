@@ -372,7 +372,7 @@ class DatasetGenerate:
 
         print('dataset batch num: ', len(source_dataset))
 
-        if self.return_mode == 'symbolic':  # 返回符号化后的句子, 模型可以直接加载进入训练
+        if self.return_mode == 'fixed_length':  # 返回符号化后的句子, 并保证所有 batch 中序列的长度均相同
 
             # 将文本标记化, 所有 batch 的 序列的长度均相同
             source_vector = source_dataset.map(lambda batch_text: tokenizer_source.tokenize_fixed(batch_text))
@@ -393,6 +393,16 @@ class DatasetGenerate:
             labels = target_out
 
             dataset = tf.data.Dataset.zip((features, labels))
+
+        elif self.return_mode == 'tokenized':  # 返回符号化后的句子
+
+            source_vector = source_dataset.map(lambda batch_text: tokenizer_source.tokenize(batch_text).to_tensor())
+            target_vector = target_dataset.map(lambda batch_text: tokenizer_target.tokenize(batch_text).to_tensor())
+
+            print('tokenize text complete!')
+
+            dataset = tf.data.Dataset.zip((source_vector, target_vector))
+
 
         elif self.return_mode == 'dynamic_batch':  # 返回符号化后的句子, 并动态划分 batch
 
@@ -838,7 +848,7 @@ class Test:
         dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], base_dir=base_dir, mode='train')
         dataset_infer_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], base_dir=base_dir, mode='infer')
 
-        if current_config['return_mode'] == 'mid':
+        if current_config['return_mode'] == 'text':
 
             # 查看 1 个批次的数据
             for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
@@ -868,7 +878,7 @@ class Test:
                 print(tf.strings.reduce_join(detoken, separator=' ', axis=-1))
 
 
-        elif current_config['return_mode'] == 'final':
+        elif current_config['return_mode'] == 'fixed_length':
 
             dataset = dataset_train_obj.train_dataset.unbatch()
             # 保证所有的 batch 中序列的长度均一致, 才能进入后面的 shuffle
@@ -901,7 +911,7 @@ class Test:
                 print('target_out_vector:')
                 print(target_out_vector)
 
-        elif current_config['return_mode'] == 'dynamic_batch':
+        elif current_config['return_mode'] in ('tokenized', 'dynamic_batch'):
 
             dataset = dataset_train_obj.train_dataset
 
@@ -909,7 +919,7 @@ class Test:
             # shuffle 的粒度为 batch
 
             # 查看 1 个批次的数据
-            for batch_feature in tqdm(dataset.take(20)):
+            for batch_feature in tqdm(dataset.take(3)):
                 source_vector = batch_feature[0]
                 target_vector = batch_feature[1]
 
