@@ -3,9 +3,10 @@
 
 import tensorflow as tf
 
+from lib.data_generator.tf_data_prepare_xrh import *
+
 from tensorflow.keras.layers import StringLookup
 
-from lib.data_generator.tf_data_prepare_xrh import *
 
 
 class Vocab:
@@ -160,13 +161,21 @@ class VocabTf:
 
 class Test:
 
-    def test_VocabTf(self, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
+    def test_VocabTf(self, base_dir, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
         current_config = config[tag]
 
-        dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], use_tf_vocab=True, mode='train')
+        dataset_train_obj = WMT14_Eng_Ge_Dataset(
+            base_dir=base_dir,
+            cache_data_folder=current_config['cache_data_folder'],
+            use_tf_vocab=True,
+            mode='train')
+
+        print('n_vocab_source: ', dataset_train_obj.vocab_source.n_vocab)
+
+        print('n_vocab_target: ', dataset_train_obj.vocab_target.n_vocab)
 
         if current_config['return_mode'] == 'mid':
             # 查看 1 个批次的数据
@@ -194,4 +203,5 @@ if __name__ == '__main__':
 
     test = Test()
 
-    test.test_VocabTf(tag='TEST')
+    test.test_VocabTf(base_dir='../../dataset/TED-Portuguese-English',
+    config_path='../../config/transformer_seq2seq.ini', tag='TEST-1')

@@ -23,9 +23,10 @@ class SubwordTokenizer(tf.keras.Model):
 
     """
 
-    def __init__(self, fixed_seq_length, reserved_tokens, vocab_list, _start_str, _end_str):
+    def __init__(self, bert_tokenizer_params, fixed_seq_length, reserved_tokens, vocab_list, _start_str, _end_str):
         """
 
+        :param bert_tokenizer_params: bert_tokenizer 的参数(字典形式)
         :param fixed_seq_length: 指定的序列长度
         :param reserved_tokens: 保留的控制字符,
                 ["[NULL]", "[UNK]", "[START]", "[END]"]
@@ -47,7 +48,7 @@ class SubwordTokenizer(tf.keras.Model):
                 keys=vocab_list,
                 values=tf.range(len(vocab_list), dtype=tf.int64)))
 
-        bert_tokenizer_params = dict(lower_case=False)
+        # bert_tokenizer_params = dict(lower_case=False)
 
         self.tokenizer = tf_text.BertTokenizer(lookup, **bert_tokenizer_params)
 
@@ -321,7 +322,7 @@ class Test:
         )
 
         fixed_seq_length = 50
-        tokenizer = SubwordTokenizer(fixed_seq_length, reserved_tokens, target_vocab,
+        tokenizer = SubwordTokenizer(bert_tokenizer_params, fixed_seq_length, reserved_tokens, target_vocab,
                                      _start_str="[START]", _end_str="[END]")
 
         for batch_seq in target_dataset.take(1):
@@ -344,9 +345,9 @@ if __name__ == '__main__':
 
     test = Test()
 
-    test.test_SpaceTokenizer()
+    # test.test_SpaceTokenizer()
 
-    # test.test_SubwordTokenizer()
+    test.test_SubwordTokenizer()
 
 
 

@@ -279,7 +279,8 @@ class DatasetGenerate:
 
         reserved_tokens = [self._null_str, self._unk_str, self._start_str, self._end_str]
 
-        bert_tokenizer_params = dict(lower_case=False)
+        bert_tokenizer_params = dict(lower_case=True)
+
         bert_vocab_args = dict(
             # The target vocabulary size
             vocab_size=n_vocab,
@@ -300,7 +301,8 @@ class DatasetGenerate:
 
         print('vocab_list: ', vocab_list[:20])
 
-        tokenizer = SubwordTokenizer(fixed_seq_length=self.fixed_seq_length,
+        tokenizer = SubwordTokenizer(bert_tokenizer_params=bert_tokenizer_params,
+                                     fixed_seq_length=self.fixed_seq_length,
                                      reserved_tokens=reserved_tokens, vocab_list=vocab_list,
                                      _start_str=self._start_str, _end_str=self._end_str
                                      )
@@ -805,7 +807,9 @@ class WMT14_Eng_Ge_Dataset:
 
 class Test:
 
-    def test_DatasetGenerate(self, build_tokenizer=True, config_path='../../config/transformer_seq2seq.ini',
+    def test_DatasetGenerate(self, build_tokenizer=True,
+                             config_path='../../config/transformer_seq2seq.ini',
+                             base_dir='../../dataset/WMT-14-English-Germa',
                              tag='DEFAULT'):
 
         config = configparser.ConfigParser()
@@ -813,7 +817,7 @@ class Test:
         current_config = config[tag]
 
         process_obj = DatasetGenerate(config_path=config_path, tag=tag,
-                                      base_dir='../../dataset/TED-Portuguese-English',
+                                      base_dir=base_dir,
                                       cache_data_folder=current_config['cache_data_folder'])
 
         process_obj.do_mian(batch_size=int(current_config['batch_size']), build_tokenizer=build_tokenizer,
@@ -822,14 +826,17 @@ class Test:
                             org_seq_length=int(current_config['org_seq_length']),
                             test_org_seq_length=int(current_config['test_org_seq_length']))
 
-    def test_WMT14_Eng_Ge_Dataset(self, config_path='../../config/transformer_seq2seq.ini', tag='DEFAULT'):
+    def test_WMT14_Eng_Ge_Dataset(self,
+                                  config_path='../../config/transformer_seq2seq.ini',
+                                  base_dir='../../dataset/WMT-14-English-Germa',
+                                  tag='DEFAULT'):
 
         config = configparser.ConfigParser()
         config.read(config_path, 'utf-8')
         current_config = config[tag]
 
-        dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], mode='train')
-        dataset_infer_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], mode='infer')
+        dataset_train_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], base_dir=base_dir, mode='train')
+        dataset_infer_obj = WMT14_Eng_Ge_Dataset(cache_data_folder=current_config['cache_data_folder'], base_dir=base_dir, mode='infer')
 
         if current_config['return_mode'] == 'mid':
 
@@ -964,6 +971,11 @@ if __name__ == '__main__':
 
     # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DatasetGenerate(build_tokenizer=True, config_path='../../config/transformer_seq2seq.ini', tag='TEST-1') # DEFAULT
+    test.test_DatasetGenerate(build_tokenizer=True,
+                              config_path='../../config/transformer_seq2seq.ini',
+                              base_dir='../../dataset/TED-Portuguese-English',
+                              tag='TEST-1')  # DEFAULT
 
-    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini', tag='TEST')  # DEFAULT
+    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
+                                   base_dir='../../dataset/TED-Portuguese-English',
+                                   tag='TEST-1')  # DEFAULT

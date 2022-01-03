@@ -681,12 +681,12 @@ class TrainModel(Model):
             y_true_dense = tf.argmax(y_true, axis=-1)
 
         accuracies = tf.equal(y_true_dense, tf.argmax(y_pred, axis=-1))
+
         mask = tf.math.logical_not(tf.math.equal(y_true_dense, self._null_target))
 
         accuracies = tf.math.logical_and(mask, accuracies)
 
         accuracies = tf.cast(accuracies, dtype=tf.float32)
-
         mask = tf.cast(mask, dtype=tf.float32)
 
         return tf.reduce_sum(accuracies) / tf.reduce_sum(mask)
@@ -751,6 +751,17 @@ class TrainModel(Model):
         :param callbacks:
         :return:
         """
+        checkpoint_path = "models/checkpoints"
+
+        ckpt = tf.train.Checkpoint(model_train=self)
+
+        ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
+
+        # if a checkpoint exists, restore the latest checkpoint.
+        if ckpt_manager.latest_checkpoint:
+            ckpt.restore(ckpt_manager.latest_checkpoint)
+            print('Latest checkpoint restored!!')
+
 
         for epoch in range(epochs):
             start = time.time()
@@ -766,6 +777,9 @@ class TrainModel(Model):
                     print(
                         f'Epoch {epoch + 1} Batch {batch} Loss {self.loss_tracker.result():.4f} Accuracy {self.accuracy_metric.result():.4f}')
 
+                if (epoch + 1) % 5 == 0:
+                    ckpt_save_path = ckpt_manager.save()
+                    print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
 
             print(f'Epoch {epoch + 1} Loss {self.loss_tracker.result():.4f} Accuracy {self.accuracy_metric.result():.4f}')
 
