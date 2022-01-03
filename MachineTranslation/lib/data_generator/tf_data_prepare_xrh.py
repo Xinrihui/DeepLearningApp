@@ -852,8 +852,9 @@ class Test:
 
             # 查看 1 个批次的数据
             for source, target in tqdm(dataset_train_obj.train_dataset.take(1)):
-                source = source[:4]
-                target = target[:4]
+
+                # source = source[:4]
+                # target = target[:4]
 
                 print('source:')
                 print(source)
@@ -981,11 +982,11 @@ if __name__ == '__main__':
 
     # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DatasetGenerate(build_tokenizer=True,
+    test.test_DatasetGenerate(build_tokenizer=False,
                               config_path='../../config/transformer_seq2seq.ini',
                               base_dir='../../dataset/TED-Portuguese-English',
                               tag='TEST-1')  # DEFAULT
 
-    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
-                                   base_dir='../../dataset/TED-Portuguese-English',
-                                   tag='TEST-1')  # DEFAULT
+    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
+    #                                base_dir='../../dataset/TED-Portuguese-English',
+    #                                tag='TEST-1')  # DEFAULT

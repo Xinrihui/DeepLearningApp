@@ -123,6 +123,7 @@ class MachineTranslation:
         self.model_obj = TransformerSeq2seq(
                                   num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
                                   num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
+                                  return_mode=current_config['return_mode'],
                                   label_smoothing=float(current_config['label_smoothing']), warmup_steps=int(current_config['warmup_steps']),
                                   maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
                                   fixed_seq_length=fixed_seq_length,
