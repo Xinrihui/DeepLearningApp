@@ -660,7 +660,7 @@ class TrainModel(Model):
         else:
             y_true_dense = tf.argmax(y_true, axis=-1)
 
-        mask = (y_true_dense != self._null_target)  # 输出序列中为空的不计入损失函数
+        mask = tf.math.logical_not(tf.math.equal(y_true_dense, self._null_target))  # 输出序列中为空的不计入损失函数
 
         loss_ = self.loss_object(y_true, y_pred)
 
