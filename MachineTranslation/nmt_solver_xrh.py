@@ -88,9 +88,14 @@ class MachineTranslation:
 
         self.shuffle_mode = current_config['shuffle_mode']
 
+        self.return_mode = current_config['return_mode']
+
         self.build_mode = current_config['build_mode']
         self.save_mode = current_config['save_mode']
         self.model_path = current_config['model_path']
+
+        self.tokenizer_source = tokenizer_source
+        self.tokenizer_target = tokenizer_target
 
         fixed_seq_length = int(current_config['fixed_seq_length'])
         dropout_rates = json.loads(current_config['dropout_rates'])
@@ -123,7 +128,6 @@ class MachineTranslation:
         self.model_obj = TransformerSeq2seq(
                                   num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
                                   num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
-                                  return_mode=current_config['return_mode'],
                                   label_smoothing=float(current_config['label_smoothing']), warmup_steps=int(current_config['warmup_steps']),
                                   maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
                                   fixed_seq_length=fixed_seq_length,
@@ -131,7 +135,7 @@ class MachineTranslation:
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                   _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
                                   reverse_source=self.reverse_source,
-                                  build_mode=self.build_mode,
+                                  build_mode=current_config['build_mode'],
                                   )
 
 
@@ -164,6 +168,11 @@ class MachineTranslation:
             # tf.data 的数据混洗,分批和预取,
             # shuffle 后不能进行任何的 map 操作, 因为会改变 batch 中的数据行的组合
             dataset = dataset.shuffle(buffer_size).batch(batch_size)  #  shuffle 的粒度为 row
+
+            if self.return_mode == 'text':
+                dataset = dataset.map(lambda source, target:
+                                      (self.tokenizer_source.tokenize(source).to_tensor(), self.tokenizer_target.tokenize(target).to_tensor())
+                                      )
 
         elif self.shuffle_mode == 'batch':
 
@@ -237,7 +246,7 @@ class MachineTranslation:
 
         self.model_obj.model_train.compile()
 
-        history = self.model_obj.model_train.fit(
+        history = self.model_obj.model_train.fit_debug(
             x=train_dataset_prefetch,
             epochs=epoch_num,
             validation_data=valid_dataset_prefetch,

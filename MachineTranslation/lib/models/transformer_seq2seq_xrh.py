@@ -50,7 +50,7 @@ class TransformerSeq2seq:
     """
 
     def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates,
-                 return_mode, label_smoothing, warmup_steps,
+                  label_smoothing, warmup_steps,
                  maximum_position_source, maximum_position_target,
                  fixed_seq_length,
                  n_vocab_source, n_vocab_target,
@@ -66,7 +66,6 @@ class TransformerSeq2seq:
         :param num_heads: 并行注意力层的个数(头数)
         :param dff: Position-wise Feed-Forward 的中间层的维度
         :param dropout_rates: dropout 的弃置率
-        :param return_mode: 生成数据集的模式
         :param label_smoothing: 标签平滑
         :param warmup_steps: 优化器学习率的预热步骤
         :param maximum_position_source: 源句子的可能最大长度
@@ -101,7 +100,7 @@ class TransformerSeq2seq:
 
             self.model_train = TrainModel(
                 num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, dropout_rates=dropout_rates,
-                return_mode=return_mode, label_smoothing=label_smoothing, warmup_steps=warmup_steps,
+                label_smoothing=label_smoothing, warmup_steps=warmup_steps,
                 n_vocab_source=n_vocab_source, n_vocab_target=n_vocab_target,
                 _null_source=_null_source, _null_target=_null_target,
                 maximum_position_source=maximum_position_source, maximum_position_target=maximum_position_target,
@@ -559,7 +558,7 @@ class InferDecoder(Layer):
 class TrainModel(Model):
 
     def __init__(self, num_layers, d_model, num_heads, dff, dropout_rates,
-                 return_mode, label_smoothing, warmup_steps,
+                 label_smoothing, warmup_steps,
                  maximum_position_source, maximum_position_target,
                  n_vocab_source, n_vocab_target,
                  _null_source, _null_target,
@@ -572,7 +571,6 @@ class TrainModel(Model):
         :param num_heads: 并行注意力层的个数(头数)
         :param dff: Position-wise Feed-Forward Networks 的中间层的维度
         :param dropout_rates: dropout 的弃置率
-        :param return_mode: 生成数据集的模式
         :param label_smoothing: 标签平滑
         :param warmup_steps: 优化器学习率的预热步骤
         :param maximum_position_source: 源句子的可能最大长度
@@ -591,7 +589,6 @@ class TrainModel(Model):
         PE_source = SinusoidalPE(maximum_position=maximum_position_source, d_model=d_model)
         PE_target = SinusoidalPE(maximum_position=maximum_position_target, d_model=d_model)
 
-        self.return_mode = return_mode
         self.label_smoothing = label_smoothing
 
         self._null_source = _null_source
@@ -621,6 +618,7 @@ class TrainModel(Model):
         # learning_rate = 3e-4
         self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                              epsilon=1e-9)
+
 
     def call(self, inputs, training):
         """
@@ -702,16 +700,9 @@ class TrainModel(Model):
         :param target:
         :return:
         """
-        if self.return_mode in ('tokenized', 'dynamic_batch'):
-            source_vector = source  # shape (N_batch, source_length)
-            target_vector = target  # shape (N_batch, target_length)
 
-        elif self.return_mode == 'text':
-            source_vector = self.tokenizer_source(source).to_tensor()  # shape (N_batch, source_length)
-            target_vector = self.tokenizer_source(target).to_tensor()  # shape (N_batch, target_length)
-
-        else:
-            raise Exception('the value of return_mode is {}, which is illegal'.format(self.return_mode))
+        source_vector = source  # shape (N_batch, source_length)
+        target_vector = target  # shape (N_batch, target_length)
 
         target_in = target_vector[:, :-1]
         target_out = target_vector[:, 1:]
