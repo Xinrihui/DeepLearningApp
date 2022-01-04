@@ -723,7 +723,7 @@ class TrainModel(Model):
             tf.TensorSpec(shape=(None, None), dtype=tf.int64)
         )
     ]
-    # @tf.function(input_signature=signature)
+    @tf.function(input_signature=signature)
     def train_step(self, data):
 
         source, target = data
@@ -776,21 +776,21 @@ class TrainModel(Model):
 
             for (batch, batch_data) in enumerate(x):
 
-                self.train_step(batch_data)
+                res_dict = self.train_step(batch_data)
 
                 if batch % 50 == 0:
                     print(
-                        f'Epoch {epoch + 1} Batch {batch} Loss {self.loss_tracker.result():.4f} Accuracy {self.accuracy_metric.result():.4f}')
+                        f'Epoch {epoch + 1} Batch {batch} Loss {res_dict["loss"]:.4f} Accuracy {res_dict["accuracy"]:.4f}')
 
-            if (epoch + 1) % 5 == 0:
-                ckpt_save_path = ckpt_manager.save()
-                print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
+            # if (epoch + 1) % 5 == 0:
+            #     ckpt_save_path = ckpt_manager.save()
+            #     print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
 
-            print(f'Epoch {epoch + 1} Loss {self.loss_tracker.result():.4f} Accuracy {self.accuracy_metric.result():.4f}')
+            print(f'Epoch {epoch + 1} Loss {res_dict["loss"]:.4f} Accuracy {res_dict["accuracy"]:.4f}')
 
             print(f'Time taken for 1 epoch: {time.time() - start:.2f} secs\n')
 
-    # @tf.function(input_signature=signature)
+    @tf.function(input_signature=signature)
     def test_step(self, data):
 
         source, target = data

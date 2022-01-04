@@ -228,7 +228,7 @@ class MachineTranslation:
         model_checkpoint_with_eval = CheckoutCallback(current_config=self.current_config,
                                                       nmt_obj=self,
                                                       vocab_obj=self.vocab_target, valid_source_target_dict=valid_source_target_dict,
-                                                      evaluate_bleu=False
+                                                      evaluate_bleu=True
                                                       )
 
         # Final callbacks
@@ -248,7 +248,7 @@ class MachineTranslation:
                                            optimizer=self.model_obj.model_train.optimizer,
                                            metrics=self.model_obj.model_train.accuracy_metric)
 
-        history = self.model_obj.model_train.fit_debug(
+        history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,
             epochs=epoch_num,
             validation_data=valid_dataset_prefetch,
