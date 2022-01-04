@@ -981,10 +981,19 @@ if __name__ == '__main__':
     # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
     test.test_DatasetGenerate(build_tokenizer=False,
-                              config_path='../../config/transformer_seq2seq.ini',
-                              base_dir='../../dataset/TED-Portuguese-English',
-                              tag='TEST-1')  # DEFAULT
+                              config_path='../../config/attention_seq2seq.ini',
+                              base_dir='../../dataset/WMT-14-English-Germa',
+                              tag='TEST')  # DEFAULT
 
-    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
-                                   base_dir='../../dataset/TED-Portuguese-English',
-                                   tag='TEST-1')  # DEFAULT
+    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/attention_seq2seq.ini',
+                                   base_dir='../../dataset/WMT-14-English-Germa',
+                                   tag='TEST')  # DEFAULT
+
+    # test.test_DatasetGenerate(build_tokenizer=False,
+    #                           config_path='../../config/transformer_seq2seq.ini',
+    #                           base_dir='../../dataset/TED-Portuguese-English',
+    #                           tag='TEST-1')  # DEFAULT
+    #
+    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
+    #                                base_dir='../../dataset/TED-Portuguese-English',
+    #                                tag='TEST-1')  # DEFAULT

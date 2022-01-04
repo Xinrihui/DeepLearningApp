@@ -14,6 +14,8 @@ from lib.data_generator.tf_data_prepare_xrh import *
 # from lib.models.seq2seq_xrh import *
 # from lib.models.ensemble_seq2seq_xrh import *
 
+from lib.models.attention_seq2seq_xrh import *
+
 from lib.models.transformer_seq2seq_xrh import *
 
 import configparser
@@ -87,10 +89,9 @@ class MachineTranslation:
         self._unk_target = int(self.vocab_target.map_word_to_id(_unk_str))  # 未登录词
 
         self.shuffle_mode = current_config['shuffle_mode']
-
         self.return_mode = current_config['return_mode']
-
         self.build_mode = current_config['build_mode']
+
         self.save_mode = current_config['save_mode']
         self.model_path = current_config['model_path']
 
@@ -98,6 +99,7 @@ class MachineTranslation:
         self.tokenizer_target = tokenizer_target
 
         fixed_seq_length = int(current_config['fixed_seq_length'])
+
         dropout_rates = json.loads(current_config['dropout_rates'])
 
         # 构建模型
@@ -112,31 +114,30 @@ class MachineTranslation:
         #                           dropout_rates=dropout_rates)
 
         # 2.AttentionSeq2seq
-        # self.model_obj = AttentionSeq2seq(
-        #                           n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']),
-        #                           max_seq_length=fixed_seq_length,
-        #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
-        #                           vocab_target=self.vocab_target,
-        #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
-        #                           _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
-        #                           reverse_source=self.reverse_source,
-        #                           build_mode=self.build_mode,
-        #                           dropout_rates=dropout_rates)
-
-        # 3.TransformerSeq2seq
-
-        self.model_obj = TransformerSeq2seq(
-                                  num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
-                                  num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
-                                  label_smoothing=float(current_config['label_smoothing']), warmup_steps=int(current_config['warmup_steps']),
-                                  maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
-                                  fixed_seq_length=fixed_seq_length,
+        self.model_obj = AttentionSeq2seq(
+                                  n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']),
+                                  max_seq_length=fixed_seq_length, dropout_rates=dropout_rates,
                                   n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
+                                  vocab_target=self.vocab_target,
                                   tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
                                   _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
                                   reverse_source=self.reverse_source,
                                   build_mode=current_config['build_mode'],
                                   )
+
+        # 3.TransformerSeq2seq
+
+        # self.model_obj = TransformerSeq2seq(
+        #                           num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
+        #                           num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
+        #                           label_smoothing=float(current_config['label_smoothing']), warmup_steps=int(current_config['warmup_steps']),
+        #                           maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
+        #                           fixed_seq_length=fixed_seq_length,
+        #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
+        #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+        #                           _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
+        #                           build_mode=current_config['build_mode'],
+        #                           )
 
 
         if use_pretrain:  # 载入训练好的模型
@@ -205,7 +206,6 @@ class MachineTranslation:
         train_dataset_prefetch = self._shuffle_dataset(train_dataset, buffer_size, batch_size)
         valid_dataset_prefetch = self._shuffle_dataset(valid_dataset, buffer_size, batch_size)
 
-        checkpoint_models_path = self.current_config['checkpoint_models_path']
 
         # Callbacks
         # [1] tensorboard
@@ -234,19 +234,23 @@ class MachineTranslation:
         # Final callbacks
         callbacks = [model_checkpoint_with_eval]
 
-        # loss_function = self.model_obj._mask_loss_function
+        # for AttentionSeq2seq
+
+        loss_function = self.model_obj._mask_loss_function
 
         # loss_function = MaskedLoss(_null_target=self._null_target) # TODO: 报错, 未找出原因
 
+        optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
         # optimizer = tf.keras.optimizers.RMSprop()
-        # optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
-        # self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
+        self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
 
-        self.model_obj.model_train.compile(loss=self.model_obj.model_train.loss_tracker,
-                                           optimizer=self.model_obj.model_train.optimizer,
-                                           metrics=self.model_obj.model_train.accuracy_metric)
+        # for TransformerSeq2seq
+        # self.model_obj.model_train.compile(loss=self.model_obj.model_train.loss_tracker,
+        #                                    optimizer=self.model_obj.model_train.optimizer,
+        #                                    metrics=self.model_obj.model_train.accuracy_metric)
+
 
         history = self.model_obj.model_train.fit(
             x=train_dataset_prefetch,
@@ -398,7 +402,7 @@ class CheckoutCallback(keras.callbacks.Callback):
             self.inference_bleu()
 
 
-class Test_WMT14_Eng_Ge_Dataset:
+class Test_MachineTranslation:
 
     def test_training(self, config_path='config/transformer_seq2seq.ini', tag='DEFAULT'):
 
@@ -515,12 +519,16 @@ class Test_WMT14_Eng_Ge_Dataset:
 
 if __name__ == '__main__':
 
-    test = Test_WMT14_Eng_Ge_Dataset()
+    test = Test_MachineTranslation()
 
     # TODO: 每次实验前
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST-1')  # DEFAULT
+    test.test_training(config_path='config/attention_seq2seq.ini', tag='TEST')  # DEFAULT
 
+    # test.test_evaluating(config_path='config/attention_seq2seq.ini', tag='TEST') # DEFAULT
+
+
+    # test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST-1')  # DEFAULT
     # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='TEST-1') # DEFAULT

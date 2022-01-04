@@ -56,7 +56,6 @@ class TransformerSeq2seq:
                  n_vocab_source, n_vocab_target,
                  _null_source, _start_target, _null_target, _end_target,
                  tokenizer_source, tokenizer_target,
-                 reverse_source=True,
                  build_mode='Eager',
                  ):
         """
@@ -79,12 +78,15 @@ class TransformerSeq2seq:
         :param _end_target: 目标序列的结束标号
         :param tokenizer_source: 源语言的分词器
         :param tokenizer_target: 目标语言的分词器
-        :param reverse_source: 是否将源序列倒置
         :param build_mode: 建立训练计算图的方式
         """
 
         super().__init__()
 
+        print('model architecture param:')
+        print('num_layers:{}, d_model:{}, num_heads:{}, dff:{}'.format(num_layers, d_model, num_heads,
+                                                                                    dff))
+        print('-------------------------')
 
         # 最大的序列长度
         self.fixed_seq_length = fixed_seq_length
@@ -168,7 +170,7 @@ class EncoderLayer(Layer):
         self.layernorm2 = LayerNormalization(epsilon=1e-6)
 
         self.dropout1 = Dropout(dropout_rates[0])
-        self.dropout2 = Dropout(dropout_rates[1])
+        self.dropout2 = Dropout(dropout_rates[0])
 
     def get_config(self):
         config = super().get_config().copy()
@@ -233,8 +235,8 @@ class DecoderLayer(Layer):
         self.layernorm3 = LayerNormalization(epsilon=1e-6)
 
         self.dropout1 = Dropout(dropout_rates[0])
-        self.dropout2 = Dropout(dropout_rates[1])
-        self.dropout3 = Dropout(dropout_rates[2])
+        self.dropout2 = Dropout(dropout_rates[0])
+        self.dropout3 = Dropout(dropout_rates[0])
 
     def get_config(self):
         config = super().get_config().copy()
