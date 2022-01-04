@@ -658,7 +658,7 @@ class TrainModel(Model):
         else:
             y_true_dense = tf.argmax(y_true, axis=-1)
 
-        mask = tf.math.logical_not(tf.math.equal(y_true_dense, self._null_target))  # 输出序列中为空的不计入损失函数
+        mask = (y_true_dense != self._null_target)  # 输出序列中为空的不计入损失函数
 
         loss_ = self.loss_object(y_true, y_pred)
 
@@ -683,7 +683,7 @@ class TrainModel(Model):
 
         accuracies = tf.equal(y_true_dense, tf.argmax(y_pred, axis=-1))
 
-        mask = tf.math.logical_not(tf.math.equal(y_true_dense, self._null_target))
+        mask = (y_true_dense != self._null_target)
 
         accuracies = tf.math.logical_and(mask, accuracies)
 
@@ -723,7 +723,7 @@ class TrainModel(Model):
             tf.TensorSpec(shape=(None, None), dtype=tf.int64)
         )
     ]
-    @tf.function(input_signature=signature)
+    # @tf.function(input_signature=signature)
     def train_step(self, data):
 
         source, target = data
@@ -790,7 +790,7 @@ class TrainModel(Model):
 
             print(f'Time taken for 1 epoch: {time.time() - start:.2f} secs\n')
 
-    @tf.function(input_signature=signature)
+    # @tf.function(input_signature=signature)
     def test_step(self, data):
 
         source, target = data

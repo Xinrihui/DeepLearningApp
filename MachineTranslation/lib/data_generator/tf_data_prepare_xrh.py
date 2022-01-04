@@ -82,13 +82,11 @@ class CorpusNormalize:
         :param text:
         :return:
         """
-        # 删除在各个语系外的字符
-        # text = tf.strings.regex_replace(text, self.remove_unk, ' ')
 
         # NKFC unicode 标准化 +  大小写折叠
-        # text = tf_text.case_fold_utf8(text)
+        text = tf_text.case_fold_utf8(text)
 
-        text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
+        # text = tf_text.normalize_utf8(text)  # NKFC unicode 标准化
 
         return text
 
@@ -982,10 +980,10 @@ if __name__ == '__main__':
 
     # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DatasetGenerate(build_tokenizer=False,
-    #                           config_path='../../config/transformer_seq2seq.ini',
-    #                           base_dir='../../dataset/TED-Portuguese-English',
-    #                           tag='TEST-1')  # DEFAULT
+    test.test_DatasetGenerate(build_tokenizer=False,
+                              config_path='../../config/transformer_seq2seq.ini',
+                              base_dir='../../dataset/TED-Portuguese-English',
+                              tag='TEST-1')  # DEFAULT
 
     test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
                                    base_dir='../../dataset/TED-Portuguese-English',

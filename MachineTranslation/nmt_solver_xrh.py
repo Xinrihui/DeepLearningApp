@@ -244,7 +244,9 @@ class MachineTranslation:
 
         # self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
 
-        self.model_obj.model_train.compile()
+        self.model_obj.model_train.compile(loss=self.model_obj.model_train.loss_tracker,
+                                           optimizer=self.model_obj.model_train.optimizer,
+                                           metrics=self.model_obj.model_train.accuracy_metric)
 
         history = self.model_obj.model_train.fit_debug(
             x=train_dataset_prefetch,
@@ -254,7 +256,7 @@ class MachineTranslation:
             callbacks=callbacks
             )
 
-        print('final learning_rate:', round(self.model_obj.model_train.optimizer.lr.numpy(), 5))
+        # print('final learning_rate:', round(self.model_obj.model_train.optimizer.lr.numpy(), 5))
 
 
     def inference(self, batch_source_dataset, target_length=None):
