@@ -321,12 +321,16 @@ class Test:
             **bert_vocab_args
         )
 
+        # target_vocab.append('##AT##-##AT##')
+
         fixed_seq_length = 50
         tokenizer = SubwordTokenizer(bert_tokenizer_params, fixed_seq_length, reserved_tokens, target_vocab,
                                      _start_str="[START]", _end_str="[END]")
 
         for batch_seq in target_dataset.take(1):
             print(batch_seq.numpy())
+
+        # batch_seq = ['Muammar al ##AT##-##AT## Gaddafi liegt an einem unbekannten Ort in der Wüste begraben und ohne ihn ist der Krieg vorbei .']
 
         token_vector_fixed = tokenizer.tokenize_fixed(batch_seq)
         print(token_vector_fixed)

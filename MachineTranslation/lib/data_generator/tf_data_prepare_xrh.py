@@ -60,7 +60,7 @@ class CorpusNormalize:
         self.remove_digits = r'^(\d+ )+|( \d+)+ |(\d+)$'
 
         # 删除特定的单词
-        self.remove_words = r'(##AT##-##AT##|&apos|&quot)'
+        self.remove_words = r'(##AT##-##AT##|&quot;)'
 
     def add_control_token(self, text):
         """
@@ -82,6 +82,8 @@ class CorpusNormalize:
         :param text:
         :return:
         """
+        # 清除指定单词
+        # text = tf.strings.regex_replace(text, self.remove_words, '')
 
         # NKFC unicode 标准化 +  大小写折叠
         text = tf_text.case_fold_utf8(text)
@@ -277,7 +279,8 @@ class DatasetGenerate:
 
         reserved_tokens = [self._null_str, self._unk_str, self._start_str, self._end_str]
 
-        bert_tokenizer_params = dict(lower_case=True)
+        bert_tokenizer_params = {}
+        # 参数参考 https://www.tensorflow.org/text/api_docs/python/text/BertTokenizer
 
         bert_vocab_args = dict(
             # The target vocabulary size
@@ -608,7 +611,7 @@ class DatasetGenerate:
                                                                          org_seq_length)
 
         # 按照长度对 序列 进行排序
-        train_source_text, train_target_text = self.sort_by_seq_length(train_source_text, train_target_text)
+        # train_source_text, train_target_text = self.sort_by_seq_length(train_source_text, train_target_text)
 
         train_source_dataset = self.preprocess_corpus(train_source_text, batch_size=batch_size)
         train_target_dataset = self.preprocess_corpus(train_target_text, batch_size=batch_size)
@@ -675,7 +678,7 @@ class DatasetGenerate:
                                                                          org_seq_length)
 
         # 按照长度对 序列 进行排序
-        valid_source_text, valid_target_text = self.sort_by_seq_length(valid_source_text, valid_target_text)
+        # valid_source_text, valid_target_text = self.sort_by_seq_length(valid_source_text, valid_target_text)
 
         valid_source_dataset = self.preprocess_corpus(valid_source_text, batch_size=batch_size)
         valid_target_dataset = self.preprocess_corpus(valid_target_text, batch_size=batch_size)
@@ -705,7 +708,7 @@ class DatasetGenerate:
                                                                        test_org_seq_length)
 
         # 按照长度对 序列 进行排序
-        test_source_text, test_target_text = self.sort_by_seq_length(test_source_text, test_target_text)
+        # test_source_text, test_target_text = self.sort_by_seq_length(test_source_text, test_target_text)
 
         # 测试数据 source_target_dict
         self.build_source_target_dict(
@@ -918,7 +921,7 @@ class Test:
             # shuffle 的粒度为 batch
 
             # 查看 1 个批次的数据
-            for batch_feature in tqdm(dataset.take(3)):
+            for batch_feature in tqdm(dataset.take(1)):
                 source_vector = batch_feature[0]
                 target_vector = batch_feature[1]
 
@@ -938,15 +941,15 @@ class Test:
 
         print('rows of source_target_dict: ')
 
-        for id, (source, target_list) in enumerate(list(dataset_infer_obj.test_source_target_dict.items())[:2]):
-            print(id)
-            print('source :')
-            print(source)
-            print(dataset_infer_obj.vocab_source.map_word_to_id(source.split()))
-
-            print('target :')
-            print(target_list[0])
-            print(dataset_infer_obj.vocab_target.map_word_to_id(target_list[0].split()))
+        # for id, (source, target_list) in enumerate(list(dataset_infer_obj.test_source_target_dict.items())[:2]):
+        #     print(id)
+        #     print('source :')
+        #     print(source)
+        #     print(dataset_infer_obj.vocab_source.map_word_to_id(source.split()))
+        #
+        #     print('target :')
+        #     print(target_list[0])
+        #     print(dataset_infer_obj.vocab_target.map_word_to_id(target_list[0].split()))
 
         print('vocab_source: ')
 
@@ -980,20 +983,20 @@ if __name__ == '__main__':
 
     # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DatasetGenerate(build_tokenizer=False,
-                              config_path='../../config/attention_seq2seq.ini',
-                              base_dir='../../dataset/WMT-14-English-Germa',
-                              tag='TEST')  # DEFAULT
-
-    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/attention_seq2seq.ini',
-                                   base_dir='../../dataset/WMT-14-English-Germa',
-                                   tag='TEST')  # DEFAULT
-
     # test.test_DatasetGenerate(build_tokenizer=False,
-    #                           config_path='../../config/transformer_seq2seq.ini',
-    #                           base_dir='../../dataset/TED-Portuguese-English',
-    #                           tag='TEST-1')  # DEFAULT
+    #                           config_path='../../config/attention_seq2seq.ini',
+    #                           base_dir='../../dataset/WMT-14-English-Germa',
+    #                           tag='DEFAULT')  # DEFAULT
     #
-    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
-    #                                base_dir='../../dataset/TED-Portuguese-English',
-    #                                tag='TEST-1')  # DEFAULT
+    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/attention_seq2seq.ini',
+    #                                base_dir='../../dataset/WMT-14-English-Germa',
+    #                                tag='DEFAULT')  # DEFAULT
+
+    test.test_DatasetGenerate(build_tokenizer=False,
+                              config_path='../../config/transformer_seq2seq.ini',
+                              # base_dir='../../dataset/TED-Portuguese-English',
+                              tag='DEFAULT')  # DEFAULT
+
+    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
+                                   # base_dir='../../dataset/TED-Portuguese-English',
+                                   tag='DEFAULT')  # DEFAULT
