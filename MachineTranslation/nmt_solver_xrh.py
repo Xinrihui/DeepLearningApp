@@ -463,7 +463,7 @@ class Test_MachineTranslation:
 
             # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
             dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
-                                               cache_data_folder=current_config['cache_data_folder'], mode='infer')
+                                               cache_data_folder=current_config['cache_data_folder'], mode='train')
 
             batch_size = int(current_config['batch_size'])
             target_length = int(current_config['infer_target_length'])
@@ -478,9 +478,9 @@ class Test_MachineTranslation:
                 use_pretrain=True
             )
 
-            source_target_dict = dataset_obj.test_source_target_dict
+            # source_target_dict = dataset_obj.test_source_target_dict
 
-            # source_target_dict = dataset_obj.valid_source_target_dict
+            source_target_dict = dataset_obj.valid_source_target_dict
 
             source_list = list(source_target_dict.keys())
 
@@ -530,6 +530,6 @@ if __name__ == '__main__':
     # test.test_evaluating(config_path='config/attention_seq2seq.ini', tag='TEST') # DEFAULT
 
 
-    test.test_training(config_path='config/transformer_seq2seq.ini', tag='DEFAULT')  # DEFAULT
+    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST-1')  # DEFAULT
 
-    # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='DEFAULT') # DEFAULT
+    # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='TEST-1') # DEFAULT

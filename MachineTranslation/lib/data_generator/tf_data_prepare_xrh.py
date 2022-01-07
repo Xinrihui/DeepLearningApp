@@ -690,11 +690,12 @@ class DatasetGenerate:
 
         # 验证数据 source_target_dict
         self.build_source_target_dict(
-            source_text=self.preprocess_corpus(valid_source_text, preprocess_mode='add_control_token',
+            source_text=self.preprocess_corpus(valid_source_text, preprocess_mode='none',
                                                batch_size=batch_size),
-            target_text=self.preprocess_corpus(valid_target_text, preprocess_mode='add_control_token',
+            target_text=self.preprocess_corpus(valid_target_text, preprocess_mode='none',
                                                batch_size=batch_size),
             do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
+        # TODO: 若在 tokenize 的时会在句子的前后添加控制字符,  则 preprocess_mode='none' 避免重复添加
 
         # 3.测试数据处理
         print('--------------------------------')
@@ -712,9 +713,9 @@ class DatasetGenerate:
 
         # 测试数据 source_target_dict
         self.build_source_target_dict(
-            source_text=self.preprocess_corpus(test_source_text, preprocess_mode='add_control_token',
+            source_text=self.preprocess_corpus(test_source_text, preprocess_mode='none',
                                                batch_size=batch_size),
-            target_text=self.preprocess_corpus(test_target_text, preprocess_mode='add_control_token',
+            target_text=self.preprocess_corpus(test_target_text, preprocess_mode='none',
                                                batch_size=batch_size),
             do_persist=True, source_target_dict_file='test_source_target_dict.bin')
 
@@ -941,15 +942,15 @@ class Test:
 
         print('rows of source_target_dict: ')
 
-        # for id, (source, target_list) in enumerate(list(dataset_infer_obj.test_source_target_dict.items())[:2]):
-        #     print(id)
-        #     print('source :')
-        #     print(source)
-        #     print(dataset_infer_obj.vocab_source.map_word_to_id(source.split()))
-        #
-        #     print('target :')
-        #     print(target_list[0])
-        #     print(dataset_infer_obj.vocab_target.map_word_to_id(target_list[0].split()))
+        for id, (source, target_list) in enumerate(list(dataset_infer_obj.test_source_target_dict.items())[:2]):
+            print(id)
+            print('source :')
+            print(source)
+            print(dataset_infer_obj.vocab_source.map_word_to_id(source.split()))
+
+            print('target :')
+            print(target_list[0])
+            print(dataset_infer_obj.vocab_target.map_word_to_id(target_list[0].split()))
 
         print('vocab_source: ')
 
@@ -994,9 +995,9 @@ if __name__ == '__main__':
 
     test.test_DatasetGenerate(build_tokenizer=False,
                               config_path='../../config/transformer_seq2seq.ini',
-                              # base_dir='../../dataset/TED-Portuguese-English',
-                              tag='DEFAULT')  # DEFAULT
+                              base_dir='../../dataset/TED-Portuguese-English',
+                              tag='TEST-1')  # DEFAULT
 
     test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
-                                   # base_dir='../../dataset/TED-Portuguese-English',
-                                   tag='DEFAULT')  # DEFAULT
+                                   base_dir='../../dataset/TED-Portuguese-English',
+                                   tag='TEST-1')  # DEFAULT
