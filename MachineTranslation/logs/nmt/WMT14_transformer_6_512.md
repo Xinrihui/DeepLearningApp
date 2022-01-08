@@ -29,9 +29,9 @@
 
 ## 2.实验记录
 
-### 2.1 验证 不同划分 batch 策略的效果
+### 2.1 验证 Label Smoothing 的效果
 
-#### 实验 1  动态 batch size
+#### 实验 1  未使用 Label Smoothing
     
     (0) 模型
        
@@ -51,7 +51,7 @@
     [(100, 296), (99, 305), (98, 337), (97, 404), (96, 408), (95, 505), (94, 531), (93, 592), (92, 625), (91, 679), (90, 780), (89, 823), (88, 946), (87, 1030), (86, 1043), (85, 1231), (84, 1310), (83, 1419), (82, 1578), (81, 1669), (80, 1809), (79, 2021), (78, 2093), (77, 2262), (76, 2526), (75, 2686), (74, 2929), (73, 3126), (72, 3490), (71, 3657), (70, 4098), (69, 4449), (68, 4756), (67, 5061), (66, 5529), (65, 6028), (64, 6545), (63, 7198), (62, 7723), (61, 8621), (60, 9866), (59, 10771), (58, 11773), (57, 11776), (56, 12672), (55, 13951), (54, 15069), (53, 15959), (52, 17481), (51, 18943), (50, 20747), (49, 22558), (48, 24116), (47, 26549), (46, 28347), (45, 30953), (44, 33673), (43, 35959), (42, 38732), (41, 41909), (40, 46090), (39, 49991), (38, 53894), (37, 56454), (36, 60835), (35, 65440), (34, 70125), (33, 75182), (32, 81015), (31, 86883), (30, 91586), (29, 98251), (28, 104117), (27, 111076), (26, 118207), (25, 123028), (24, 128857), (23, 134906), (22, 140894), (21, 146299), (20, 152030), (19, 155026), (18, 159080), (17, 162654), (16, 165532), (15, 164658), (14, 162805), (13, 156485), (12, 150160), (11, 142053), (10, 134701), (9, 123547), (8, 97630), (7, 74183), (6, 33878), (5, 21733), (4, 8039), (3, 9064), (2, 2468), (1, 5062)]
     seq length <=64 num: 4343134
     
-    验证数据: 
+    验证数据(newstest2013): 
     N_valid = 2975 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 ) 
     
     most common seq length: (seq length, count num)
@@ -65,7 +65,7 @@
     [(103, 1), (98, 1), (95, 2), (92, 1), (87, 1), (85, 1), (84, 1), (83, 1), (81, 1), (80, 1), (79, 1), (77, 1), (74, 1), (72, 1), (71, 1), (69, 3), (67, 2), (66, 2), (64, 2), (63, 5), (62, 3), (61, 3), (60, 3), (59, 3), (58, 4), (57, 8), (56, 3), (55, 4), (54, 5), (53, 7), (52, 7), (51, 13), (50, 4), (49, 7), (48, 9), (47, 9), (46, 16), (45, 20), (44, 12), (43, 16), (42, 21), (41, 26), (40, 30), (39, 30), (38, 25), (37, 29), (36, 32), (35, 38), (34, 34), (33, 53), (32, 37), (31, 54), (30, 62), (29, 61), (28, 77), (27, 67), (26, 62), (25, 64), (24, 94), (23, 78), (22, 80), (21, 89), (20, 108), (19, 105), (18, 104), (17, 97), (16, 117), (15, 122), (14, 107), (13, 129), (12, 111), (11, 115), (10, 106), (9, 93), (8, 80), (7, 95), (6, 64), (5, 54), (4, 21), (3, 19), (2, 17), (1, 7)]
     seq length <=64 num: 2975
 
-    测试数据: 
+    测试数据(newstest2014): 
     N_test = 2737 
     
     most common seq length: (seq length, count num)
@@ -90,8 +90,353 @@
     
     (3) 优化器参数
     
-    epoch_num = 20
+    epoch_num = 10
     token_in_batch = 12288
+    
+    label_smoothing=0 (未使用 Label Smoothing)
+    
+    optimizer= Adam with warmup_steps
+    warmup_steps = 32000
+    
+    (5) 训练过程
+    
+    在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
+
+    Epoch 1/20
+    
+    candidates:
+    [0] Eine Strategie für die Bush # # AT # # - # # AT # # Strategie , die sich die Wahl der Präsidenten der Präsidenten zu einer Wahl zu gewinnen hat , ist eine Antwort .
+    [1] Die Regierung hat sich gegen die politische Politik der Bekämpfung von Betrug ausgesprochen .
+    [2] Aber das Bruton Brüchtliche Brüchtlings ist ein Zeichen , dass die Regierung in den USA in den USA nur wenige Menschen von den Menschen getötet wird .
+    [3] Tatsächlich sind die britischen Konservativen nur in den USA nur wenige Jahre in den USA ein paar Jahre in einem Jahr .
+    [4] Es ist ein Grund , dass diese neuen Bestimmungen eine neue Gefahr haben werden , um die Auswirkungen auf die Auswirkungen auf die Auswirkungen zu haben .
+    [5] In diesem Sinne wird die Maßnahmen der NATO die demokratische Kontrolle der demokratischen Souveränität gefährden .
+    [6] In Großbritannien sind die USA in der USA die USA für die USA verantwortlich .
+    [7] Es ist in diesem Sinne in der Tat ein Mehrheits - und Regierungschefs , die seit langem eine neue oder mehr bessere Lösung haben .
+    [8] Diese „ globale “ Ereignisse in den vergangenen Wochen wurden am 25 . Juni in den USA aufgenommen .
+    [9] Die Verwährung von 30 % der Todesstrafe in den Mitgliedstaaten wurde in den letzten Jahren abgelehnt .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.26854159083909623, '2-garm': 0.11392188693876013, '3-garm': 0.05229728013420901, '4-garm': 0.02507881902088424}
+    
+    14308/14308 [==============================] - 5006s 349ms/step - loss: 6.0814 - accuracy: 0.1654 - val_loss: 3.6112 - val_accuracy: 0.3595
+    
+    Epoch 2/20
+    
+    candidates:
+    [0] Eine republikanische Strategie zur Gegenwahl von Obama .
+    [1] Die republikanischen Führer haben ihre Politik durch die Notwendigkeit , die Wahlbetrug zu bekämpfen .
+    [2] Doch das Brennan Centre hält diesen Mythos für einen Mythos , der besagt , dass die Wahlbetrug in den USA selten ist , als die Zahl der Menschen , die durch Blitz getötet wurden .
+    [3] Tatsächlich identifizierte republikanische Anwälte nur 300 Fälle von Wahlbetrug in den USA in einem Jahrzehnt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden negative Auswirkungen auf die Wähler # # AT # # - # # AT # # Abrufung haben .
+    [5] In diesem Sinne werden die Maßnahmen zum Teil das amerikanische demokratische System untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Organisation der Bundeswahlen in den USA verantwortlich .
+    [7] In diesem Sinne haben die meisten amerikanischen Regierungen seit 2009 neue Gesetze verabschiedet , um den Registrierungs - oder Abstimmungsprozess schwieriger zu gestalten .
+    [8] Dieses Phänomen hat nach den Wahlen im November 2010 Dynamik gewonnen , die 675 neue republikanische Vertreter in 26 Staaten aufgenommen haben .
+    [9] Damit wurden im Jahr 2011 180 Rechnungen die Ausübung des Rechts auf Abstimmung in 41 Staaten eingeschränkt .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5097037435063259, '2-garm': 0.345818447938025, '3-garm': 0.24764333562235868, '4-garm': 0.18167533217234233}
+    
+    14308/14308 [==============================] - 4952s 346ms/step - loss: 2.9274 - accuracy: 0.4264 - val_loss: 2.0009 - val_accuracy: 0.5921
+    
+    Epoch 3/20
+    
+    candidates:
+    [0] Eine republikanische Strategie zur Bekämpfung der Wiederwahl von Obama .
+    [1] Die republikanischen Führer haben ihre Politik durch die Notwendigkeit der Bekämpfung von Wahlbetrug begründet .
+    [2] Das Brennan Centre ist jedoch der Ansicht , dass ein Mythos , der besagt , dass Wahlbetrug in den USA selten ist als die Anzahl der Menschen , die durch Blitz getötet wurden .
+    [3] Tatsächlich haben republikanische Anwälte in den USA in einem Jahrzehnt nur 300 Fälle von Wahlbetrug festgestellt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden negative Auswirkungen auf die Wähler # # AT # # - # # AT # # Wende haben .
+    [5] In diesem Sinne werden die Maßnahmen das amerikanische demokratische System teilweise untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Organisation der Bundeswahlen in den USA verantwortlich .
+    [7] In diesem Sinne hat eine Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze erlassen , die die Registrierung oder Abstimmung erschwert haben .
+    [8] Dieses Phänomen hat sich nach den Wahlen im November 2010 , die 675 neue republikanische Vertreter in 26 Staaten aufgenommen sahen , gewandelt .
+    [9] So wurden allein im Jahr 2011 180 Rechnungen eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.533574145673907, '2-garm': 0.37194651188273836, '3-garm': 0.2730918552639083, '4-garm': 0.20502353090154635}
+    
+    14308/14308 [==============================] - 4953s 346ms/step - loss: 2.0505 - accuracy: 0.5617 - val_loss: 1.7286 - val_accuracy: 0.6338
+    
+    Epoch 4/20
+    
+    candidates:
+    [0] Eine republikanische Strategie zur Bekämpfung der Wiederwahl von Obama
+    [1] Die republikanischen Führer haben ihre Politik durch die Notwendigkeit gerechtfertigt , gegen Wahlbetrug vorzugehen .
+    [2] Das Brennan Centre betrachtet dies jedoch als Mythos , in dem es heißt , dass Wahlbetrug in den Vereinigten Staaten selten ist als die Anzahl der durch Blitz getöteten Menschen .
+    [3] Tatsächlich haben republikanische Anwälte nur 300 Fälle von Wahlbetrug in den USA in einem Jahrzehnt festgestellt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden negative Auswirkungen auf die Wahlbeteiligung haben .
+    [5] In diesem Sinne werden die Maßnahmen das amerikanische demokratische System teilweise untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Durchführung von Bundeswahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne haben die meisten amerikanischen Regierungen seit 2009 neue Gesetze verabschiedet , wodurch die Registrierung oder der Abstimmungsprozess schwieriger werden .
+    [8] Dieses Phänomen gewann nach den Wahlen vom November 2010 , die 675 neue republikanische Vertreter in 26 Staaten hinzugefügt .
+    [9] Infolgedessen wurden allein im Jahr 2011 180 Rechnungen eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5479583262802901, '2-garm': 0.38666465626219776, '3-garm': 0.2865508102130119, '4-garm': 0.21715090503146514}
+    
+    14308/14308 [==============================] - 4874s 340ms/step - loss: 1.8312 - accuracy: 0.5950 - val_loss: 1.6167 - val_accuracy: 0.6548
+    
+    Epoch 5/20
+    
+    candidates:
+    [0] Eine republikanische Strategie zur Bekämpfung der Wiederwahl Obama .
+    [1] Die Republikaner haben ihre Politik durch die Notwendigkeit der Bekämpfung von Wahlbetrug begründet .
+    [2] Das Brennan Centre hält dies jedoch für einen Mythos , der besagt , dass Wahlbetrug in den USA selten ist als die Zahl der Menschen , die durch Blitze getötet werden .
+    [3] Tatsächlich haben republikanische Anwälte in den USA innerhalb eines Jahrzehnts lediglich 300 Fälle von Wahlbetrug festgestellt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .
+    [5] In diesem Sinne werden die Maßnahmen zum Teil das demokratische System der USA untergraben .
+    [6] Anders als in Kanada sind die USA für die Organisation von Bundeswahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat eine Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verabschiedet , die die Registrierung oder den Abstimmungsprozess schwieriger machen .
+    [8] Dieses Phänomen hat nach den Wahlen im November 2010 , wo in 26 Staaten 675 neue republikanische Vertreter hinzukamen , einen Schwung bekommen .
+    [9] Infolgedessen wurden allein 2011 180 Rechnungen eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5491877236167895, '2-garm': 0.38985865692517785, '3-garm': 0.2915026703275076, '4-garm': 0.22281865990661862}
+    
+    14308/14308 [==============================] - 4955s 346ms/step - loss: 1.7195 - accuracy: 0.6128 - val_loss: 1.5558 - val_accuracy: 0.6620
+    
+    Epoch 6/20
+    
+    candidates:
+    [0] Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzuwirken .
+    [1] Die republikanischen Machthaber haben ihre Politik mit der Notwendigkeit , Wahlbetrug zu bekämpfen , gerechtfertigt .
+    [2] Das Brennan Centre sieht dies jedoch als einen Mythos an , da es in den USA seltener Wahlbetrug als die Anzahl der durch Blitze getöteten Menschen ist .
+    [3] Tatsächlich haben republikanische Anwälte in einem Jahrzehnt nur 300 Fälle von Wahlbetrug in den Vereinigten Staaten festgestellt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .
+    [5] In diesem Sinne werden die Maßnahmen das demokratische System der Amerikaner teilweise unterminieren .
+    [6] Im Gegensatz zu Kanada sind die USA für die Durchführung von Bundeswahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat eine Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verabschiedet , wodurch der Registrierungs - oder Wahlprozess erschwert wird .
+    [8] Dieses Phänomen gewann nach den Wahlen vom November 2010 , die 675 neue republikanische Vertreter in 26 Staaten hinzugefügt .
+    [9] Infolgedessen wurden allein 2011 180 Rechnungen eingeführt , die die Ausübung des Wahlrechts in 41 Staaten beschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.554298097760655, '2-garm': 0.39739963876830436, '3-garm': 0.2991375821755899, '4-garm': 0.23033802605002227}
+    
+    14308/14308 [==============================] - 4990s 348ms/step - loss: 1.6714 - accuracy: 0.6201 - val_loss: 1.5183 - val_accuracy: 0.6692
+    
+    Epoch 7/20
+    
+    candidates:
+    [0] Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzuwirken .
+    [1] Die republikanischen Führer rechtfertigten ihre Politik durch die Notwendigkeit , Wahlbetrug zu bekämpfen .
+    [2] Das Brennan Centre hält dies jedoch für einen Mythos , der besagt , dass Wahlbetrug in den USA selten ist als die Zahl der durch Blitz getöteten Menschen .
+    [3] Tatsächlich identifizierten republikanische Anwälte in den USA in einem Jahrzehnt nur 300 Fälle von Wahlbetrug .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden negative Auswirkungen auf die Wahlbeteiligung haben .
+    [5] In diesem Sinne werden die Maßnahmen teilweise das demokratische amerikanische System untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Organisation von Bundeswahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat eine Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verabschiedet , die die Registrierung oder den Abstimmungsprozess erschwert haben .
+    [8] Dieses Phänomen gewann nach den Wahlen vom November 2010 , die neue Vertreter der Republikanischen 675 in 26 Staaten hinzugefügt .
+    [9] Infolgedessen wurden allein 2011 180 Rechnungen eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5519273515042561, '2-garm': 0.39433335749918846, '3-garm': 0.29585712023534977, '4-garm': 0.22683082941569513}
+    
+    14308/14308 [==============================] - 5480s 383ms/step - loss: 1.6207 - accuracy: 0.6284 - val_loss: 1.5041 - val_accuracy: 0.6709
+    
+    Epoch 8/20
+    
+    candidates:
+    [0] Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzuwirken .
+    [1] Die republikanischen Führer haben ihre Politik durch die Notwendigkeit der Bekämpfung von Wahlbetrug gerechtfertigt .
+    [2] Das Brennan Centre hält dies jedoch für einen Mythos , der besagt , dass Wahlbetrug in den Vereinigten Staaten selten vorkommt , als die Anzahl der durch Blitze getöteten Menschen .
+    [3] Tatsächlich haben republikanische Anwälte in den USA in einem Jahrzehnt nur 300 Fälle von Wahlbetrug festgestellt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .
+    [5] In diesem Sinne werden die Maßnahmen das demokratische amerikanische System teilweise untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Durchführung von Bundeswahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat eine Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verabschiedet , die die Registrierung oder den Wahlprozess erschweren .
+    [8] Dieses Phänomen gewann nach den Wahlen vom November 2010 , die 675 neue republikanische Vertreter in 26 Staaten hinzugefügt .
+    [9] Infolgedessen wurden allein im Jahr 2011 180 Rechnungen eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5557299822370624, '2-garm': 0.3988805394362578, '3-garm': 0.30130934499429657, '4-garm': 0.23290716632051853}
+    
+    14308/14308 [==============================] - 4901s 342ms/step - loss: 1.5905 - accuracy: 0.6333 - val_loss: 1.4733 - val_accuracy: 0.6741
+    
+    Epoch 9/20
+    
+    candidates:
+    [0] Eine republikanische Strategie gegen die Wiederwahl von Obama .
+    [1] Die republikanischen Führer haben ihre Politik mit der Notwendigkeit , Wahlbetrug zu bekämpfen , gerechtfertigt .
+    [2] Das Brennan Centre hält dies jedoch für einen Mythos , der besagt , dass Wahlbetrug in den USA selten höher ist als die Zahl der durch Blitzkatastrophe getöteten Menschen .
+    [3] Tatsächlich identifizierten republikanische Anwälte in den USA in einem Jahrzehnt nur 300 Fälle von Wahlbetrug .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .
+    [5] In diesem Sinne werden die Maßnahmen das amerikanische demokratische System teilweise untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Organisation von föderalen Wahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verabschiedet , die die Registrierung oder den Abstimmungsprozess erschweren .
+    [8] Dieses Phänomen gewann nach den Wahlen vom November 2010 , die 675 neue republikanische Vertreter in 26 Staaten hinzufügten , an Schwung .
+    [9] Infolgedessen wurden allein im Jahr 2011 180 Rechnungen eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5552845658906022, '2-garm': 0.40055386156363215, '3-garm': 0.30344291469508233, '4-garm': 0.23474556361540716}
+    
+    14308/14308 [==============================] - 4880s 341ms/step - loss: 1.5631 - accuracy: 0.6378 - val_loss: 1.4638 - val_accuracy: 0.6757
+    
+        
+    (6) 模型评价
+    
+    在测试集上评价模型
+    
+    1.epoch=9 时的模型
+    
+    candidates:
+    [0] Orlando Bloom und Miranda Kerr lieben sich noch immer .
+    [1] Schauspieler Orlando Bloom und Model Miranda Kerr wollen ihre eigene Wege gehen .
+    [2] Bloom und Kerr haben sich jedoch in einem Interview noch immer liebend gut aufgehoben .
+    [3] Miranda Kerr und Orlando Bloom sind Eltern von zwei Jahren Flynn .
+    [4] Der Schauspieler Orlando Bloom kündigte seine Trennung von seiner Frau , Supermodel Miranda Kerr .
+    [5] In einem Interview mit dem US # # AT # # - # # AT # # Journalist Katie Couric , der am Freitag ( Ortszeit ) ausgestrahlt wird , sagte Bloom : & quot ; Manchmal geht das Leben nicht so , wie wir es planen oder hoffen & quot ; .
+    [6] Er und Kerr lieben sich noch immer , betonte das 36 # # AT # # - # # AT # # jährige .
+    [7] & quot ; Wir werden uns gegenseitig unterstützen und lieben einander als Eltern zu Flynn & quot ; .
+    [8] Kerr und Bloom sind seit 2010 verheiratet und ihr Sohn Flynn wurde im Jahr 2011 geboren .
+    [9] Jet # # AT # # - # # AT # # Hersteller feuerten über Sitzbreite mit großen Aufträgen auf dem Spiel .
+    
+    references:
+    [0] ['Orlando Bloom und Miranda Kerr lieben sich noch immer']
+    [1] ['Schauspieler Orlando Bloom und Model Miranda Kerr wollen künftig getrennte Wege gehen .']
+    [2] ['In einem Interview sagte Bloom jedoch , dass er und Kerr sich noch immer lieben .']
+    [3] ['Miranda Kerr und Orlando Bloom sind Eltern des zweijährigen Flynn .']
+    [4] ['Schauspieler Orlando Bloom hat sich zur Trennung von seiner Frau , Topmodel Miranda Kerr , geäußert .']
+    [5] ['In einem Interview mit US ##AT##-##AT## Journalistin Katie Couric , das am Freitag ( Ortszeit ) ausgestrahlt werden sollte , sagte Bloom , &quot; das Leben verläuft manchmal nicht genau so , wie wir es planen oder erhoffen &quot; .']
+    [6] ['Kerr und er selbst liebten sich noch immer , betonte der 36 ##AT##-##AT## Jährige .']
+    [7] ['&quot; Wir werden uns gegenseitig unterstützen und lieben als Eltern von Flynn &quot; .']
+    [8] ['Kerr und Bloom sind seit 2010 verheiratet , im Jahr 2011 wurde ihr Söhnchen Flynn geboren .']
+    [9] ['Jumbo ##AT##-##AT## Hersteller streiten im Angesicht großer Bestellungen über Sitzbreite']
+    
+    bleu_score:{'1-garm': 0.5395491205908075, '2-garm': 0.3885112483113567, '3-garm': 0.2922480214446967, '4-garm': 0.22472565783740672}
+        
+        
+#### 实验 2  使用 Label Smoothing
+    
+    (0) 模型
+       
+    (1) 数据集 
+    
+    训练数据:    
+    N_train = 4343134 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 )
+    
+    验证数据(newstest2013): 
+    N_valid = 2975 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 ) 
+
+    测试数据(newstest2014): 
+    N_test = 2737 
+    
+    
+    (2) 数据预处理
+    
+    未做 unicode 标准化
+    
+    使用 wordpiece subword 算法分词
+    源语言词表大小: n_vocab_source=30000
+    目标语言词表大小: n_vocab_target=30000
+    
+    
+    (3) 优化器参数
+    
+    epoch_num = 10
+    token_in_batch = 12288
+    
+    label_smoothing=0.1 
     
     optimizer= Adam with warmup_steps
     warmup_steps = 32000
@@ -100,12 +445,4 @@
     
     在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
     
-    
-        
-    (6) 模型评价
-    
-    1.epoch=18 时的模型
-    
-    
-        
     

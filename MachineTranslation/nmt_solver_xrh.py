@@ -375,6 +375,8 @@ class CheckoutCallback(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
 
+        epoch = epoch+1
+
         # checkout 模型
 
         if self.save_mode == 'hdf5':
@@ -530,6 +532,6 @@ if __name__ == '__main__':
     # test.test_evaluating(config_path='config/attention_seq2seq.ini', tag='TEST') # DEFAULT
 
 
-    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST-1')  # DEFAULT
+    test.test_training(config_path='config/transformer_seq2seq.ini', tag='DEFAULT')  # DEFAULT
 
-    # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='TEST-1') # DEFAULT
+    # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='DEFAULT') # DEFAULT

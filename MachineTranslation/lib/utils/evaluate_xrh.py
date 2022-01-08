@@ -202,6 +202,10 @@ class Evaluate:
 
             # 删除 控制词
             candidate = self.remove_word_re.sub('', candidate)
+
+            if self.eliminate_space:
+                candidate = self.eliminate_space_in_special_sub(candidate)
+
             out_candidates.append(candidate)
 
         # 输出翻译结果到目标文件夹中
