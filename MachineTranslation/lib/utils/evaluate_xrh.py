@@ -14,6 +14,7 @@ class Evaluate:
 
     """
     def __init__(self, with_unk=True,
+                       eliminate_space=True,
                        use_nltk=True,
                        _null_str='<NULL>',
                        _start_str='<START>',
@@ -24,6 +25,7 @@ class Evaluate:
         """
 
         :param  with_unk: 是否保留 unk
+        :param  eliminate_space: 消除指定子串中的空格
         :param  use_nltk: 是否使用 nltk 自带的 bleu 包
         :param  _null_str: 空字符
         :param  _start_str: 句子的开始字符
@@ -37,6 +39,7 @@ class Evaluate:
         self._unk_str = re.escape(_unk_str)
 
         self.use_nltk = use_nltk
+        self.eliminate_space = eliminate_space
 
         if with_unk:  # 不删除 unk
 
@@ -48,7 +51,39 @@ class Evaluate:
 
             # 需要删除的控制词
             self.remove_word_re = re.compile(
-                r'{}|{}|{}|{}'.format(self._null_str, self._start_str, self._end_str, self._unk_str))
+                r'{}|{}|{}|{}'.format(self._null_str, self._start_str, self._end_str, self._unk_str))\
+
+        if eliminate_space:
+
+            # 指定的子串
+            self.dash_str = '# # AT # # - # # AT # #'  # 破折号
+            self.double_quotation_str = '& quot ;'  # 双引号
+            self.quotation_str = '& apos ;'  # 单引号
+
+            self.dash_re = re.compile(r'{}'.format(re.escape(self.dash_str)))
+            self.double_quotation_re = re.compile(r'{}'.format(re.escape(self.double_quotation_str)))
+            self.quotation_re = re.compile(r'{}'.format(re.escape(self.quotation_str)))
+
+    def eliminate_space_in_special_sub(self, text):
+        """
+        消除指定子串中的空格
+
+        eg.
+        text = 'EU # # AT # # - # # AT # # Botschafterin & quot ; Ich wurde stets & quot ; & apos ; Obani '
+
+        res = 'EU ##AT##-##AT## Botschafterin &quot; Ich wurde stets &quot; &apos; Obani '
+
+        :param text: 待处理的字符串
+        :return:
+        """
+
+        text = self.dash_re.sub(self.dash_str.replace(' ', ''), text)
+
+        text = self.double_quotation_re.sub(self.double_quotation_str.replace(' ', ''), text)
+
+        res = self.quotation_re.sub(self.quotation_str.replace(' ', ''), text)
+
+        return res
 
     def evaluate_bleu(self, references, candidates, bleu_N=2):
         """
@@ -98,6 +133,9 @@ class Evaluate:
 
             # 删除 控制词
             candidate = self.remove_word_re.sub('', candidate)
+
+            if self.eliminate_space:
+                candidate = self.eliminate_space_in_special_sub(candidate)
 
             candidate_split = candidate.split()
 
