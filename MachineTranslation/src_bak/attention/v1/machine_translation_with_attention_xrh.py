@@ -12,8 +12,8 @@ from tensorflow.keras.models import Model
 
 from tensorflow.keras.utils import plot_model
 
-from src.attention.v1.lib.nmt_utils import *
-from src.attention.v1.lib.utils_xrh import *
+from src_bak.attention.v1.lib.nmt_utils import *
+from src_bak.attention.v1.lib.utils_xrh import *
 
 from sklearn.model_selection import train_test_split
 

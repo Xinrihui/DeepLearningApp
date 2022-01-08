@@ -28,7 +28,7 @@ class AttentionSeq2seq:
 
      (2) 使用 Eager execution 构建模型, 调试完成后, 利用框架提供的 tf.function 从代码中自动抽取出计算图, 再喂入大量数据训练,
          虽然最终也是做了 graph execution , 但是每一个 iteration 执行速度不如 Session execution ;
-         训练速度: RTX3090 693ms/step)
+         训练速度: RTX3090 693ms/step
 
     3. 推理时采用  Eager execution 构建模型：
 

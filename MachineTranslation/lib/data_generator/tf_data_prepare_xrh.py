@@ -993,11 +993,20 @@ if __name__ == '__main__':
     #                                base_dir='../../dataset/WMT-14-English-Germa',
     #                                tag='DEFAULT')  # DEFAULT
 
-    test.test_DatasetGenerate(build_tokenizer=False,
+    test.test_DatasetGenerate(build_tokenizer=True,
                               config_path='../../config/transformer_seq2seq.ini',
-                              base_dir='../../dataset/TED-Portuguese-English',
-                              tag='TEST-1')  # DEFAULT
+                              tag='DEFAULT')  # DEFAULT
 
     test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
-                                   base_dir='../../dataset/TED-Portuguese-English',
-                                   tag='TEST-1')  # DEFAULT
+                                   tag='DEFAULT')  # DEFAULT
+
+
+
+    # test.test_DatasetGenerate(build_tokenizer=False,
+    #                           config_path='../../config/transformer_seq2seq.ini',
+    #                           base_dir='../../dataset/TED-Portuguese-English',
+    #                           tag='TEST-1')  # DEFAULT
+    #
+    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
+    #                                base_dir='../../dataset/TED-Portuguese-English',
+    #                                tag='TEST-1')  # DEFAULT

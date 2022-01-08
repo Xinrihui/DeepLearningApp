@@ -1,97 +1,161 @@
 
-# 机器翻译模型(Machine Translation)
+# 神经机器翻译模型 (Neural Machine Translation, NMT)
 
-## 1.使用 Keras 实现基于 LSTM + seq2seq + attention 的机器翻译模型
+
+![avatar](docs/images/tensorflow_logo.png) 
+
+
+实现了多种机器翻译模型, 从基础的 seq2seq NMT 发展到 seq2seq with attention NMT 和 transformer NMT
+
+## 项目结构
+    .
+    ├── config                  # 配置文件
+    ├── dataset                 # 数据集
+    ├── docs                    # 参考文献
+    ├── lib                     # 代码库
+        ├── data_generator      # 其中 tf_data_prepare_xrh.py 是生成训练和测试数据集的主程序
+        ├── layers              # 包括各种 注意力层
+        ├── models              # 包括各种 NMT 模型
+        └── utils               # 包括模型评价程序
+    ├── logs                    # 记录在不同 NMT 模型在不同数据集下的实验结果 
+    ├── models                  # 预训练的模型
+    ├── outs                    # 模型的推理结果
+    ├── ref                     # 参考项目
+    ├── src_bak                 # 项目的历史版本的源码
+    ├── tools                   # 工具项目, 包括 Moses 
+    └── nmt_solver_xrh.py       # 模型训练和推理的包装器主程序, 可以包装不同的 NMT 模型                    
+    
+
+## 1.seq2seq NMT
+
+模型位置: [lib/models/ensemble_seq2seq_xrh.py](lib/models/ensemble_seq2seq_xrh.py)
 
 ### 1.1 模型设计
 
+    (1) 编码器和解码器均为 4层 LSTM 的堆叠, 中间使用 dropout 连接
 
-    (1) 实现了编码器(encoder): 采用双向的 LSTM, 所有时间步的输出作为 注意力机制(attention)模块的输入
+    (2) 在模型训练时, 解码器采用 teacher forcing 模式; 在模型推理时, 解码器采用 autoregressive 模式
 
-    (2) 采用字符粒度的 wordEmbedding, 输入 LSTM 是经过 one-hot 化的字符
+    (3) 分词器采用 单词粒度, 词表大小为 50000
 
-    (3) 实现了注意力机制(attention)模块:
-
-        1. 对 encoder 所有时间步的输出 a 求加权和, 得到 上下文context
-
-        2. 权重通过 a 与 上一个时间步的隐藏状态 s_prev 拼接后求 dense + softmax 得到
-
-    (4) 实现了解码器(decoder):
-
-        1.采用LSTM, 每一个时间步的输入为 attention模块的输出context 与 上一个时间步的输出的最优分类的one-hot向量 的拼接
-
-        2.第一个时间步的 初始隐藏状态s0 和 细胞状态c0 为 encoder 最后一个时间步的隐藏状态和细胞状态
-
-    (5) 实现了基于 beamsearch 的推理(inference)
-
-    (6) 实现了 bleu 评价指标(算法), 并使用它对输出序列(翻译结果)进行评价
-
+    (4) 对源序列反向后再输入编码器, 提升效果
 
 
 ### 1.2 实验结果
 
-    1.日期翻译数据集
+1.WMT-14 English-Germa
 
-    |  human date  |   machine date
-    |  待翻译的日期     翻译后的标准日期
-    | ------------ | ------------ |
-    | '9 may 1998' | '1998-05-09' |
-    | '10.11.19'   | '2019-11-10' |
-    | '9/10/70'    | '1970-09-10' |
-    | 'saturday april 28 1990' | '1990-04-28' |
-    | 'thursday january 26 1995' | '1995-01-26' |
+验证集/测试集  | Bleu1 | Bleu2 | Bleu3 | Bleu4 |
+--------------| ------|-------| ------| ------|
+newstest2013(dev) | 44.7 | 28  | 18.7 | 12.9 | 
+newstest2014(test) | 36 | 20.1  | 12.1 | 7.6 | 
 
-    2.模型训练
+详细实验结果: [logs/nmt/WMT14_lstm_1000_1000.md](logs/nmt/WMT14_lstm_1000_1000.md)
 
-    训练数据集 n=8000
+### 1.3 Ref
 
-    epoch_num=200, batch_size=2048
+1. Sequence to Sequence Learning with Neural Networks
+2. Learning Phrase Representations using RNN Encoder–Decoder for Statistical Machine Translation
 
-    在训练集上
-    loss: 0.5548, decoder_output_accuracy: 0.9946
+## 2.seq2seq with attention NMT
 
-    在验证集上
-    val_loss: 0.7749, val_decoder_output_loss: 0.0213,  val_decoder_output_accuracy: 0.9912
+### 2.1 Bahdanau Attention
 
-    因为输出序列是定长的, 所以输出序列各个时间步的准确率为
-    val_decoder_output_1_accuracy: 0.9912 ... val_decoder_output_9_accuracy: 0.9450
+项目位置: [src_bak/attention/v1](src_bak/attention/v1/README.md)
 
-    3.模型评价
 
-    测试数据集 n=1000
+### 2.2 Global Attention
 
-    1.推理时采用 beamsearch (窗口大小 k = 3), 我们取 bleu 得分最高的作为此样本的预测序列
+模型位置: [lib/models/attention_seq2seq_xrh.py](lib/models/attention_seq2seq_xrh.py)
 
-    2.词元(term)的粒度
+#### 2.2.1 模型设计
 
-    (1) '1978-12-21' 使用分隔符 '-' 切分为 3个 term ['1978','12','21'],
-        计算 bleu 时设置 N_gram 的长度上限为 2(仅仅考虑 1-gram, 2-gram)
+    (1) 编码器和解码器均为 4层 LSTM 的堆叠, 中间使用 dropout 连接, 并在最上面添加 global attention 层
 
-    (2) '1978-12-21' 切分为 10个 term ['1', '9', '7', '8', '-', '1', '2', '-', '2', '1']
+    (2) 在模型训练时, 解码器采用 teacher forcing 模式; 在模型推理时, 解码器采用 auto-regressive 模式
 
-    我们采用 第(2) 种词元的粒度, 考虑下面的例子
-    reference = '1978-12-21'
-    candidate1 = '1988-12-21'
-    candidate2 = '8891-12-21'
+    (3) 分词粒度为 word level, 词表大小为 50000
+    
 
-    显然, candidate1 比 candidate2效果好, 但是若采用第(1)种词元粒度, 它们两的 score 是相同的;
-    测试记录详见: machine_translation_with_attention_xrh.ipynb
+#### 2.2.2 实验结果
 
-    n=200 条测试数据, bleu score( up to 4-gram average)  = 0.965 (96.5)
-    推理一条数据耗时 5s
+1.WMT-14 English-Germa
 
-## Ref
+验证集/测试集  | Bleu1 | Bleu2 | Bleu3 | Bleu4 |
+--------------| ------|-------| ------| ------|
+newstest2013(dev) | 51.9 | 36.1  | 26.5 | 20 | 
+newstest2014(test) | 46.9 | 31.5  | 22.3 | 16.3 | 
 
-1.https://github.com/enggen/Deep-Learning-Coursera
+详细实验结果: [logs/nmt/WMT14_lstm_1000_1000.md](logs/nmt/WMT14_lstm_1000_1000.md)
 
-2.论文 Neural machine translation by jointly learning to align and translate
+### 2.3 Ref
+
+1. Effective Approaches to Attention-based Neural Machine Translation
+2. Neural machine translation by jointly learning to align and translate
+
+## 3.transformer NMT
+
+模型位置: [lib/models/transformer_seq2seq_xrh.py](lib/models/transformer_seq2seq_xrh.py)
+
+### 3.1 模型设计
+
+    (1) 实现了 Scaled Dot-Product Attention 并在其基础上搭建 Multi-Head Attention
+
+    (2) 在模型训练时, 解码器采用 teacher forcing 模式; 在模型推理时, 解码器采用 autoregressive 模式
+
+    (3) 使用 word piece 算法分别对源语料和目标语料进行分词, 分词粒度为 sub-word level
+
+    (4) 实现了带 warmup 的 Adam 优化算法
+
+    (5) 位置编码采用 正弦/余弦编码器
+    
+    (6) 实现了 Label Smoothing
+    
+    (7) 实现了动态划分 Batch, 很好地缓解了 GPU OOM
+    
+### 3.2 实验结果
+
+1.TED-Portuguese-English
+
+验证集/测试集  | Bleu1 | Bleu2 | Bleu3 | Bleu4 |
+--------------| ------|-------| ------| ------|
+dev           | 58.1 | 43.4 | 33.4 | 26   | 
+test          | 57.9 | 43.2 | 33.4 | 26.1 | 
+
+详细实验结果: [logs/nmt/TED_transformer_4_128.md](logs/nmt/TED_transformer_4_128.md)
+
+
+
+2.WMT-14 English-Germa
+
+验证集/测试集  | Bleu1 | Bleu2 | Bleu3 | Bleu4 |
+--------------| ------|-------| ------| ------|
+newstest2013(dev)  |   |    |    |     | 
+newstest2014(test) |   |    |    |     | 
+
+详细实验结果: [logs/nmt/WMT14_transformer_6_512.md](logs/nmt/WMT14_transformer_6_512.md)
+
+
+### 3.3 Ref
+
+1. Attention Is All You Need
 
 
 ## Note
 
-1.Anki 翻译数据集
- 
- http://www.manythings.org/anki/
+1. 相关数据集下载详见: [dataset/readme.txt](dataset/readme.txt)
+
+2. 软件环境 [Requirements](requirements.txt)
+
+3. 硬件资源('钞'能力)
+
+| CPU  | Mem | GPU | GPU-FP32 (float) |
+| ------ | ----- | ----- | ----- |
+| i9-12900K | 64GB | RTX3090(24GB)| [35.58TFLOPS](https://www.techpowerup.com/gpu-specs/geforce-rtx-3090.c3622) |
+
+
+
+
 
 
 

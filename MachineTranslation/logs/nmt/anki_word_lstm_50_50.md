@@ -18,7 +18,7 @@
 
 #### 实验 1 - 解码采用一体化的模型方式
 
-(prev_version/nmt_seq2seq_v1_xrh.py)
+(src/seq2seq/v1(Session execution)/nmt_seq2seq_v1_integrated_xrh.py)
 
 
     (1) 数据集
@@ -98,7 +98,7 @@
 
 #### 实验 2 - 解码采用分步骤的方式
  
- (prev_version/nmt_seq2seq_v1_timestep_xrh.py)
+(src/seq2seq/v1(Session execution)/nmt_seq2seq_v1_timestep_xrh.py)
 
     (1) 数据集
     
@@ -179,7 +179,7 @@
 
 #### 实验 3 epoch_num = 50
 
-(prev_version/nmt_seq2seq_timestep_xrh.py)
+(src/seq2seq/v1(Session execution)/nmt_seq2seq_v1_timestep_xrh.py)
 
     (1) 数据集
     

@@ -69,7 +69,7 @@ class TransformerSeq2seq:
         :param warmup_steps: 优化器学习率的预热步骤
         :param maximum_position_source: 源句子的可能最大长度
         :param maximum_position_target: 目标句子的可能最大长度
-        :param max_seq_length: 最大的序列长度
+        :param fixed_seq_length: 将原始序列标记化为固定的长度
         :param n_vocab_source: 源语言的词表大小
         :param n_vocab_target: 目标语言的词表大小
         :param _null_source: 源序列的填充标号
@@ -84,8 +84,8 @@ class TransformerSeq2seq:
         super().__init__()
 
         print('model architecture param:')
-        print('num_layers:{}, d_model:{}, num_heads:{}, dff:{}'.format(num_layers, d_model, num_heads,
-                                                                                    dff))
+        print('num_layers:{}, d_model:{}, num_heads:{}, dff:{}, n_vocab_source:{}, n_vocab_target:{}'.format(num_layers, d_model, num_heads,
+                                                                                    dff, n_vocab_source, n_vocab_target))
         print('-------------------------')
 
         # 最大的序列长度
