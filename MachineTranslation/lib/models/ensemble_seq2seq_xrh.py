@@ -69,6 +69,11 @@ class EnsembleSeq2seq:
         self.n_vocab_source = n_vocab_source
         self.n_vocab_target = n_vocab_target
 
+        print('model architecture param:')
+        print('n_h:{}, n_embedding:{}, n_vocab_source:{}, n_vocab_target:{}'.format(self.n_h, self.n_embedding, self.n_vocab_source,
+                                                                                    self.n_vocab_target))
+        print('-------------------------')
+
         # 最大的序列长度
         self.max_seq_length = max_seq_length
 
