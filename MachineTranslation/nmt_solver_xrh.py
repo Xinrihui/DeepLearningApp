@@ -12,7 +12,8 @@ from lib.utils.evaluate_xrh import *
 from lib.data_generator.tf_data_prepare_xrh import *
 
 # from lib.models.seq2seq_xrh import *
-# from lib.models.ensemble_seq2seq_xrh import *
+
+from lib.models.ensemble_seq2seq_xrh import *
 
 from lib.models.attention_seq2seq_xrh import *
 
@@ -104,21 +105,21 @@ class MachineTranslation:
 
         # 构建模型
         # 1.EnsembleSeq2seq
-        # self.model_obj = EnsembleSeq2seq(n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']), max_seq_length=fixed_seq_length,
-        #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
-        #                           vocab_target=self.vocab_target,
-        #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
-        #                           _start_target=self._start_target, _null_target=self._null_target,
-        #                           reverse_source=self.reverse_source,
-        #                           build_mode=self.build_mode,
-        #                           dropout_rates=dropout_rates)
+        self.model_obj = EnsembleSeq2seq(
+                                  n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']),
+                                  max_seq_length=fixed_seq_length,  dropout_rates=dropout_rates,
+                                  n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
+                                  tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+                                  _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
+                                  reverse_source=self.reverse_source,
+                                  build_mode=self.build_mode,
+                                  )
 
         # 2.AttentionSeq2seq
         # self.model_obj = AttentionSeq2seq(
         #                           n_embedding=int(current_config['n_embedding']), n_h=int(current_config['n_h']),
         #                           max_seq_length=fixed_seq_length, dropout_rates=dropout_rates,
         #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
-        #                           vocab_target=self.vocab_target,
         #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
         #                           _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
         #                           reverse_source=self.reverse_source,
@@ -127,17 +128,17 @@ class MachineTranslation:
 
         # 3.TransformerSeq2seq
 
-        self.model_obj = TransformerSeq2seq(
-                                  num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
-                                  num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
-                                  label_smoothing=float(current_config['label_smoothing']), warmup_steps=int(current_config['warmup_steps']),
-                                  maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
-                                  fixed_seq_length=fixed_seq_length,
-                                  n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
-                                  tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
-                                  _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
-                                  build_mode=current_config['build_mode'],
-                                  )
+        # self.model_obj = TransformerSeq2seq(
+        #                           num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
+        #                           num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
+        #                           label_smoothing=float(current_config['label_smoothing']), warmup_steps=int(current_config['warmup_steps']),
+        #                           maximum_position_source=int(current_config['maximum_position_source']), maximum_position_target=int(current_config['maximum_position_target']),
+        #                           fixed_seq_length=fixed_seq_length,
+        #                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target,
+        #                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target,
+        #                           _null_source=self._null, _start_target=self._start_target, _null_target=self._null_target, _end_target=self._end_target,
+        #                           build_mode=current_config['build_mode'],
+        #                           )
 
 
         if use_pretrain:  # 载入训练好的模型
@@ -234,22 +235,22 @@ class MachineTranslation:
         # Final callbacks
         callbacks = [model_checkpoint_with_eval]
 
-        # for AttentionSeq2seq
+        # for EnsembleSeq2seq and AttentionSeq2seq
 
-        # loss_function = self.model_obj._mask_loss_function
+        loss_function = self.model_obj._mask_loss_function
 
         # loss_function = MaskedLoss(_null_target=self._null_target) # TODO: 报错, 未找出原因
 
-        # optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=3e-4)
         # optimizer = tf.keras.optimizers.RMSprop()
         # optimizer = tf.keras.optimizers.SGD(learning_rate=1.0, clipnorm=5)
 
-        # self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
+        self.model_obj.model_train.compile(loss=loss_function, optimizer=optimizer, metrics=['accuracy'])
 
         # for TransformerSeq2seq
-        self.model_obj.model_train.compile(loss=self.model_obj.model_train.loss_tracker,
-                                           optimizer=self.model_obj.model_train.optimizer,
-                                           metrics=self.model_obj.model_train.accuracy_metric)
+        # self.model_obj.model_train.compile(loss=self.model_obj.model_train.loss_tracker,
+        #                                    optimizer=self.model_obj.model_train.optimizer,
+        #                                    metrics=self.model_obj.model_train.accuracy_metric)
 
 
         history = self.model_obj.model_train.fit(
@@ -465,7 +466,7 @@ class Test_MachineTranslation:
 
             # 1. 数据集的预处理, 运行 tf_data_tokenize_xrh.py 中的 DataPreprocess -> do_mian()
             dataset_obj = WMT14_Eng_Ge_Dataset(base_dir=current_config['base_dir'],
-                                               cache_data_folder=current_config['cache_data_folder'], mode='train')
+                                               cache_data_folder=current_config['cache_data_folder'], mode='infer')
 
             batch_size = int(current_config['batch_size'])
             target_length = int(current_config['infer_target_length'])
@@ -480,9 +481,9 @@ class Test_MachineTranslation:
                 use_pretrain=True
             )
 
-            # source_target_dict = dataset_obj.test_source_target_dict
+            source_target_dict = dataset_obj.test_source_target_dict
 
-            source_target_dict = dataset_obj.valid_source_target_dict
+            # source_target_dict = dataset_obj.valid_source_target_dict
 
             source_list = list(source_target_dict.keys())
 
@@ -527,11 +528,11 @@ if __name__ == '__main__':
     #  1. 更改最终模型存放的路径
     #  2. 运行脚本  clean_training_cache_file.bat
 
-    # test.test_training(config_path='config/attention_seq2seq.ini', tag='TEST')  # DEFAULT
+    test.test_training(config_path='config/attention_seq2seq.ini', tag='TEST-1')  # DEFAULT
 
-    # test.test_evaluating(config_path='config/attention_seq2seq.ini', tag='TEST') # DEFAULT
+    # test.test_evaluating(config_path='config/attention_seq2seq.ini', tag='TEST-1') # DEFAULT
 
 
-    test.test_training(config_path='config/transformer_seq2seq.ini', tag='DEFAULT')  # DEFAULT
+    # test.test_training(config_path='config/transformer_seq2seq.ini', tag='DEFAULT')  # DEFAULT
 
     # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='DEFAULT') # DEFAULT

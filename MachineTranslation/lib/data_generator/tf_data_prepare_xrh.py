@@ -171,7 +171,8 @@ class DatasetGenerate:
 
         self.tokenize_mode = current_config['tokenize_mode']
         self.return_mode = current_config['return_mode']
-        self.preprocess_mode = current_config['preprocess_mode']
+
+        # self.train_preprocess_mode = current_config['train_preprocess_mode']
 
         self.fixed_seq_length = int(self.current_config['fixed_seq_length'])
 
@@ -230,8 +231,8 @@ class DatasetGenerate:
         :return:
         """
 
-        if preprocess_mode is None:  # 若未定义局部的 preprocess_mode 则使用全局的
-            preprocess_mode = self.preprocess_mode
+        # if preprocess_mode is None:  # 若未定义局部的 preprocess_mode 则使用全局的
+        #     preprocess_mode = self.preprocess_mode
 
         text_dataset = tf.data.Dataset.from_tensor_slices(text_data).batch(batch_size)  # 分块后可以加速计算, 后面每次读取都是一块
 
@@ -613,8 +614,10 @@ class DatasetGenerate:
         # 按照长度对 序列 进行排序
         # train_source_text, train_target_text = self.sort_by_seq_length(train_source_text, train_target_text)
 
-        train_source_dataset = self.preprocess_corpus(train_source_text, batch_size=batch_size)
-        train_target_dataset = self.preprocess_corpus(train_target_text, batch_size=batch_size)
+        train_source_dataset = self.preprocess_corpus(train_source_text, preprocess_mode=self.current_config['train_preprocess_mode'],
+                                                      batch_size=batch_size)
+        train_target_dataset = self.preprocess_corpus(train_target_text, preprocess_mode=self.current_config['train_preprocess_mode'],
+                                                      batch_size=batch_size)
 
         if build_tokenizer:  # 重新建立分词器
 
@@ -680,8 +683,10 @@ class DatasetGenerate:
         # 按照长度对 序列 进行排序
         # valid_source_text, valid_target_text = self.sort_by_seq_length(valid_source_text, valid_target_text)
 
-        valid_source_dataset = self.preprocess_corpus(valid_source_text, batch_size=batch_size)
-        valid_target_dataset = self.preprocess_corpus(valid_target_text, batch_size=batch_size)
+        valid_source_dataset = self.preprocess_corpus(valid_source_text, preprocess_mode=self.current_config['train_preprocess_mode'],
+                                                      batch_size=batch_size)
+        valid_target_dataset = self.preprocess_corpus(valid_target_text, preprocess_mode=self.current_config['train_preprocess_mode'],
+                                                      batch_size=batch_size)
 
         # 形成训练数据集并持久化
         valid_dataset = self.tf_data_pipline(valid_source_dataset, valid_target_dataset,
@@ -690,9 +695,9 @@ class DatasetGenerate:
 
         # 验证数据 source_target_dict
         self.build_source_target_dict(
-            source_text=self.preprocess_corpus(valid_source_text, preprocess_mode='none',
+            source_text=self.preprocess_corpus(valid_source_text, preprocess_mode=self.current_config['test_preprocess_mode'],
                                                batch_size=batch_size),
-            target_text=self.preprocess_corpus(valid_target_text, preprocess_mode='none',
+            target_text=self.preprocess_corpus(valid_target_text, preprocess_mode=self.current_config['test_preprocess_mode'],
                                                batch_size=batch_size),
             do_persist=True, source_target_dict_file='valid_source_target_dict.bin')
         # TODO: 若在 tokenize 的时会在句子的前后添加控制字符,  则 preprocess_mode='none' 避免重复添加
@@ -713,12 +718,12 @@ class DatasetGenerate:
 
         # 测试数据 source_target_dict
         self.build_source_target_dict(
-            source_text=self.preprocess_corpus(test_source_text, preprocess_mode='none',
+            source_text=self.preprocess_corpus(test_source_text, preprocess_mode=self.current_config['test_preprocess_mode'],
                                                batch_size=batch_size),
-            target_text=self.preprocess_corpus(test_target_text, preprocess_mode='none',
+            target_text=self.preprocess_corpus(test_target_text, preprocess_mode=self.current_config['test_preprocess_mode'],
                                                batch_size=batch_size),
             do_persist=True, source_target_dict_file='test_source_target_dict.bin')
-
+        # TODO: 若在 tokenize 的时会在句子的前后添加控制字符,  则 preprocess_mode='none' 避免重复添加
 
 class WMT14_Eng_Ge_Dataset:
     """
@@ -984,21 +989,21 @@ if __name__ == '__main__':
 
     # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    # test.test_DatasetGenerate(build_tokenizer=False,
-    #                           config_path='../../config/attention_seq2seq.ini',
-    #                           base_dir='../../dataset/WMT-14-English-Germa',
+    test.test_DatasetGenerate(build_tokenizer=True,
+                              config_path='../../config/attention_seq2seq.ini',
+                              base_dir='../../dataset/TED-Portuguese-English',
+                              tag='TEST-1')  # DEFAULT
+
+    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/attention_seq2seq.ini',
+                                   base_dir='../../dataset/TED-Portuguese-English',
+                                   tag='TEST-1')  # DEFAULT
+
+    # test.test_DatasetGenerate(build_tokenizer=True,
+    #                           config_path='../../config/transformer_seq2seq.ini',
     #                           tag='DEFAULT')  # DEFAULT
     #
-    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/attention_seq2seq.ini',
-    #                                base_dir='../../dataset/WMT-14-English-Germa',
+    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
     #                                tag='DEFAULT')  # DEFAULT
-
-    test.test_DatasetGenerate(build_tokenizer=True,
-                              config_path='../../config/transformer_seq2seq.ini',
-                              tag='DEFAULT')  # DEFAULT
-
-    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
-                                   tag='DEFAULT')  # DEFAULT
 
 
 

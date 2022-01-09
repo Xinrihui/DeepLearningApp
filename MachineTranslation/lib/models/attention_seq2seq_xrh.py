@@ -59,7 +59,7 @@ class AttentionSeq2seq:
 
     def __init__(self, n_embedding, n_h, max_seq_length,
                  dropout_rates,
-                 n_vocab_source, n_vocab_target, vocab_target,
+                 n_vocab_source, n_vocab_target,
                  _null_source, _start_target, _null_target, _end_target,
                  tokenizer_source=None, tokenizer_target=None,
                  reverse_source=True,
@@ -80,7 +80,6 @@ class AttentionSeq2seq:
                                                                                     self.n_vocab_target))
         print('-------------------------')
 
-        self.vocab_target = vocab_target
 
         # 最大的序列长度
         self.max_seq_length = max_seq_length
@@ -430,6 +429,7 @@ class InferDecoder(Layer):
     """
 
     def __init__(self, train_decoder_obj, _start_target, _end_target, _null_target, tokenizer_target):
+
         super(InferDecoder, self).__init__()
 
         self.train_decoder_obj = train_decoder_obj
@@ -464,7 +464,9 @@ class InferDecoder(Layer):
         config = super().get_config().copy()
         config.update({
             'train_decoder_obj': self.train_decoder_obj,
-            '_start': self._start,
+            '_start_target': self._start_target,
+            '_end_target': self._end_target,
+            '_null_target': self._null_target,
 
             'embedding_layer': self.embedding_layer,
             'dropout_layer0': self.dropout_layer0,
@@ -485,6 +487,8 @@ class InferDecoder(Layer):
             'fc_layer0': self.fc_layer0,
             'fc_layer1': self.fc_layer1,
             'softmax_layer': self.softmax_layer,
+
+            'tokenizer_target': self.tokenizer_target,
         })
         return config
 

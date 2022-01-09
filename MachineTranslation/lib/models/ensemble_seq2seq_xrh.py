@@ -47,16 +47,14 @@ class EnsembleSeq2seq:
     ref:
     1. Sequence to Sequence Learning with Neural Networks
     2. Learning Phrase Representations using RNN Encoder–Decoder for Statistical Machine Translation
-    3. Effective Approaches to Attention-based Neural Machine Translation
-    4. https://nlp.stanford.edu/projects/nmt/
-    5. https://www.tensorflow.org/text/tutorials/nmt_with_attention
+    3. https://nlp.stanford.edu/projects/nmt/
 
     """
 
     def __init__(self, n_embedding, n_h, max_seq_length,
                  dropout_rates,
-                 n_vocab_source, n_vocab_target, vocab_target,
-                 _start_target, _null_target,
+                 n_vocab_source, n_vocab_target,
+                 _start_target, _null_target, _end_target,
                  tokenizer_source=None, tokenizer_target=None,
                  reverse_source=True,
                  build_mode='Eager',
@@ -70,8 +68,6 @@ class EnsembleSeq2seq:
 
         self.n_vocab_source = n_vocab_source
         self.n_vocab_target = n_vocab_target
-
-        self.vocab_target = vocab_target
 
         # 最大的序列长度
         self.max_seq_length = max_seq_length
@@ -89,6 +85,9 @@ class EnsembleSeq2seq:
 
         # target 中代表 null 的标号
         self._null_target = _null_target
+
+        # target 中代表 end 的标号
+        self._end_target = _end_target
 
         self.tokenizer_source = tokenizer_source
         self.tokenizer_target = tokenizer_target
@@ -110,31 +109,32 @@ class EnsembleSeq2seq:
             self.train_decoder = TrianDecoder(n_embedding=self.n_embedding, n_h=self.n_h, n_vocab=self.n_vocab_target,
                                               target_length=self.target_length, dropout_rates=self.dropout_rates, initializer=self.initializer)
 
-            self.infer_decoder = InferDecoder(train_decoder_obj=self.train_decoder, _start=self._start_target,
-                                              vocab_target=self.vocab_target)
-
-            # self.train_decoder = TrianDecoderUnroll(n_embedding=self.n_embedding, n_h=self.n_h, n_vocab=self.n_vocab_target,
-            #                                   target_length=self.target_length, dropout_rates=self.dropout_rates)
-            #
-            # self.infer_decoder = InferDecoderUnroll(train_decoder_obj=self.train_decoder, _start=self._start_target,
-            #                                   vocab_target=self.vocab_target)
 
             # 手工建立计算图
             self.model_train = self.build_train_graph()
 
+            self.model_infer = InferModel(train_encoder=self.encoder,
+                                          train_decoder=self.train_decoder,
+                                          reverse_source=reverse_source,
+                                          _start_target=_start_target, _end_target=_end_target,
+                                          _null_target=_null_target,
+                                          tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target)
+
 
         elif build_mode == 'Eager':
 
-            self.model_train = ModelTrain(n_embedding=self.n_embedding, n_h=self.n_h,
+            self.model_train = TrainModel(n_embedding=self.n_embedding, n_h=self.n_h,
                                           target_length=self.target_length,
                                           dropout_rates=self.dropout_rates,
                                           n_vocab_source=self.n_vocab_source, n_vocab_target=self.n_vocab_target)
 
-            self.encoder = self.model_train.encoder
-            self.train_decoder = self.model_train.train_decoder
 
-            self.infer_decoder = InferDecoderUnroll(train_decoder_obj=self.train_decoder, _start=self._start_target,
-                                              vocab_target=self.vocab_target)
+            self.model_infer = InferModel(train_encoder=self.model_train.encoder,
+                                          train_decoder=self.model_train.decoder,
+                                          reverse_source=reverse_source,
+                                          _start_target=_start_target, _end_target=_end_target,
+                                          _null_target=_null_target,
+                                          tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target)
 
 
         else:
@@ -178,66 +178,6 @@ class EnsembleSeq2seq:
 
         return tf.reduce_mean(loss_)
 
-    def _preprocess(self, batch_data):
-        """
-        对数据集的 一个批次的数据的预处理
-
-        :param batch_data:
-        :return:
-        """
-
-        batch_source = batch_data
-
-        batch_source_vector = self.tokenizer_source(batch_source).to_tensor()
-
-        if self.reverse_source:
-            batch_source_vector = batch_source_vector[:, ::-1]
-
-        return batch_source_vector
-
-    # 1.调试的时候去掉  @tf.function 装饰器
-    # 2.input_signature 规定了函数参数的类型, 在重复收到规定类型的输入不会重新构建计算图
-    #   shape=[None, None] 表示张量的维度是2维, None 表示可以取任意值
-    #   shape=None 表示标量
-    @tf.function(input_signature=[tf.TensorSpec(dtype=tf.int64, shape=[None, None]), tf.TensorSpec(dtype=tf.int32, shape=None)])
-    def _test_step(self, batch_source, target_length):
-
-        # batch_source  shape (N_batch, source_length)
-
-        training = False
-
-        layer_state_list = self.encoder(batch_source=batch_source, training=training)
-
-        probs, preds, decode_text = self.infer_decoder(layer_state_list=layer_state_list,
-                                                       target_length=target_length, training=training)
-
-        return probs, preds, decode_text
-
-    def predict(self, source_dataset, target_length=None):
-        """
-        输出预测的单词序列
-
-        :param source_dataset:
-        :param target_length:
-        :return:
-        """
-
-        seq_list = []
-
-        # 遍历数据集
-        for batch_data in tqdm(source_dataset):
-
-            batch_source = self._preprocess(batch_data)
-
-            if target_length is None:
-                target_length = tf.shape(batch_source)[1]  # 源句子的长度决定了推理出的目标句子的长度
-
-            _, _, decode_seq = self._test_step(batch_source, target_length)
-
-            for seq in decode_seq:
-                seq_list.append(seq)
-
-        return seq_list
 
 
 
@@ -432,11 +372,14 @@ class InferDecoder(Layer):
 
     """
 
-    def __init__(self, train_decoder_obj, _start, vocab_target):
+    def __init__(self, train_decoder_obj,  _start_target, _end_target, _null_target, tokenizer_target):
+
         super(InferDecoder, self).__init__()
 
         self.train_decoder_obj = train_decoder_obj
-        self._start = _start
+        self._start_target = _start_target
+        self._end_target = _end_target
+        self._null_target = _null_target
 
         self.embedding_layer = self.train_decoder_obj.embedding_layer
         self.dropout_layer0 = self.train_decoder_obj.dropout_layer0
@@ -456,13 +399,15 @@ class InferDecoder(Layer):
         self.fc_layer = self.train_decoder_obj.fc_layer
         self.softmax_layer = self.train_decoder_obj.softmax_layer
 
-        self.vocab_target = vocab_target
+        self.tokenizer_target = tokenizer_target
 
     def get_config(self):
         config = super().get_config().copy()
         config.update({
             'train_decoder_obj': self.train_decoder_obj,
-            '_start': self._start,
+            '_start_target': self._start_target,
+            '_end_target': self._end_target,
+            '_null_target': self._null_target,
 
             'embedding_layer': self.embedding_layer,
             'dropout_layer0': self.dropout_layer0,
@@ -477,8 +422,9 @@ class InferDecoder(Layer):
             'dropout_layer4': self.dropout_layer4,
 
             'fc_layer': self.fc_layer,
-            'vocab_target': self.vocab_target,
             'softmax_layer': self.softmax_layer,
+
+            'tokenizer_target': self.tokenizer_target,
         })
         return config
 
@@ -510,9 +456,11 @@ class InferDecoder(Layer):
         c4 = layer_state_list[4][1]  # shape: (N_batch, n_h)
 
         N_batch = tf.shape(h1)[0]
-        batch_token = tf.ones((N_batch, 1), dtype=tf.int64) * self._start  # (N_batch, 1)
+        batch_token = tf.ones((N_batch, 1), dtype=tf.int64) * self._start_target  # (N_batch, 1)
 
-        outs_prob = tf.TensorArray(tf.float32, size=target_length, clear_after_read=False)
+        # outs_prob = tf.TensorArray(tf.float32, size=target_length, clear_after_read=False)
+
+        done = tf.zeros((N_batch,), dtype=tf.bool)  # 标记序列的解码可以结束
 
         outs = tf.TensorArray(tf.int64, size=target_length, clear_after_read=False)
 
@@ -543,67 +491,160 @@ class InferDecoder(Layer):
 
             # print('max_idx', max_idx)
 
-            batch_token = tf.expand_dims(max_idx, axis=1)  # shape (N_batch, 1)
+            # 若出现结束标记位, 则置此序列的状态为 '解码结束' (True)
+            # 注意这里是 '或', 也就是只要出现一次结束标记位之后 done 数组中表示此序列的位一直为 True
+            done = done | (max_idx == self._end_target)
+            # 若序列的状态被置为 '解码结束', 则 后面的时间步都填充 null 元素
+            batch_token = tf.where(done, tf.constant(self._null_target, dtype=tf.int64), max_idx)  # shape (N_batch, )
 
-            outs_prob = outs_prob.write(t, out)  # shape (target_length, N_batch, n_vocab)
+            outs = outs.write(t, batch_token)  # shape (target_length, N_batch)
 
-            outs = outs.write(t, max_idx)  # shape (target_length, N_batch)
+            batch_token = tf.expand_dims(batch_token, axis=1)  # shape (N_batch, 1)
 
-        outputs_prob = tf.transpose(outs_prob.stack(),
-                                    perm=[1, 0, 2])  # 每一个时间步的概率列表 shape (N_batch, target_length, n_vocab)
+            if tf.reduce_all(done):
+                break
 
         outputs = tf.transpose(outs.stack(), perm=[1, 0])  # 单词标号序列 shape (N_batch, target_length)
 
-        decode_seq = self.vocab_target.map_id_to_word(outputs)  # 解码后的单词序列 shape (N_batch, target_length)
+        decode_seq = self.tokenizer_target.detokenize(outputs)  # 解码后的单词序列 shape (N_batch, target_length)
 
         decode_text = tf.strings.reduce_join(decode_seq, axis=1, separator=' ')  # 单词序列 join 成句子
 
-        return outputs_prob, outputs, decode_text
+        return outputs, decode_text
 
 
-class ModelTrain(tf.keras.Model):
+class TrainModel(tf.keras.Model):
 
     def __init__(self, n_embedding, n_h, target_length,
                  dropout_rates,
                  n_vocab_source, n_vocab_target):
 
-        super(ModelTrain, self).__init__(self)
+        super(TrainModel, self).__init__(self)
 
         # 建立编码器和解码器
         self.encoder = Encoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_source, dropout_rates=dropout_rates)
 
-        self.train_decoder = TrianDecoderUnroll(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target,
-                                                target_length=target_length, dropout_rates=dropout_rates)
+        self.decoder = TrianDecoder(n_embedding=n_embedding, n_h=n_h, n_vocab=n_vocab_target,
+                                              target_length=target_length, dropout_rates=dropout_rates)
 
-    def call(self, inputs_tuple):
+    # 调试的时候去掉  @tf.function 装饰器
+    @tf.function(input_signature=[
+        (tf.TensorSpec(dtype=tf.int64, shape=[None, None]),
+        tf.TensorSpec(dtype=tf.int64, shape=[None, None]))
+    ])
+    def call(self, inputs):
         """
         要使用 Model 自带的 fit 函数, call() 只能有 1个参数
 
-        :param inputs_tuple:
+        :param inputs:
         :return:
         """
-        batch_source, batch_target_in = inputs_tuple
-
-        # batch_source shape (N_batch, source_length)
-        # batch_target_in shape (N_batch, target_length)
-
-        outputs_prob = self.run_step(batch_source, batch_target_in)
-
-
-        return outputs_prob
-
-    # 调试的时候去掉  @tf.function 装饰器
-    @tf.function(input_signature=[tf.TensorSpec(dtype=tf.int64, shape=[None, None]), tf.TensorSpec(dtype=tf.int64, shape=[None, None])])
-    def run_step(self, batch_source, batch_target_in):
+        batch_source, batch_target_in = inputs
 
         # batch_source shape (N_batch, source_length)
         # batch_target_in shape (N_batch, target_length)
 
         layer_state_list = self.encoder(batch_source)
 
-        outputs_prob = self.train_decoder(batch_target_in, layer_state_list)
+        outputs_prob = self.decoder(batch_target_in, layer_state_list)
+
 
         return outputs_prob
+
+
+class InferModel(Model):
+
+    def __init__(self, train_encoder, train_decoder, reverse_source,  _start_target, _end_target, _null_target, tokenizer_source, tokenizer_target):
+
+        super(InferModel, self).__init__()
+
+        self.reverse_source = reverse_source
+
+        self._start_target = _start_target
+        self._end_target = _end_target
+        self._null_target = _null_target
+
+        self.tokenizer_source = tokenizer_source
+        self.tokenizer_target = tokenizer_target
+
+        self.encoder = train_encoder
+
+        self.infer_decoder = InferDecoder(train_decoder_obj=train_decoder,
+                                          _start_target=_start_target, _end_target=_end_target,
+                                          _null_target=_null_target, tokenizer_target=tokenizer_target)
+
+    def _preprocess_infer(self, batch_data):
+        """
+        对数据集的 一个批次的数据的预处理
+
+        :param batch_data:
+        :return:
+        """
+
+        batch_source = batch_data
+
+        batch_source_vector = self.tokenizer_source.tokenize(batch_source).to_tensor()
+
+        if self.reverse_source:
+            batch_source_vector = batch_source_vector[:, ::-1]
+
+        return batch_source_vector
+
+    # 1.调试的时候去掉  @tf.function 装饰器
+    # 2.input_signature 规定了函数参数的类型, 在重复收到规定类型的输入不会重新构建计算图
+    #   shape=[None, None] 表示张量的维度是2维, None 表示可以取任意值
+    #   shape=None 表示标量
+    @tf.function(input_signature=[tf.TensorSpec(dtype=tf.int64, shape=[None, None]), tf.TensorSpec(dtype=tf.int32, shape=None)])
+    def call(self, batch_source, target_length):
+        """
+
+        :param batch_source: shape (N_batch, source_length)
+        :param target_length:
+        :return:
+        """
+        training = False
+
+        layer_state_list = self.encoder(batch_source=batch_source, training=training)
+
+        preds, decode_text = self.infer_decoder(target_length=target_length,
+                                             layer_state_list=layer_state_list,
+                                             training=training)
+
+        return preds, decode_text
+
+
+    def test_step(self, data, target_length=None):
+
+        batch_source = self._preprocess_infer(data)
+
+        if target_length is None:
+            target_length = tf.shape(batch_source)[1] + 50  # 源句子的长度决定了推理出的目标句子的长度
+
+        _, decode_text = self(batch_source, target_length)
+
+        return decode_text
+
+    def predict(self, source_dataset, target_length=None):
+        """
+        输出预测的单词序列
+
+        :param source_dataset:
+        :param target_length:
+        :return:
+        """
+
+        seq_list = []
+
+        # 遍历数据集
+        for batch_data in tqdm(source_dataset):
+
+            decode_text = self.test_step(batch_data, target_length)
+
+            for sentence in decode_text:
+                seq_list.append(sentence)
+
+        return seq_list
+
 
 
 class TrianDecoderUnroll(Layer):
@@ -872,7 +913,7 @@ class Test:
         n_vocab_source = 50
         n_vocab_target = 50
 
-        model = ModelTrain(n_embedding, n_h, target_length,
+        model = TrainModel(n_embedding, n_h, target_length,
                  dropout_rates,
                  n_vocab_source, n_vocab_target)
 
