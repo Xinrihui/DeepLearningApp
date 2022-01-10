@@ -12,7 +12,7 @@
     ├── config                  # 配置文件
     ├── dataset                 # 数据集
     ├── docs                    # 参考文献
-    ├── lib                     # 代码库
+    ├── lib                     # 模块库
         ├── data_generator      # 其中 tf_data_prepare_xrh.py 是生成训练和测试数据集的主程序
         ├── layers              # 包括各种 注意力层
         ├── models              # 包括各种 NMT 模型
