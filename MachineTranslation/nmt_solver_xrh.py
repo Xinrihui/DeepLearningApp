@@ -30,7 +30,7 @@ class MachineTranslation:
 
     1. 可以包装不同的 seq2seq 模型和 attention 模型
 
-    2. 实现了基于 tf.data 的数据预处理 pipline, 使用 TextVectorization制作词典, 并用 StringLookup 做句子的向量化和反向量化
+    2. 实现了基于 tf.data 的数据预处理 pipline
 
     3. 在配置中心中维护超参数
 

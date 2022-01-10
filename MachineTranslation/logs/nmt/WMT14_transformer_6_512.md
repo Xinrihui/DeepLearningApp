@@ -29,9 +29,9 @@
 
 ## 2.实验记录
 
-### 2.1 验证 Label Smoothing 的效果
+### 2.1 验证 warmup_steps 的效果
 
-#### 实验 1  未使用 Label Smoothing
+#### 实验 1  warmup_steps=32000
     
     (0) 模型
        
@@ -406,7 +406,7 @@
     bleu_score:{'1-garm': 0.5395491205908075, '2-garm': 0.3885112483113567, '3-garm': 0.2922480214446967, '4-garm': 0.22472565783740672}
         
         
-#### 实验 2  使用 Label Smoothing
+#### 实验 2  warmup_steps=8000
     
     (0) 模型
        
@@ -439,10 +439,210 @@
     label_smoothing=0.1 
     
     optimizer= Adam with warmup_steps
-    warmup_steps = 32000
+    warmup_steps = 8000
     
     (5) 训练过程
     
     在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
     
+    Epoch 1/9
     
+    candidates:
+    [0] Eine weitere politische Strategie der Obama # # AT # # - # # AT # # Administration ist die Wiederaufnahme der Wahlen .
+    [1] Die Wahl der Politiker ist eine politische Entscheidung , die die Bürger gegen die Sanktionen schützt .
+    [2] In der Tat ist die Tatsache , dass die USA in der Regel eine große Anzahl von Fällen von Gewalt gegen die Bevölkerung in der Region haben .
+    [3] In den letzten Jahren haben die meisten Regierungen nur eine einzige einzige einzige demokratische Opposition in der Welt .
+    [4] Eine weitere Sorge besteht darin , dass die neuen Vorschriften nicht geändert werden .
+    [5] In diesem Fall wird die demokratische Kontrolle der USA untergraben .
+    [6] In der Regel ist die US # # AT # # - # # AT # # Regierung in den USA nicht in der Lage , die Todesstrafe zu finanzieren .
+    [7] Es ist eine Schande , dass die neuen Demokratien in den USA eine neue Verfassung haben , die sich auf die Bekämpfung der Korruption und die Bekämpfung von Korruption stützt .
+    [8] Die jüngsten Ereignisse , die in den letzten Tagen in der Regierung von New York am 27 . November in New York stattgefunden haben , sind ermutigend .
+    [9] In diesem Fall hat die Entscheidung , die in den letzten drei Monaten in Kraft tretenden Sanktionen zu streichen , nur noch eine einzige Ausnahme für die in der Praxis verhängten Ausgaben von 30 % erreicht .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.2165214448862194, '2-garm': 0.07437178745623062, '3-garm': 0.028844275772728287, '4-garm': 0.011851486502152566}
+    14308/14308 [==============================] - 5017s 350ms/step - loss: 5.0359 - accuracy: 0.2200 - val_loss: 3.2916 - val_accuracy: 0.3705
+    
+    Epoch 2/9
+    
+    candidates:
+    [0] Obama sollte eine Reform der amerikanischen Wahlkampfpolitik vorschlagen .
+    [1] Die Wähler haben die Wahl der Regierung Bush kritisiert , ihre Politik gegen die Militärregierung zu revolutionieren .
+    [2] In der Tat ist die Tatsache , dass die USA einen solchen Fall als & quot ; vermeintliche & quot ; , als die Regierung des Landes die Selbstmordattentäter in den USA verschwand , ein Skandal , der sich jedoch als & quot ; vermeintlich & quot ; bezeichnet .
+    [3] Tatsächlich haben die USA nur wenige Wochen lang die verschässigten Dissidenten in den USA wegen der Gewalt gegen die Hälfte der Fälle von Gewalt gegen Frauen verurteilt .
+    [4] Eine weitere Änderung ist , dass diese Änderungen eine positive Diskriminierung darstellen , die sich negativ auf die neuen Demokratien auswirken wird .
+    [5] Tatsächlich werden die Maßnahmen gegen den amerikanischen Protektionismus untergraben .
+    [6] In den USA ist die Entscheidung der USA , die Mitglieder des Internationalen Bundes in den USA zu werden , in den USA jedoch in den USA .
+    [7] Die Entscheidung , die seit den Wahlen in den USA getroffen wurde , ist seit Jahren demokratisch oder demokratisch , und die neuen Mitgliedstaaten haben sich seit Jahren gegen die Gesetzgebung der USA ausgesprochen .
+    [8] Die Wahl der Regierung wurde am 26 . November 2009 in New York , New York , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 , 26 . November 2009 .
+    [9] Die Entscheidung , die in den einzelnen Mitgliedstaaten gemäß Artikel 180 Absatz 3 des EG # # AT # # - # # AT # # Vertrags getroffen wurde , wurde erst in den Monaten nach ihrem Berufungsverzug in den Jahren 2009 # # AT # # - # # AT # # 2013 getroffen .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.1516825800976024, '2-garm': 0.056800576479681404, '3-garm': 0.023305284159249585, '4-garm': 0.010303621170107158}
+    14308/14308 [==============================] - 5013s 350ms/step - loss: 2.9222 - accuracy: 0.3947 - val_loss: 3.0991 - val_accuracy: 0.3945
+    
+    从第2个 Epoch 开始, 在验证集上的效果反而下降了
+    
+#### 实验 3  warmup_steps=40000
+    
+    (0) 模型
+       
+    (1) 数据集 
+    
+    训练数据:    
+    N_train = 4343134 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 )
+    
+    验证数据(newstest2013): 
+    N_valid = 2975 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 ) 
+
+    测试数据(newstest2014): 
+    N_test = 2737 
+    
+    
+    (2) 数据预处理
+    
+    未做 unicode 标准化
+    
+    使用 wordpiece subword 算法分词
+    源语言词表大小: n_vocab_source=30000
+    目标语言词表大小: n_vocab_target=30000
+    
+    
+    (3) 优化器参数
+    
+    epoch_num = 10
+    token_in_batch = 12288
+    
+    label_smoothing=0.1 
+    
+    optimizer= Adam with warmup_steps
+    warmup_steps = 40000
+    
+    (5) 训练过程
+    
+    在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
+  
+    Epoch 1/9
+    
+    bleu_score:{'1-garm': 0.2195131501664165, '2-garm': 0.08042179503666612, '3-garm': 0.031169729652626026, '4-garm': 0.012521833705404559}
+    14308/14308 [==============================] - 4969s 346ms/step - loss: 6.2813 - accuracy: 0.1565 - val_loss: 3.9922 - val_accuracy: 0.3157
+    
+    Epoch 2/9
+    
+    
+    bleu_score:{'1-garm': 0.4981359129314444, '2-garm': 0.331822680610765, '3-garm': 0.23457356666625387, '4-garm': 0.17008474856283343}
+    14308/14308 [==============================] - 4907s 343ms/step - loss: 3.3035 - accuracy: 0.3713 - val_loss: 2.1419 - val_accuracy: 0.5756
+    
+    Epoch 3/9
+    
+    bleu_score:{'1-garm': 0.5323057746805994, '2-garm': 0.3669486888964614, '3-garm': 0.26730690268362384, '4-garm': 0.19921099031761372}
+    14308/14308 [==============================] - 4903s 342ms/step - loss: 2.1377 - accuracy: 0.5487 - val_loss: 1.8212 - val_accuracy: 0.6226
+    
+    Epoch 4/9
+    
+    bleu_score:{'1-garm': 0.540609142077259, '2-garm': 0.37971041409838285, '3-garm': 0.2807277992330214, '4-garm': 0.2121459781090728}
+    14308/14308 [==============================] - 4944s 345ms/step - loss: 1.8885 - accuracy: 0.5865 - val_loss: 1.6561 - val_accuracy: 0.6449
+    
+    Epoch 5/9
+    
+    bleu_score:{'1-garm': 0.5477085743668852, '2-garm': 0.38942790622817974, '3-garm': 0.29077501974677555, '4-garm': 0.2217931116541858}
+    14308/14308 [==============================] - 4929s 344ms/step - loss: 1.7633 - accuracy: 0.6055 - val_loss: 1.5842 - val_accuracy: 0.6562
+    
+    Epoch 6/9
+    
+    bleu_score:{'1-garm': 0.5505345525433566, '2-garm': 0.39334670647637615, '3-garm': 0.2956567520322611, '4-garm': 0.22703597714987525}
+    14308/14308 [==============================] - 4871s 340ms/step - loss: 1.6884 - accuracy: 0.6177 - val_loss: 1.5401 - val_accuracy: 0.6632
+    
+    Epoch 7/9
+    
+    bleu_score:{'1-garm': 0.551928244780108, '2-garm': 0.39560350310828923, '3-garm': 0.2977172412130709, '4-garm': 0.22885158960297677}
+    14308/14308 [==============================] - 4874s 340ms/step - loss: 1.6381 - accuracy: 0.6256 - val_loss: 1.5095 - val_accuracy: 0.6677
+    
+    Epoch 8/9
+    
+    candidates:
+    [0] Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzuwirken .
+    [1] Die republikanischen Führer haben ihre Politik durch die Notwendigkeit der Bekämpfung von Wahlbetrug gerechtfertigt .
+    [2] Das Brennan # # AT # # - # # AT # # Zentrum betrachtet dies jedoch als einen Mythos , in dem es heißt , dass der Wahlbetrug in den Vereinigten Staaten seltener ist als die Zahl der durch Blitztoten getöteten Menschen .
+    [3] Tatsächlich haben republikanische Juristen in einem Jahrzehnt nur 300 Fälle von Wahlbetrug in den USA festgestellt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden negative Auswirkungen auf die Wahlbeteiligung haben .
+    [5] In diesem Sinne werden die Maßnahmen das demokratische System der USA teilweise untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Organisation von Bundeswahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat eine Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze erlassen , was die Registrierung oder Abstimmung erschwert .
+    [8] Dieses Phänomen hat nach den Wahlen im November 2010 , die 675 neue republikanische Vertreter in 26 Staaten hinzukamen , an Dynamik gewonnen .
+    [9] Im Ergebnis wurden allein 2011 180 Rechnungen eingeführt , die die Ausübung des Stimmrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5562467653548834, '2-garm': 0.3986587081222473, '3-garm': 0.30004918333012925, '4-garm': 0.23089974309850575}
+    14308/14308 [==============================] - 4878s 341ms/step - loss: 1.6064 - accuracy: 0.6307 - val_loss: 1.4883 - val_accuracy: 0.6721
+    
+    Epoch 9/9
+    
+    bleu_score:{'1-garm': 0.554436618435967, '2-garm': 0.3963182096696606, '3-garm': 0.29788542142942087, '4-garm': 0.22892224065149505}
+    14308/14308 [==============================] - 4877s 341ms/step - loss: 1.5812 - accuracy: 0.6343 - val_loss: 1.4805 - val_accuracy: 0.6748
+
+
+    (6) 模型评价
+    
+    在测试集上评价模型
+    
+    1.epoch=8 时的模型
+
+    candidates:
+    [0] Orlando Bloom und Miranda Kerr lieben einander noch immer .
+    [1] Schauspieler Orlando Bloom und Model Miranda Kerr wollen ihre eigenen Wege gehen .
+    [2] In einem Interview hat Bloom jedoch gesagt , dass er und Kerr sich immer noch lieben .
+    [3] Miranda Kerr und Orlando Bloom sind Eltern von zweijährigen Flynn .
+    [4] Der Schauspieler Orlando Bloom hat seine Trennung von seiner Frau , Supermodel Miranda Kerr , angekündigt .
+    [5] In einem Interview mit dem US # # AT # # - # # AT # # Journalisten Katie Couric , das am Freitag ( Ortszeit ) ausgestrahlt werden soll , sagte Bloom : & quot ; Manchmal geht das Leben nicht so weit , wie wir es planen oder hoffen & quot ; .
+    [6] Er und Kerr lieben einander noch immer , betonten die 36 # # AT # # - # # AT # # Jährigen .
+    [7] & quot ; Wir werden einander unterstützen und uns als Eltern nach Flynn lieben & quot ; .
+    [8] Kerr und Bloom sind seit 2010 verheiratet und ihr Sohn Flynn wurde 2011 geboren .
+    [9] Jet # # AT # # - # # AT # # Hersteller haben die Sitzbreite mit großen Auftragseingängen über die gewünschte Sitzbreite gefehlt .
+    
+    references:
+    [0] ['Orlando Bloom und Miranda Kerr lieben sich noch immer']
+    [1] ['Schauspieler Orlando Bloom und Model Miranda Kerr wollen künftig getrennte Wege gehen .']
+    [2] ['In einem Interview sagte Bloom jedoch , dass er und Kerr sich noch immer lieben .']
+    [3] ['Miranda Kerr und Orlando Bloom sind Eltern des zweijährigen Flynn .']
+    [4] ['Schauspieler Orlando Bloom hat sich zur Trennung von seiner Frau , Topmodel Miranda Kerr , geäußert .']
+    [5] ['In einem Interview mit US ##AT##-##AT## Journalistin Katie Couric , das am Freitag ( Ortszeit ) ausgestrahlt werden sollte , sagte Bloom , &quot; das Leben verläuft manchmal nicht genau so , wie wir es planen oder erhoffen &quot; .']
+    [6] ['Kerr und er selbst liebten sich noch immer , betonte der 36 ##AT##-##AT## Jährige .']
+    [7] ['&quot; Wir werden uns gegenseitig unterstützen und lieben als Eltern von Flynn &quot; .']
+    [8] ['Kerr und Bloom sind seit 2010 verheiratet , im Jahr 2011 wurde ihr Söhnchen Flynn geboren .']
+    [9] ['Jumbo ##AT##-##AT## Hersteller streiten im Angesicht großer Bestellungen über Sitzbreite']
+    
+    bleu_score:{'1-garm': 0.5415640697330838, '2-garm': 0.3895663301583339, '3-garm': 0.2923390303642965, '4-garm': 0.22448129889266707}

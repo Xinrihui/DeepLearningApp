@@ -23,14 +23,12 @@
 
 ### 1.1 模型设计
 
-1. 基础模型从下往上依次为 : 词嵌入层, 图片嵌入层, LSTM中间层, 时序仿射输出层
-
-原始图片经过预训练的 CNN 的特征抽取后的图片向量再输入图片嵌入层, 图片嵌入层的输出作为 LSTM 的初始隐状态(h0);
+1. 基础模型从下往上依次为 : 词嵌入层, 图片嵌入层, LSTM中间层, 时序仿射输出层; 原始图片经过预训练的 CNN 的特征抽取后的图片向量再输入图片嵌入层, 图片嵌入层的输出作为 LSTM 的初始隐状态(h0);
 此处设计参考论文(Deep Visual-Semantic Alignments for Generating Image Descriptions)
 
 ![avatar](docs/images/LSTM.png) 
 
-上图来自于论文(Show and Tell: A Neural Image Caption Generator), 是将图片向量作为第一个LSTM 的输入, 此处与我们的模型相比有细微的差异
+> 上图来自于论文(Show and Tell: A Neural Image Caption Generator), 是将图片向量作为第一个LSTM 的输入, 此处与我们的模型相比有细微的差异
 
 2. 优化后的模型采用了 2层 LSTM 的堆叠, 并在中间使用 dropout 对 LSTM 进行连接, 模型结构类似下图
 
