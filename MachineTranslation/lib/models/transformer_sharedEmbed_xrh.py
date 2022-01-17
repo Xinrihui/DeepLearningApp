@@ -13,39 +13,26 @@ from tqdm import tqdm
 import time
 
 
-from lib.layers.attention_layer_xrh import *
-
 from lib.models.position_encode_xrh import *
 
 from lib.layers.transformer_layer_xrh import *
+
+from lib.layers.embedding_layer_xrh import *
 
 from lib.utils.mask_xrh import *
 
 from lib.models.optimizer_xrh import *
 
-class TransformerSeq2seq:
+class TransformerSharedEmbed:
     """
 
-    Seq2seq with Transformer 模型
+    共享 Embedding 的 Transformer 模型
 
+    1.编码器的 Embedding, 解码器的 Embedding , 和解码器的输出层共享权重矩阵 V
 
-    1. 训练时用以下方式生成 计算图 (Graph):
-
-     (1) 使用 Eager execution 构建模型, 调试完成后, 利用框架提供的 tf.function 从代码中自动抽取出计算图, 再喂入大量数据训练,
-         显然最终也是做了 graph execution ,
-
-    2. 推理时采用  Eager execution 构建模型：
-
-      每次推理 1 个 batch 的源序列, 解码的时间步设置为固定长度(测试集中最长的序列的长度),
-      对每一个源序列, 在 decoder 预测出 <END> 时就结束解码, 即剩余的时间步都填充 null
-
-    3.关于 mask 机制
-     (1) 对于填充 null 的时间步 (padding) 不计入损失函数中
-     (2) padding_mask: 序列的填充 mask
-     (3) look_ahead_mask: 避免看到未来的序列 mask
 
     Author: xrh
-    Date: 2021-12-15
+    Date: 2022-1-5
 
     ref:
     1. Attention Is All You Need
@@ -110,7 +97,6 @@ class TransformerSeq2seq:
                 n_vocab_source=n_vocab_source, n_vocab_target=n_vocab_target,
                 _null_source=_null_source, _null_target=_null_target,
                 maximum_position_source=maximum_position_source, maximum_position_target=maximum_position_target,
-                tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target
                 )
 
             self.model_infer = InferModel(model_train=self.model_train,
@@ -123,13 +109,14 @@ class TransformerSeq2seq:
 
 
 
+
 class Encoder(Layer):
     """
     将多层的编码器层进行堆叠
 
     """
 
-    def __init__(self, num_layers, d_model, num_heads, dff, n_vocab_source,
+    def __init__(self, num_layers, d_model, num_heads, dff, shared_embed_layer,
                  pos_encoding, dropout_rates):
         """
 
@@ -137,7 +124,7 @@ class Encoder(Layer):
         :param d_model: 模型整体的隐藏层的维度
         :param num_heads: 并行注意力层的个数(头数)
         :param dff: Position-wise Feed-Forward Networks 的中间层的维度
-        :param n_vocab_source: 源语言的词表大小
+        :param shared_embed_layer: 共享的 embedding 层
         :param pos_encoding: 位置编码张量(包括所有位置)
         :param dropout_rates: dropout 的弃置率
         """
@@ -146,7 +133,7 @@ class Encoder(Layer):
         self.d_model = d_model
         self.num_layers = num_layers
 
-        self.embedding = Embedding(n_vocab_source, d_model)
+        self.embedding = shared_embed_layer
         self.pos_encoding = pos_encoding
 
         self.enc_layers = [EncoderLayer(d_model, num_heads, dff, dropout_rates)
@@ -203,7 +190,7 @@ class TrainDecoder(Layer):
 
     """
 
-    def __init__(self, num_layers, d_model, num_heads, dff, n_vocab_target,
+    def __init__(self, num_layers, d_model, num_heads, dff, shared_embed_layer,
                  pos_encoding, dropout_rates):
         """
 
@@ -211,7 +198,7 @@ class TrainDecoder(Layer):
         :param d_model: 模型整体的隐藏层的维度
         :param num_heads: 并行注意力层的个数(头数)
         :param dff: Position-wise Feed-Forward Networks 的中间层的维度
-        :param n_vocab_target: 源语言的词表大小
+        :param shared_embed_layer: 共享的 embedding 层
         :param pos_encoding: 位置编码张量(包括所有位置)
         :param dropout_rates: dropout 的弃置率
         """
@@ -221,14 +208,14 @@ class TrainDecoder(Layer):
         self.d_model = d_model
         self.num_layers = num_layers
 
-        self.embedding = Embedding(n_vocab_target, d_model)
+        self.embedding = shared_embed_layer
         self.pos_encoding = pos_encoding
 
         self.dec_layer_list = [DecoderLayer(d_model, num_heads, dff, dropout_rates)
                                for _ in range(num_layers)]
         self.dropout = Dropout(dropout_rates[-1])
 
-        self.fc = Dense(n_vocab_target)
+        self.fc = shared_embed_layer
 
         self.softmax = Activation('softmax', dtype='float32')
 
@@ -287,7 +274,7 @@ class TrainDecoder(Layer):
 
         # x shape (N_batch, target_seq_len, d_model)
 
-        out = self.fc(x)  # out shape (N_batch, target_seq_len, n_vocab_target)
+        out = self.fc.call_liner(x)  # out shape (N_batch, target_seq_len, n_vocab_target)
 
         out_prob = self.softmax(out)  # shape (N_batch, target_seq_len, n_vocab_target)
 
@@ -362,7 +349,7 @@ class InferDecoder(Layer):
                 x, block1, block2 = self.dec_layer_list[i](x=x, encoder_output=encoder_output, training=training,
                                                            look_ahead_mask=look_ahead_mask, padding_mask=padding_mask)
 
-            x = self.fc(x)  # shape (N_batch, t+1, n_vocab_target)
+            x = self.fc.call_liner(x)  # shape (N_batch, t+1, n_vocab_target)
 
             # 最后一个时间步的输出
             out = x[:, -1, :]  # (N_batch, vocab_size)
@@ -399,7 +386,6 @@ class TrainModel(Model):
                  maximum_position_source, maximum_position_target,
                  n_vocab_source, n_vocab_target,
                  _null_source, _null_target,
-                 tokenizer_source=None, tokenizer_target=None
                  ):
         """
 
@@ -416,8 +402,7 @@ class TrainModel(Model):
         :param n_vocab_target: 目标语言的词表大小
         :param _null_source: 源序列的填充标号
         :param _null_target: 目标序列的填充标号
-        :param tokenizer_source: 源语言的分词器
-        :param tokenizer_target: 目标语言的分词器
+
 
         """
 
@@ -433,14 +418,16 @@ class TrainModel(Model):
 
         self.n_vocab_target = n_vocab_target
 
-        self.tokenizer_source = tokenizer_source
-        self.tokenizer_target = tokenizer_target
+        # self.tokenizer_source = tokenizer_source
+        # self.tokenizer_target = tokenizer_target
+
+        self.shared_embed_layer = SharedEmbedding(n_h=d_model, n_vocab=n_vocab_target)
 
         self.encoder = Encoder(num_layers, d_model, num_heads, dff,
-                               n_vocab_source, PE_source.pos_encoding, dropout_rates)
+                               self.shared_embed_layer, PE_source.pos_encoding, dropout_rates)
 
         self.decoder = TrainDecoder(num_layers, d_model, num_heads, dff,
-                                    n_vocab_target, PE_target.pos_encoding, dropout_rates)
+                                    self.shared_embed_layer, PE_target.pos_encoding, dropout_rates)
 
         # 损失函数对象
         if label_smoothing == 0:  # 不开启 label_smoothing

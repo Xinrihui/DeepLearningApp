@@ -17,7 +17,9 @@ from lib.models.ensemble_seq2seq_xrh import *
 
 from lib.models.attention_seq2seq_xrh import *
 
-from lib.models.transformer_seq2seq_xrh import *
+# from lib.models.transformer_seq2seq_xrh import *
+
+from lib.models.transformer_sharedEmbed_xrh import *
 
 import configparser
 import json
@@ -128,7 +130,8 @@ class MachineTranslation:
 
         # 3.TransformerSeq2seq
 
-        self.model_obj = TransformerSeq2seq(
+        # TransformerSeq2seq
+        self.model_obj = TransformerSharedEmbed(
                                   num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
                                   num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,
                                   label_smoothing=float(current_config['label_smoothing']), warmup_steps=int(current_config['warmup_steps']),
@@ -533,6 +536,6 @@ if __name__ == '__main__':
     # test.test_evaluating(config_path='config/attention_seq2seq.ini', tag='TEST-1') # DEFAULT
 
 
-    test.test_training(config_path='config/transformer_seq2seq.ini', tag='DEFAULT')  # DEFAULT
+    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST-1')  # DEFAULT
 
     # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='DEFAULT') # DEFAULT

@@ -137,8 +137,6 @@ class DatasetGenerate:
     ref:
     https://tensorflow.google.cn/text/tutorials/nmt_with_attention
     https://www.tensorflow.org/text
-    https://tensorflow.google.cn/api_docs/python/tf/keras/layers/TextVectorization
-
 
     """
 
@@ -646,6 +644,23 @@ class DatasetGenerate:
                     preprocess_dataset=train_target_dataset, n_vocab=n_vocab_target, batch_size=batch_size,
                     tokenizer_file='tokenizer_target_model')
 
+            elif self.tokenize_mode == 'subword_union':
+
+                print('build {} tokenizer ...'.format(self.tokenize_mode))
+
+                union_dataset = train_source_dataset.concatenate(train_target_dataset)
+
+                tokenizer_source, vocab_source_list = self.build_subword_tokenizer(
+                    preprocess_dataset=union_dataset, n_vocab=n_vocab_source, batch_size=batch_size,
+                    tokenizer_file='tokenizer_source_model')
+
+                tokenizer_target, vocab_target_list = tokenizer_source, vocab_source_list
+
+                # 持久化 tokenizer_target, tokenizer_source 和 tokenizer_target 是一样的
+                tokenizer_path = os.path.join(self.cache_data_dir, 'tokenizer_target_model')
+                tf.saved_model.save(tokenizer_target, tokenizer_path)
+
+
             else:
                 raise Exception('the value of tokenize_mode is {}, which is illegal'.format(self.tokenize_mode))
 
@@ -785,6 +800,7 @@ class WMT14_Eng_Ge_Dataset:
 
             self.vocab_source = Vocab(os.path.join(self.cache_data_dir, vocab_source_file))
             self.vocab_target = Vocab(os.path.join(self.cache_data_dir, vocab_target_file))
+
 
         self.tokenizer_source = tf.saved_model.load(os.path.join(self.cache_data_dir, tokenizer_source_file))
         self.tokenizer_target = tf.saved_model.load(os.path.join(self.cache_data_dir, tokenizer_target_file))
@@ -989,14 +1005,14 @@ if __name__ == '__main__':
 
     # TODO：运行之前 把 jupyter notebook 停掉, 否则会出现争抢 GPU 导致报错
 
-    test.test_DatasetGenerate(build_tokenizer=True,
-                              config_path='../../config/attention_seq2seq.ini',
-                              base_dir='../../dataset/TED-Portuguese-English',
-                              tag='TEST-1')  # DEFAULT
-
-    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/attention_seq2seq.ini',
-                                   base_dir='../../dataset/TED-Portuguese-English',
-                                   tag='TEST-1')  # DEFAULT
+    # test.test_DatasetGenerate(build_tokenizer=True,
+    #                           config_path='../../config/attention_seq2seq.ini',
+    #                           base_dir='../../dataset/TED-Portuguese-English',
+    #                           tag='TEST-1')  # DEFAULT
+    #
+    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/attention_seq2seq.ini',
+    #                                base_dir='../../dataset/TED-Portuguese-English',
+    #                                tag='TEST-1')  # DEFAULT
 
     # test.test_DatasetGenerate(build_tokenizer=True,
     #                           config_path='../../config/transformer_seq2seq.ini',
@@ -1007,11 +1023,11 @@ if __name__ == '__main__':
 
 
 
-    # test.test_DatasetGenerate(build_tokenizer=False,
-    #                           config_path='../../config/transformer_seq2seq.ini',
-    #                           base_dir='../../dataset/TED-Portuguese-English',
-    #                           tag='TEST-1')  # DEFAULT
-    #
-    # test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
-    #                                base_dir='../../dataset/TED-Portuguese-English',
-    #                                tag='TEST-1')  # DEFAULT
+    test.test_DatasetGenerate(build_tokenizer=True,
+                              config_path='../../config/transformer_seq2seq.ini',
+                              base_dir='../../dataset/TED-Portuguese-English',
+                              tag='TEST-1')  # DEFAULT
+
+    test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
+                                   base_dir='../../dataset/TED-Portuguese-English',
+                                   tag='TEST-1')  # DEFAULT

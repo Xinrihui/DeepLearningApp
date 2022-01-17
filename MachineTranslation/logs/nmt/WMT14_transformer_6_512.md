@@ -436,7 +436,7 @@
     epoch_num = 10
     token_in_batch = 12288
     
-    label_smoothing=0.1 
+    label_smoothing=0.1(开启 label_smoothing)
     
     optimizer= Adam with warmup_steps
     warmup_steps = 8000
@@ -535,7 +535,7 @@
     epoch_num = 10
     token_in_batch = 12288
     
-    label_smoothing=0.1 
+    label_smoothing=0
     
     optimizer= Adam with warmup_steps
     warmup_steps = 40000
@@ -646,3 +646,163 @@
     [9] ['Jumbo ##AT##-##AT## Hersteller streiten im Angesicht großer Bestellungen über Sitzbreite']
     
     bleu_score:{'1-garm': 0.5415640697330838, '2-garm': 0.3895663301583339, '3-garm': 0.2923390303642965, '4-garm': 0.22448129889266707}
+    
+    
+### 2.2 验证词表大小的效果
+
+#### 实验 4  n_vocab=37000
+    
+    (0) 模型
+       
+    (1) 数据集 
+    
+    训练数据:    
+    N_train = 4343134 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 )
+    
+    验证数据(newstest2013): 
+    N_valid = 2975 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 ) 
+
+    测试数据(newstest2014): 
+    N_test = 2737 
+    
+    
+    (2) 数据预处理
+    
+    未做 unicode 标准化
+    
+    使用 wordpiece subword 算法分词
+    源语言词表大小: n_vocab_source=37000 (实际 35487)
+    目标语言词表大小: n_vocab_target=37000 (实际 36601)
+    
+    
+    (3) 优化器参数
+    
+    epoch_num = 10
+    token_in_batch = 12288
+    
+    label_smoothing=0 
+    
+    optimizer= Adam with warmup_steps
+    warmup_steps = 40000
+    
+    (5) 训练过程
+    
+    在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
+
+    model architecture param:
+    num_layers:6, d_model:512, num_heads:8, dff:2048, n_vocab_source:35487, n_vocab_target:36601
+    -------------------------
+    valid source seq num :2970
+    
+    Epoch 1/10
+    
+    bleu_score:{'1-garm': 0.1683870165402313, '2-garm': 0.06390137373776375, '3-garm': 0.0253629647915209, '4-garm': 0.010221367625056089}
+    14085/14085 [==============================] - 5201s 368ms/step - loss: 6.1717 - accuracy: 0.1662 - val_loss: 3.8570 - val_accuracy: 0.3362
+    
+    Epoch 2/10
+    
+    bleu_score:{'1-garm': 0.5068661480327165, '2-garm': 0.34190691591071226, '3-garm': 0.2442783535013225, '4-garm': 0.178940424171506}
+    14085/14085 [==============================] - 5169s 367ms/step - loss: 3.1217 - accuracy: 0.3997 - val_loss: 2.0272 - val_accuracy: 0.5898
+    
+    Epoch 3/10
+    
+    bleu_score:{'1-garm': 0.5358901522008866, '2-garm': 0.3735847560173235, '3-garm': 0.27500689047809695, '4-garm': 0.2069295799734204}
+    14085/14085 [==============================] - 5075s 360ms/step - loss: 2.0924 - accuracy: 0.5572 - val_loss: 1.7876 - val_accuracy: 0.6255
+    
+    Epoch 4/10
+    
+    bleu_score:{'1-garm': 0.5428312833043801, '2-garm': 0.3833746069865631, '3-garm': 0.28479532592060197, '4-garm': 0.21600456766498558}
+    14085/14085 [==============================] - 5105s 362ms/step - loss: 1.8549 - accuracy: 0.5925 - val_loss: 1.6488 - val_accuracy: 0.6488
+    
+    Epoch 5/10
+    
+    bleu_score:{'1-garm': 0.5502223363780843, '2-garm': 0.3902829187597053, '3-garm': 0.29064842125355095, '4-garm': 0.22103570267701456}
+    14085/14085 [==============================] - 5096s 361ms/step - loss: 1.7512 - accuracy: 0.6086 - val_loss: 1.5922 - val_accuracy: 0.6583
+    
+    Epoch 6/10
+    
+    bleu_score:{'1-garm': 0.5499385114761176, '2-garm': 0.3928398199460398, '3-garm': 0.2946990120465195, '4-garm': 0.22585845488390383}
+    14085/14085 [==============================] - 5057s 359ms/step - loss: 1.6931 - accuracy: 0.6176 - val_loss: 1.5510 - val_accuracy: 0.6625
+    
+    Epoch 7/10
+    
+    bleu_score:{'1-garm': 0.5493828358825784, '2-garm': 0.3926541031286197, '3-garm': 0.294567144149417, '4-garm': 0.2254314317085915}
+    14085/14085 [==============================] - 5051s 358ms/step - loss: 1.6461 - accuracy: 0.6250 - val_loss: 1.5360 - val_accuracy: 0.6673
+    
+    Epoch 8/10
+    
+    bleu_score:{'1-garm': 0.5561410555064664, '2-garm': 0.39845970122247476, '3-garm': 0.3001720118600563, '4-garm': 0.23082356140677165}
+    14085/14085 [==============================] - 5055s 359ms/step - loss: 1.6071 - accuracy: 0.6311 - val_loss: 1.5061 - val_accuracy: 0.6716
+    
+    Epoch 9/10
+    
+    bleu_score:{'1-garm': 0.5574309854710782, '2-garm': 0.40090990692673656, '3-garm': 0.3027317557264984, '4-garm': 0.23323993069432444}
+    14085/14085 [==============================] - 5116s 363ms/step - loss: 1.5867 - accuracy: 0.6341 - val_loss: 1.4933 - val_accuracy: 0.6710
+    
+    Epoch 10/10
+    
+    candidates:
+    [0] Eine republikanische Strategie , um der Wiederwahl Obamas entgegenzuwirken
+    [1] Die republikanischen Führer haben ihre Politik durch die Notwendigkeit der Bekämpfung von Wahlbetrug gerechtfertigt .
+    [2] Das Brennan # # AT # # - # # AT # # Zentrum betrachtet dies jedoch als einen Mythos , in dem es heißt , Wahlbetrug sei in den USA seltener als die Anzahl der durch Blitz getöteten Menschen .
+    [3] Tatsächlich identifizierten republikanische Anwälte in den Vereinigten Staaten in einem Jahrzehnt nur 300 Fälle von Wahlbetrug .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .
+    [5] In diesem Sinne werden die Maßnahmen das demokratische System der USA teilweise untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Durchführung von Bundeswahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat eine Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze erlassen , die den Registrierungs - oder Abstimmungsprozess erschweren .
+    [8] Dieses Phänomen hat nach den Wahlen im November 2010 an Dynamik gewonnen , die 675 neue republikanische Repräsentanten in 26 Staaten hinzugefügt haben .
+    [9] Infolgedessen wurden allein im Jahr 2011 180 Rechnungen eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5571344667613294, '2-garm': 0.4018284804733413, '3-garm': 0.30465140901848564, '4-garm': 0.2358452381280454}
+    14085/14085 [==============================] - 5107s 362ms/step - loss: 1.5748 - accuracy: 0.6361 - val_loss: 1.4750 - val_accuracy: 0.6772
+    
+
+    (6) 模型评价
+    
+    在测试集上评价模型
+    
+    1.epoch=10 时的模型
+    
+    candidates:
+    [0] Orlando Bloom und Miranda Kerr lieben sich noch immer .
+    [1] Schauspieler Orlando Bloom und Model Miranda Kerr wollen ihre eigenen Wege gehen .
+    [2] In einem Interview hat Bloom jedoch gesagt , dass er und Kerr sich immer noch lieben .
+    [3] Miranda Kerr und Orlando Bloom sind Eltern von zwei Jahren Flynn .
+    [4] Der Schauspieler Orlando Bloom kündigte seine Trennung von seiner Frau , Supermodel Miranda Kerr .
+    [5] In einem Interview mit dem US # # AT # # - # # AT # # Journalisten Katie Couric , der am Freitag ausgestrahlt werden soll ( lokale Zeit ) , sagte Bloom : & quot ; Manchmal geht das Leben nicht genau so , wie wir es uns vorstellen oder hoffen & quot ; .
+    [6] Er und Kerr lieben einander noch immer , betonten den 36 # # AT # # - # # AT # # jährigen .
+    [7] & quot ; Wir werden uns gegenseitig unterstützen und uns als Eltern Flynn gegenüber lieben & quot ; .
+    [8] Kerr und Bloom sind seit 2010 verheiratet und ihr Sohn Flynn wurde 2011 geboren .
+    [9] Jet # # AT # # - # # AT # # Hersteller feuerten über die Sitzbreite und große Aufträge auf dem Spiel .
+    
+    references:
+    [0] ['Orlando Bloom und Miranda Kerr lieben sich noch immer']
+    [1] ['Schauspieler Orlando Bloom und Model Miranda Kerr wollen künftig getrennte Wege gehen .']
+    [2] ['In einem Interview sagte Bloom jedoch , dass er und Kerr sich noch immer lieben .']
+    [3] ['Miranda Kerr und Orlando Bloom sind Eltern des zweijährigen Flynn .']
+    [4] ['Schauspieler Orlando Bloom hat sich zur Trennung von seiner Frau , Topmodel Miranda Kerr , geäußert .']
+    [5] ['In einem Interview mit US ##AT##-##AT## Journalistin Katie Couric , das am Freitag ( Ortszeit ) ausgestrahlt werden sollte , sagte Bloom , &quot; das Leben verläuft manchmal nicht genau so , wie wir es planen oder erhoffen &quot; .']
+    [6] ['Kerr und er selbst liebten sich noch immer , betonte der 36 ##AT##-##AT## Jährige .']
+    [7] ['&quot; Wir werden uns gegenseitig unterstützen und lieben als Eltern von Flynn &quot; .']
+    [8] ['Kerr und Bloom sind seit 2010 verheiratet , im Jahr 2011 wurde ihr Söhnchen Flynn geboren .']
+    [9] ['Jumbo ##AT##-##AT## Hersteller streiten im Angesicht großer Bestellungen über Sitzbreite']
+    
+    bleu_score:{'1-garm': 0.5469872404631482, '2-garm': 0.3961186944290748, '3-garm': 0.29923995659784275, '4-garm': 0.2311882663397863}
+    
+
+
+
+
+

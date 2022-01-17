@@ -13,6 +13,9 @@ class DotAttention(Layer):
     """
     对齐函数为 dot 的 attention
 
+    Author: xrh
+    Date: 2021-12-5
+
     ref:
     1.Effective Approaches to Attention-based Neural Machine Translation
     2.https://www.tensorflow.org/api_docs/python/tf/keras/layers/Attention
@@ -58,6 +61,9 @@ class DotAttention(Layer):
 class GeneralAttention(Layer):
     """
     对齐函数为 general 的 attention
+
+    Author: xrh
+    Date: 2021-12-5
 
     ref:
     1.Effective Approaches to Attention-based Neural Machine Translation
@@ -108,6 +114,9 @@ class GeneralAttention(Layer):
 class ConcatAttention(Layer):
     """
     对齐函数为 concat 的 attention
+
+    Author: xrh
+    Date: 2021-12-5
 
     ref:
     1.Effective Approaches to Attention-based Neural Machine Translation
@@ -166,6 +175,9 @@ class MultiHeadAttention(Layer):
 
     1.将多个注意力层的输出结果进行连接
 
+    Author: xrh
+    Date: 2021-12-15
+
     ref:
     1. Attention Is All You Need
     2. https://tensorflow.google.cn/text/tutorials/transformer
@@ -215,7 +227,7 @@ class MultiHeadAttention(Layer):
         """
         经过缩放的(scaled)对齐函数为 dot 的 attention
 
-        :param q: shape (..., seq_len_q, depth) ... 代表可以有多个维度
+        :param q: shape (..., seq_len_q, depth) ... 代表可以有多个维度(轴)
         :param k: shape (..., seq_len_k, depth)
         :param v: shape (..., seq_len_v, depth)
         :param mask:
