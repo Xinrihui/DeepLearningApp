@@ -40,6 +40,7 @@ class SharedEmbedding(Layer):
             'n_h': self.n_h,
             'n_vocab': self.n_vocab,
             'V': self.V,
+            'b': self.b,
 
         })
         return config
@@ -47,6 +48,7 @@ class SharedEmbedding(Layer):
     def build(self, input_shape):
 
         self.V = self.add_weight(
+            name='V',
             shape=(self.n_vocab, self.n_h),
             initializer="random_normal",
             trainable=True,
@@ -54,6 +56,7 @@ class SharedEmbedding(Layer):
 
         b_init = tf.zeros_initializer()
         self.b = tf.Variable(
+            name='b',
             initial_value=b_init(shape=(self.n_vocab,), dtype='float32'),
             trainable=True)
 

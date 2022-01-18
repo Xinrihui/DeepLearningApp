@@ -100,7 +100,7 @@ class TransformerSharedEmbed:
                 )
 
             self.model_infer = InferModel(model_train=self.model_train,
-                                          _null_source = _null_source,
+                                          _null_source=_null_source,
                                           _start_target=_start_target, _end_target=_end_target, _null_target=_null_target,
                                           tokenizer_source=tokenizer_source, tokenizer_target=tokenizer_target)
 
@@ -443,6 +443,14 @@ class TrainModel(Model):
         self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                              epsilon=1e-9)
 
+    def get_config(self):
+        config = super().get_config().copy()
+
+        config.update({
+            'shared_embed_layer': self.shared_embed_layer,
+        })
+        return config
+
 
     def call(self, inputs, training):
         """
@@ -607,8 +615,8 @@ class TrainModel(Model):
                         f'Epoch {epoch + 1} Batch {batch} Loss {res_dict["loss"]:.4f} Accuracy {res_dict["accuracy"]:.4f}')
 
             # if (epoch + 1) % 5 == 0:
-            #     ckpt_save_path = ckpt_manager.save()
-            #     print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
+            ckpt_save_path = ckpt_manager.save()
+            print(f'Saving checkpoint for epoch {epoch + 1} at {ckpt_save_path}')
 
             print(f'Epoch {epoch + 1} Loss {res_dict["loss"]:.4f} Accuracy {res_dict["accuracy"]:.4f}')
 
@@ -781,6 +789,7 @@ class Test:
 
         print(tf.shape(outputs_prob))
 
+        model.save_weights('tmp/checkpoint')
 
 if __name__ == '__main__':
     test = Test()

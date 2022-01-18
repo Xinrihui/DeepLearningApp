@@ -398,7 +398,9 @@ class CheckoutCallback(keras.callbacks.Callback):
         elif self.save_mode == 'weight':
             # 'weight' 只保存权重
             fmt = os.path.join(self.checkpoint_models_path, 'model.%02d-%.4f')
+
             self.model_obj.model_train.save_weights(fmt % (epoch, logs['val_loss']))  # 保存模型的参数
+
 
         else:
             raise Exception("Invalid param value, save_mode= ", self.save_mode)
@@ -536,6 +538,6 @@ if __name__ == '__main__':
     # test.test_evaluating(config_path='config/attention_seq2seq.ini', tag='TEST-1') # DEFAULT
 
 
-    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST-1')  # DEFAULT
+    test.test_training(config_path='config/transformer_seq2seq.ini', tag='TEST')  # DEFAULT
 
     # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='DEFAULT') # DEFAULT

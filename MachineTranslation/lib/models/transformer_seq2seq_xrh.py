@@ -794,6 +794,8 @@ class Test:
 
         print(tf.shape(outputs_prob))
 
+        model.save_weights('tmp/checkpoint')
+
 
 if __name__ == '__main__':
     test = Test()
