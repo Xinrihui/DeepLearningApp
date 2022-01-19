@@ -20,7 +20,7 @@ class SharedEmbedding(Layer):
     ref:
     1. https://www.tensorflow.org/api_docs/python/tf/keras/layers/Layer
     2. https://www.tensorflow.org/api_docs/python/tf/nn/embedding_lookup
-    3. Attention Is All You Need
+    3. https://github.com/tensorflow/models/tree/master/official/nlp/modeling
 
     """
     def __init__(self, n_h, n_vocab):
@@ -39,30 +39,39 @@ class SharedEmbedding(Layer):
         config.update({
             'n_h': self.n_h,
             'n_vocab': self.n_vocab,
-            'V': self.V,
-            'b': self.b,
 
         })
         return config
 
     def build(self, input_shape):
 
-        self.V = self.add_weight(
-            name='V',
+        self.shared_weights = self.add_weight(
+            name='shared_weights',
             shape=(self.n_vocab, self.n_h),
-            initializer="random_normal",
+            initializer=tf.random_normal_initializer(
+              mean=0., stddev=self.n_h**-0.5),
             trainable=True,
-        )
+        )  # 必须加上 name, 否则模型无法 checkpoint
 
-        b_init = tf.zeros_initializer()
-        self.b = tf.Variable(
-            name='b',
-            initial_value=b_init(shape=(self.n_vocab,), dtype='float32'),
-            trainable=True)
-
-    def call(self, inputs):
+    def call(self, inputs, mode="embedding"):
         """
-        输出 embedding 的结果
+
+        :param inputs:
+        :param mode:
+            (1) embedding
+            (2) linear
+        :return:
+        """
+        if mode == "embedding":
+            return self.call_embedding(inputs)
+        elif mode == "linear":
+            return self.call_linear(inputs)
+        else:
+            raise ValueError("the value of mode is {}, which is illegal.".format(mode))
+
+
+    def call_embedding(self, inputs):
+        """
 
         :param inputs: 输入的 tensor, shape (N_batch, seq_length)
         :return:
@@ -70,11 +79,11 @@ class SharedEmbedding(Layer):
 
         """
 
-        out = tf.nn.embedding_lookup(params=self.V, ids=inputs)
+        out = tf.nn.embedding_lookup(params=self.shared_weights, ids=inputs)
 
         return out
 
-    def call_liner(self, inputs):
+    def call_linear(self, inputs):
         """
         输出 线性层(Dense) 的结果
 
@@ -83,10 +92,17 @@ class SharedEmbedding(Layer):
             out shape (N_batch, seq_length, n_vocab)
         """
 
-        out = tf.matmul(inputs, tf.transpose(self.V, perm=[1, 0])) + self.b
-        # inputs shape (N_batch, seq_length, n_h) , V.T shape (n_h, n_vocab)
+        N_batch = tf.shape(inputs)[0]
+        seq_length = tf.shape(inputs)[1]
+
+        x = tf.reshape(inputs, (-1, self.n_h))
+        logits = tf.matmul(x, self.shared_weights, transpose_b=True)  # 解决 OOM 问题
+
+        out = tf.reshape(logits, [N_batch, seq_length, self.n_vocab])
 
         return out
+
+
 
 
 class Test:
@@ -103,7 +119,7 @@ class Test:
         print('out_embed shape: ', out_embed.shape)
 
         batch_h = tf.random.normal(shape=[4, 6, n_h])
-        out_liner = embed_layer.call_liner(batch_h)
+        out_liner = embed_layer(batch_h, mode='linear')
         print('out_liner shape: ', out_liner.shape)
 
 

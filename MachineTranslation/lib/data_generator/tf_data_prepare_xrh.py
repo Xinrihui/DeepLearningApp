@@ -651,7 +651,7 @@ class DatasetGenerate:
                 union_dataset = train_source_dataset.concatenate(train_target_dataset)
 
                 tokenizer_source, vocab_source_list = self.build_subword_tokenizer(
-                    preprocess_dataset=union_dataset, n_vocab=n_vocab_source, batch_size=batch_size,
+                    preprocess_dataset=union_dataset, n_vocab=n_vocab_target, batch_size=batch_size,
                     tokenizer_file='tokenizer_source_model')
 
                 tokenizer_target, vocab_target_list = tokenizer_source, vocab_source_list

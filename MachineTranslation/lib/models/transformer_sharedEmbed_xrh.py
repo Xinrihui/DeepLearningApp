@@ -190,7 +190,7 @@ class TrainDecoder(Layer):
 
     """
 
-    def __init__(self, num_layers, d_model, num_heads, dff, shared_embed_layer,
+    def __init__(self, num_layers, d_model, num_heads, dff, n_vocab, shared_embed_layer,
                  pos_encoding, dropout_rates):
         """
 
@@ -198,6 +198,7 @@ class TrainDecoder(Layer):
         :param d_model: 模型整体的隐藏层的维度
         :param num_heads: 并行注意力层的个数(头数)
         :param dff: Position-wise Feed-Forward Networks 的中间层的维度
+        :param n_vocab: 词表大小
         :param shared_embed_layer: 共享的 embedding 层
         :param pos_encoding: 位置编码张量(包括所有位置)
         :param dropout_rates: dropout 的弃置率
@@ -216,6 +217,8 @@ class TrainDecoder(Layer):
         self.dropout = Dropout(dropout_rates[-1])
 
         self.fc = shared_embed_layer
+
+        # self.fc = Dense(n_vocab, weights=[tf.transpose(shared_embed_layer.weights[0], perm=[1, 0]), tf.zeros((n_vocab))])
 
         self.softmax = Activation('softmax', dtype='float32')
 
@@ -274,7 +277,7 @@ class TrainDecoder(Layer):
 
         # x shape (N_batch, target_seq_len, d_model)
 
-        out = self.fc.call_liner(x)  # out shape (N_batch, target_seq_len, n_vocab_target)
+        out = self.fc.call(x, mode='linear')  # out shape (N_batch, target_seq_len, n_vocab_target)
 
         out_prob = self.softmax(out)  # shape (N_batch, target_seq_len, n_vocab_target)
 
@@ -349,7 +352,7 @@ class InferDecoder(Layer):
                 x, block1, block2 = self.dec_layer_list[i](x=x, encoder_output=encoder_output, training=training,
                                                            look_ahead_mask=look_ahead_mask, padding_mask=padding_mask)
 
-            x = self.fc.call_liner(x)  # shape (N_batch, t+1, n_vocab_target)
+            x = self.fc.call(x, mode='linear')  # shape (N_batch, t+1, n_vocab_target)
 
             # 最后一个时间步的输出
             out = x[:, -1, :]  # (N_batch, vocab_size)
@@ -418,15 +421,14 @@ class TrainModel(Model):
 
         self.n_vocab_target = n_vocab_target
 
-        # self.tokenizer_source = tokenizer_source
-        # self.tokenizer_target = tokenizer_target
-
         self.shared_embed_layer = SharedEmbedding(n_h=d_model, n_vocab=n_vocab_target)
+
+        # self.shared_embed_layer = Embedding(n_vocab_target, d_model)
 
         self.encoder = Encoder(num_layers, d_model, num_heads, dff,
                                self.shared_embed_layer, PE_source.pos_encoding, dropout_rates)
 
-        self.decoder = TrainDecoder(num_layers, d_model, num_heads, dff,
+        self.decoder = TrainDecoder(num_layers, d_model, num_heads, dff, n_vocab_target,
                                     self.shared_embed_layer, PE_target.pos_encoding, dropout_rates)
 
         # 损失函数对象
@@ -442,14 +444,6 @@ class TrainModel(Model):
         # learning_rate = 3e-4
         self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                              epsilon=1e-9)
-
-    def get_config(self):
-        config = super().get_config().copy()
-
-        config.update({
-            'shared_embed_layer': self.shared_embed_layer,
-        })
-        return config
 
 
     def call(self, inputs, training):

@@ -802,7 +802,151 @@
     bleu_score:{'1-garm': 0.5469872404631482, '2-garm': 0.3961186944290748, '3-garm': 0.29923995659784275, '4-garm': 0.2311882663397863}
     
 
+#### 实验 5  源语言和目标语言使用同个词表
+    
+    (0) 模型
+       
+    (1) 数据集 
+    
+    训练数据:    
+    N_train = 4343134 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 )
+    
+    验证数据(newstest2013): 
+    N_valid = 2975 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 64 ) 
 
+    测试数据(newstest2014): 
+    N_test = 2737 
+    
+    
+    (2) 数据预处理
+    
+    未做 unicode 标准化
+    
+    使用 wordpiece subword 算法分词
+    词表大小: n_vocab_source=37000 (实际 35476)
+    
+    
+    (3) 优化器参数
+    
+    epoch_num = 10
+    token_in_batch = 12288
+    
+    label_smoothing=0 
+    
+    optimizer= Adam with warmup_steps
+    warmup_steps = 32000
+    
+    (5) 训练过程
+    
+    在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
+
+    model architecture param:
+    num_layers:6, d_model:512, num_heads:8, dff:2048, n_vocab_source:35476, n_vocab_target:35476
+    -------------------------
+    valid source seq num :2970
+    
+    Epoch 1/10
+    
+    bleu_score:{'1-garm': 0.1680898918348872, '2-garm': 0.0674290486595373, '3-garm': 0.028911744224791674, '4-garm': 0.012968486818104084}
+    14490/14490 [==============================] - 5260s 362ms/step - loss: 6.1170 - accuracy: 0.1645 - val_loss: 3.6555 - val_accuracy: 0.3475
+    
+    Epoch 2/10
+    
+    bleu_score:{'1-garm': 0.5060259826344126, '2-garm': 0.3421529682326908, '3-garm': 0.24533154374021746, '4-garm': 0.18033458376910486}
+    14490/14490 [==============================] - 5163s 356ms/step - loss: 2.9371 - accuracy: 0.4230 - val_loss: 1.9480 - val_accuracy: 0.6025
+    
+    ........
+    
+    Epoch 9/10
+    
+    candidates:
+    [0] Eine republikanische Strategie gegen die Wiederwahl von Obama
+    [1] Die republikanischen Führer haben ihre Politik mit der Notwendigkeit , Wahlbetrug zu bekämpfen , gerechtfertigt .
+    [2] Das Brennan Centre betrachtet dies jedoch als Mythos , in dem es heißt , dass Wahlbetrug in den Vereinigten Staaten seltener ist als die Zahl der durch Blitztodes getöteten Menschen .
+    [3] Tatsächlich haben republikanische Rechtsanwälte in den Vereinigten Staaten in einem Jahrzehnt nur 300 Fälle von Wahlbetrug festgestellt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden sich negativ auf die Wahlurne auswirken .
+    [5] In diesem Sinne werden die Maßnahmen das demokratische System der USA teilweise untergraben .
+    [6] Im Gegensatz zu Kanada sind die USA für die Organisation von Bundeswahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat eine Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verabschiedet , die das Registrierungs - oder Abstimmungsverfahren schwieriger machen .
+    [8] Dieses Phänomen gewann nach den Wahlen im November 2010 , die in 26 Staaten 675 neue republikanische Vertreter hinzufügten , an Dynamik .
+    [9] Infolgedessen wurden allein im Jahr 2011 180 Rechnungen eingeführt , die die Ausübung des Stimmrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.558017222932788, '2-garm': 0.40187455258401666, '3-garm': 0.30337950121526447, '4-garm': 0.23356804097223027}
+    14490/14490 [==============================] - 5140s 354ms/step - loss: 1.5473 - accuracy: 0.6421 - val_loss: 1.4321 - val_accuracy: 0.6838
+    
+    Epoch 10/10
+    
+    
+    candidates:
+    [0] Eine republikanische Strategie gegen die Wiederwahl von Obama
+    [1] Die republikanischen Führer haben ihre Politik durch die Notwendigkeit der Bekämpfung von Wahlbetrug gerechtfertigt .
+    [2] Das Brennan # # AT # # - # # AT # # Zentrum betrachtet dies jedoch als Mythos , in dem es heißt , dass Wahlbetrug in den Vereinigten Staaten seltener ist als die Zahl der durch Blitz getöteten Menschen .
+    [3] Tatsächlich haben republikanische Juristen in den Vereinigten Staaten in einem Jahrzehnt nur 300 Fälle von Wahlbetrug festgestellt .
+    [4] Eines ist sicher : Diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .
+    [5] In diesem Sinne werden die Maßnahmen das demokratische System der USA teilweise unterminieren .
+    [6] Im Gegensatz zu Kanada sind die USA für die Organisation von Wahlen in den Vereinigten Staaten verantwortlich .
+    [7] In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze erlassen , die die Registrierung oder das Abstimmungsverfahren erschweren .
+    [8] Dieses Phänomen gewann nach den Wahlen im November 2010 an Dynamik , wo 675 neue republikanische Vertreter in 26 Staaten hinzukamen .
+    [9] Infolgedessen wurden allein im Jahr 2011 180 Rechnungen eingeführt , die die Ausübung des Stimmrechts in 41 Staaten einschränken .
+    
+    references:
+    [0] ['Eine republikanische Strategie , um der Wiederwahl von Obama entgegenzutreten']
+    [1] ['Die Führungskräfte der Republikaner rechtfertigen ihre Politik mit der Notwendigkeit , den Wahlbetrug zu bekämpfen .']
+    [2] ['Allerdings hält das Brennan Center letzteres für einen Mythos , indem es bekräftigt , dass der Wahlbetrug in den USA seltener ist als die Anzahl der vom Blitzschlag getöteten Menschen .']
+    [3] ['Die Rechtsanwälte der Republikaner haben in 10 Jahren in den USA übrigens nur 300 Fälle von Wahlbetrug verzeichnet .']
+    [4] ['Eins ist sicher : diese neuen Bestimmungen werden sich negativ auf die Wahlbeteiligung auswirken .']
+    [5] ['In diesem Sinne untergraben diese Maßnahmen teilweise das demokratische System der USA .']
+    [6] ['Im Gegensatz zu Kanada sind die US ##AT##-##AT## Bundesstaaten für die Durchführung der Wahlen in den einzelnen Staaten verantwortlich .']
+    [7] ['In diesem Sinne hat die Mehrheit der amerikanischen Regierungen seit 2009 neue Gesetze verkündet , die das Verfahren für die Registrierung oder den Urnengang erschweren .']
+    [8] ['Dieses Phänomen hat nach den Wahlen vom November 2010 an Bedeutung gewonnen , bei denen 675 neue republikanische Vertreter in 26 Staaten verzeichnet werden konnten .']
+    [9] ['Infolgedessen wurden 180 Gesetzesentwürfe allein im Jahr 2011 eingeführt , die die Ausübung des Wahlrechts in 41 Staaten einschränken .']
+    
+    bleu_score:{'1-garm': 0.5554560996980719, '2-garm': 0.40043934069352943, '3-garm': 0.3032004908748171, '4-garm': 0.23450509264679664}
+    14490/14490 [==============================] - 5144s 355ms/step - loss: 1.5242 - accuracy: 0.6457 - val_loss: 1.4095 - val_accuracy: 0.6858
+
+
+    (6) 模型评价
+    
+    在测试集上评价模型
+    
+    1.epoch=10 时的模型
+    
+    candidates:
+    [0] Orlando Bloom und Miranda Kerr lieben einander noch immer .
+    [1] Schauspieler Orlando Bloom und Model Miranda Kerr wollen ihre eigenen Wege gehen .
+    [2] In einem Interview hat Bloom jedoch gesagt , dass er und Kerr einander noch lieben .
+    [3] Miranda Kerr und Orlando Bloom sind Eltern von zweijährigem Flynn .
+    [4] Schauspieler Orlando Bloom kündigte seine Trennung von seiner Frau , Supermodel Miranda Kerr .
+    [5] In einem Interview mit dem US # # AT # # - # # AT # # Journalisten Katie Couric , der am Freitag ( Ortszeit ) ausgestrahlt werden soll , sagte Bloom : & quot ; Manchmal geht das Leben nicht genau so , wie wir es planen oder hoffen & quot ; .
+    [6] Er und Kerr lieben einander immer noch , betonten den 36 # # AT # # - # # AT # # jährigen .
+    [7] & quot ; Wir werden einander unterstützen und einander als Eltern zu Flynn lieben & quot ; .
+    [8] Kerr und Bloom sind seit 2010 verheiratet und ihr Sohn Flynn wurde im Jahr 2011 geboren .
+    [9] Jet # # AT # # - # # AT # # Hersteller feuerten über die Breite der Sitze mit großen Aufträgen auf dem Spiel .
+    
+    references:
+    [0] ['Orlando Bloom und Miranda Kerr lieben sich noch immer']
+    [1] ['Schauspieler Orlando Bloom und Model Miranda Kerr wollen künftig getrennte Wege gehen .']
+    [2] ['In einem Interview sagte Bloom jedoch , dass er und Kerr sich noch immer lieben .']
+    [3] ['Miranda Kerr und Orlando Bloom sind Eltern des zweijährigen Flynn .']
+    [4] ['Schauspieler Orlando Bloom hat sich zur Trennung von seiner Frau , Topmodel Miranda Kerr , geäußert .']
+    [5] ['In einem Interview mit US ##AT##-##AT## Journalistin Katie Couric , das am Freitag ( Ortszeit ) ausgestrahlt werden sollte , sagte Bloom , &quot; das Leben verläuft manchmal nicht genau so , wie wir es planen oder erhoffen &quot; .']
+    [6] ['Kerr und er selbst liebten sich noch immer , betonte der 36 ##AT##-##AT## Jährige .']
+    [7] ['&quot; Wir werden uns gegenseitig unterstützen und lieben als Eltern von Flynn &quot; .']
+    [8] ['Kerr und Bloom sind seit 2010 verheiratet , im Jahr 2011 wurde ihr Söhnchen Flynn geboren .']
+    [9] ['Jumbo ##AT##-##AT## Hersteller streiten im Angesicht großer Bestellungen über Sitzbreite']
+    bleu_score:{'1-garm': 0.5475656656574749, '2-garm': 0.39582382942795136, '3-garm': 0.2987618703748444, '4-garm': 0.2305833028485888}
 
 
 

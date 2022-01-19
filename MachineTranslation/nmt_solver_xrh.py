@@ -130,7 +130,7 @@ class MachineTranslation:
 
         # 3.TransformerSeq2seq
 
-        # TransformerSeq2seq
+                         # TransformerSeq2seq
         self.model_obj = TransformerSharedEmbed(
                                   num_layers=int(current_config['num_layers']), d_model=int(current_config['d_model']),
                                   num_heads=int(current_config['num_heads']),  dff=int(current_config['dff']), dropout_rates=dropout_rates,

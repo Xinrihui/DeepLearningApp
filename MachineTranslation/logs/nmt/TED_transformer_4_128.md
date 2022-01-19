@@ -941,4 +941,191 @@
     bleu_score:{'1-garm': 0.5793677363814626, '2-garm': 0.43253117325590495, '3-garm': 0.33414948953613227, '4-garm': 0.2611155803480264}
         
         
+### 2.2 验证 shared embedding 的效果
+
+#### 实验 3  
+
+    (0) 模型
     
+    使用 shared embedding , 编码器的 Embedding, 解码器的 Embedding , 和解码器的输出层共享权重矩阵 V
+    
+    (1) 数据集 
+    
+    训练数据:    
+    N_train = 51785 ( 源句子-目标句子对 的数目 )
+    
+    source sentence length distribution:
+    most common seq length: (seq length, count num)
+    [(8, 2956), (9, 2880), (10, 2839), (11, 2614), (7, 2607), (6, 2526), (12, 2494), (13, 2244), (14, 2133), (5, 1816)]
+    seq length count:  (seq length, count num)
+    [(191, 1), (188, 1), (176, 1), (152, 1), (149, 1), (146, 1), (145, 2), (143, 1), (141, 1), (139, 1), (137, 1), (136, 1), (135, 2), (134, 1), (133, 1), (131, 2), (130, 1), (129, 1), (127, 2), (125, 6), (124, 3), (123, 2), (122, 1), (121, 2), (120, 5), (119, 3), (117, 4), (116, 2), (115, 1), (114, 4), (113, 1), (112, 3), (111, 1), (109, 3), (108, 3), (107, 5), (106, 2), (105, 5), (104, 10), (103, 6), (102, 5), (101, 4), (100, 5), (99, 5), (98, 5), (97, 1), (96, 3), (95, 3), (94, 4), (93, 4), (92, 5), (91, 8), (90, 5), (89, 6), (88, 7), (87, 8), (86, 14), (85, 10), (84, 11), (83, 14), (82, 12), (81, 15), (80, 16), (79, 12), (78, 12), (77, 9), (76, 15), (75, 18), (74, 18), (73, 21), (72, 24), (71, 27), (70, 29), (69, 28), (68, 27), (67, 22), (66, 31), (65, 32), (64, 41), (63, 42), (62, 42), (61, 47), (60, 50), (59, 47), (58, 50), (57, 70), (56, 58), (55, 57), (54, 88), (53, 90), (52, 70), (51, 103), (50, 104), (49, 108), (48, 124), (47, 149), (46, 153), (45, 166), (44, 172), (43, 197), (42, 197), (41, 233), (40, 240), (39, 262), (38, 288), (37, 321), (36, 334), (35, 355), (34, 430), (33, 440), (32, 489), (31, 539), (30, 576), (29, 610), (28, 632), (27, 696), (26, 760), (25, 901), (24, 936), (23, 988), (22, 1064), (21, 1182), (20, 1214), (19, 1384), (18, 1443), (17, 1541), (16, 1673), (15, 1778), (14, 2133), (13, 2244), (12, 2494), (11, 2614), (10, 2839), (9, 2880), (8, 2956), (7, 2607), (6, 2526), (5, 1816), (4, 1085), (3, 977), (2, 486), (1, 4)]
+    target sentence length distribution:
+    most common seq length: (seq length, count num)
+    [(10, 2753), (8, 2733), (9, 2713), (11, 2679), (12, 2595), (7, 2518), (13, 2348), (6, 2218), (14, 2202), (15, 1901)]
+    seq length count:  (seq length, count num)
+    [(204, 1), (199, 1), (174, 1), (166, 1), (159, 1), (156, 1), (155, 1), (149, 1), (148, 1), (145, 1), (143, 3), (142, 3), (137, 1), (136, 1), (134, 3), (133, 2), (132, 1), (131, 1), (130, 2), (128, 2), (127, 1), (126, 3), (125, 1), (124, 4), (123, 3), (122, 1), (121, 7), (120, 5), (119, 5), (118, 2), (117, 3), (116, 2), (115, 3), (114, 3), (112, 2), (111, 5), (110, 3), (109, 1), (108, 5), (107, 3), (106, 2), (105, 2), (104, 2), (103, 5), (102, 5), (101, 4), (100, 3), (99, 7), (98, 4), (97, 5), (96, 5), (95, 8), (94, 3), (93, 6), (92, 8), (91, 5), (90, 6), (89, 7), (88, 5), (87, 10), (86, 13), (85, 8), (84, 13), (83, 9), (82, 12), (81, 13), (80, 12), (79, 14), (78, 20), (77, 21), (76, 17), (75, 15), (74, 17), (73, 25), (72, 33), (71, 36), (70, 25), (69, 35), (68, 35), (67, 29), (66, 39), (65, 36), (64, 37), (63, 42), (62, 57), (61, 59), (60, 44), (59, 66), (58, 72), (57, 56), (56, 59), (55, 71), (54, 74), (53, 81), (52, 96), (51, 103), (50, 115), (49, 130), (48, 142), (47, 152), (46, 144), (45, 171), (44, 182), (43, 196), (42, 230), (41, 232), (40, 248), (39, 262), (38, 304), (37, 365), (36, 392), (35, 403), (34, 438), (33, 456), (32, 522), (31, 539), (30, 605), (29, 653), (28, 717), (27, 759), (26, 824), (25, 917), (24, 953), (23, 1018), (22, 1174), (21, 1241), (20, 1305), (19, 1416), (18, 1521), (17, 1688), (16, 1816), (15, 1901), (14, 2202), (13, 2348), (12, 2595), (11, 2679), (10, 2753), (9, 2713), (8, 2733), (7, 2518), (6, 2218), (5, 1509), (4, 692), (3, 932), (2, 175)]
+    seq length <=205 num: 51785
+    
+    验证数据: 
+    N_valid = 1193  
+    
+    source sentence length distribution:
+    most common seq length: (seq length, count num)
+    [(9, 76), (12, 75), (8, 72), (7, 61), (13, 59), (14, 59), (11, 59), (10, 57), (6, 52), (15, 45)]
+    seq length count:  (seq length, count num)
+    [(120, 1), (86, 1), (80, 1), (78, 2), (76, 1), (74, 1), (70, 2), (69, 2), (68, 1), (66, 1), (62, 2), (60, 1), (59, 2), (55, 2), (54, 2), (53, 3), (52, 2), (51, 1), (50, 3), (49, 2), (46, 5), (45, 3), (43, 1), (42, 5), (41, 11), (40, 5), (39, 1), (38, 3), (37, 6), (36, 10), (35, 2), (34, 7), (33, 10), (32, 5), (31, 12), (30, 10), (29, 15), (28, 13), (27, 15), (26, 20), (25, 20), (24, 23), (23, 19), (22, 27), (21, 31), (20, 41), (19, 29), (18, 34), (17, 35), (16, 28), (15, 45), (14, 59), (13, 59), (12, 75), (11, 59), (10, 57), (9, 76), (8, 72), (7, 61), (6, 52), (5, 39), (4, 25), (3, 26), (2, 9)]
+    target sentence length distribution:
+    most common seq length: (seq length, count num)
+    [(11, 76), (6, 73), (10, 64), (12, 64), (14, 60), (7, 60), (9, 56), (8, 55), (15, 53), (16, 47)]
+    seq length count:  (seq length, count num)
+    [(114, 1), (87, 2), (77, 1), (72, 1), (68, 1), (67, 1), (66, 2), (62, 1), (61, 2), (59, 1), (58, 2), (57, 2), (56, 2), (54, 4), (53, 2), (51, 1), (50, 1), (49, 2), (48, 2), (47, 1), (46, 3), (45, 3), (44, 1), (43, 8), (42, 5), (41, 5), (40, 2), (39, 4), (38, 7), (37, 6), (36, 8), (35, 7), (34, 4), (33, 12), (32, 6), (31, 8), (30, 15), (29, 10), (28, 15), (27, 17), (26, 22), (25, 20), (24, 27), (23, 29), (22, 27), (21, 24), (20, 20), (19, 36), (18, 35), (17, 44), (16, 47), (15, 53), (14, 60), (13, 42), (12, 64), (11, 76), (10, 64), (9, 56), (8, 55), (7, 60), (6, 73), (5, 43), (4, 13), (3, 23), (2, 2)]
+    seq length <=205 num: 1193
+
+    测试数据: 
+    N_test = 1803 
+    
+    source sentence length distribution:
+    most common seq length: (seq length, count num)
+    [(11, 91), (13, 91), (8, 90), (7, 88), (10, 87), (9, 87), (14, 82), (12, 77), (6, 76), (15, 72)]
+    seq length count:  (seq length, count num)
+    [(115, 1), (113, 2), (105, 1), (100, 1), (83, 1), (81, 1), (79, 1), (77, 1), (74, 1), (73, 1), (71, 2), (70, 1), (69, 2), (68, 1), (67, 2), (66, 1), (64, 1), (62, 1), (60, 1), (59, 1), (58, 3), (57, 2), (56, 1), (55, 3), (54, 2), (53, 2), (52, 6), (51, 1), (50, 5), (49, 3), (48, 5), (47, 3), (46, 5), (45, 7), (44, 3), (43, 8), (42, 12), (41, 8), (40, 9), (39, 11), (38, 13), (37, 11), (36, 12), (35, 11), (34, 14), (33, 17), (32, 21), (31, 21), (30, 21), (29, 26), (28, 25), (27, 19), (26, 42), (25, 30), (24, 29), (23, 42), (22, 45), (21, 44), (20, 47), (19, 40), (18, 61), (17, 56), (16, 61), (15, 72), (14, 82), (13, 91), (12, 77), (11, 91), (10, 87), (9, 87), (8, 90), (7, 88), (6, 76), (5, 45), (4, 34), (3, 39), (2, 13)]
+    target sentence length distribution:
+    most common seq length: (seq length, count num)
+    [(8, 92), (9, 92), (10, 91), (15, 87), (13, 82), (14, 81), (11, 81), (12, 81), (17, 74), (16, 70)]
+    seq length count:  (seq length, count num)
+    [(135, 1), (121, 1), (119, 1), (105, 2), (92, 1), (87, 1), (85, 1), (82, 1), (79, 1), (77, 1), (76, 1), (75, 2), (71, 1), (69, 2), (68, 2), (66, 1), (65, 2), (62, 2), (61, 1), (60, 3), (58, 3), (57, 2), (56, 5), (55, 2), (53, 5), (52, 3), (51, 5), (50, 1), (49, 2), (48, 5), (47, 3), (46, 10), (45, 9), (44, 6), (43, 11), (42, 4), (41, 8), (40, 5), (39, 12), (38, 12), (37, 11), (36, 15), (35, 17), (34, 14), (33, 21), (32, 21), (31, 19), (30, 22), (29, 29), (28, 29), (27, 26), (26, 23), (25, 42), (24, 29), (23, 39), (22, 49), (21, 48), (20, 43), (19, 43), (18, 60), (17, 74), (16, 70), (15, 87), (14, 81), (13, 82), (12, 81), (11, 81), (10, 91), (9, 92), (8, 92), (7, 70), (6, 50), (5, 49), (4, 24), (3, 34), (2, 4)]
+    seq length <=205 num: 1803
+    
+    (2) 数据预处理
+    
+    未做 unicode 标准化
+    
+    源语言和目标语言共用一个tokenizer, 词表大小: n_vocab_source=8000 (实际 7649 )
+    
+    
+    (3) 优化器参数
+    
+    epoch_num = 20
+    token_in_batch = 2048
+    
+    optimizer= Adam with warmup_steps
+    warmup_steps = 4000
+    
+    (5) 训练过程
+    
+    在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
+
+    model architecture param:
+    num_layers:4, d_model:128, num_heads:8, dff:512, n_vocab_source:7649, n_vocab_target:7649
+    -------------------------
+    valid source seq num :1179
+    
+    Epoch 1/20
+    
+    bleu_score:{'1-garm': 0.052760645017463026, '2-garm': 0.013311012636950764, '3-garm': 0.0037932280223361794, '4-garm': 1.866778629504905e-79}
+    810/810 [==============================] - 88s 101ms/step - loss: 2.0961 - accuracy: 0.0656 - val_loss: 1.5466 - val_accuracy: 0.2129
+    
+    Epoch 2/20
+    
+    bleu_score:{'1-garm': 0.14656628900814947, '2-garm': 0.05430154311144717, '3-garm': 0.022377776013295346, '4-garm': 0.008838884919771535}
+    810/810 [==============================] - 80s 99ms/step - loss: 1.3936 - accuracy: 0.2167 - val_loss: 1.3924 - val_accuracy: 0.2577
+    
+    Epoch 3/20
+    
+    bleu_score:{'1-garm': 0.24415264669675832, '2-garm': 0.11657051355286267, '3-garm': 0.05955611365696822, '4-garm': 0.030254482534679973}
+    810/810 [==============================] - 76s 94ms/step - loss: 1.2449 - accuracy: 0.2655 - val_loss: 1.1371 - val_accuracy: 0.3294
+    
+    Epoch 4/20
+    
+    bleu_score:{'1-garm': 0.367983367983368, '2-garm': 0.21298135672698945, '3-garm': 0.13197232530425984, '4-garm': 0.08369612099046587}
+    810/810 [==============================] - 68s 84ms/step - loss: 1.0688 - accuracy: 0.3310 - val_loss: 0.9751 - val_accuracy: 0.3944
+    
+    ...
+    
+    Epoch 18/20
+    
+    candidates:
+    [0] that ' s the depline of the time of men ' s time in this planet .
+    [1] where do these goldo conditions come ?
+    [2] but , of course , life is more than excist chemical .
+    [3] each trox is contain information .
+    [4] i was n ' t an activist .
+    [5] the fight for rights equality is not just seeing with marriage homossess .
+    [6] in fact , unlike , it ' s true .
+    [7] this was not a bordel , propitely said .
+    [8] this is a family retract .
+    [9] ` ` ` ` ' ' we do n ' t have freedom , ' ' ' ' they said . ' '
+    
+    references:
+    [0] ["that 's twice as long as humans have been on this planet ."]
+    [1] ['now , where do you find such goldilocks conditions ?']
+    [2] ['but of course , life is more than just exotic chemistry .']
+    [3] ['each rung contains information .']
+    [4] ['i was not an activist .']
+    [5] ['the fight for equal rights is not just about gay marriage .']
+    [6] ['in fact , on the contrary , it highlights them .']
+    [7] ["this was n't a brothel , per se ."]
+    [8] ['this is a family portrait .']
+    [9] ["`` `` '' we have no freedom , '' '' they said . ''"]
+    
+    bleu_score:{'1-garm': 0.6013558996057313, '2-garm': 0.45438961139431433, '3-garm': 0.35403410972003296, '4-garm': 0.27774628262307977}
+    810/810 [==============================] - 62s 77ms/step - loss: 0.4783 - accuracy: 0.6324 - val_loss: 0.5284 - val_accuracy: 0.6302
+    
+    Epoch 19/20
+    
+    
+    candidates:
+    [0] that goes to the dampan of the time of men in this planet .
+    [1] where do these goldo conditions find ?
+    [2] but , of course , life is more than excisociate chemical .
+    [3] each trockness contains information .
+    [4] i was n ' t an activist .
+    [5] the fight for rights equality is not just seeing with homosexual marriage .
+    [6] actually , unlike , let ' s achieve them .
+    [7] this was not a bordel , propperly said .
+    [8] this is a family retrain .
+    [9] ` ` ` ` ' ' we do n ' t have freedom , ' ' ' ' they said . ' '
+    
+    references:
+    [0] ["that 's twice as long as humans have been on this planet ."]
+    [1] ['now , where do you find such goldilocks conditions ?']
+    [2] ['but of course , life is more than just exotic chemistry .']
+    [3] ['each rung contains information .']
+    [4] ['i was not an activist .']
+    [5] ['the fight for equal rights is not just about gay marriage .']
+    [6] ['in fact , on the contrary , it highlights them .']
+    [7] ["this was n't a brothel , per se ."]
+    [8] ['this is a family portrait .']
+    [9] ["`` `` '' we have no freedom , '' '' they said . ''"]
+    
+    bleu_score:{'1-garm': 0.5949150934446448, '2-garm': 0.44871362971430856, '3-garm': 0.3488904934876574, '4-garm': 0.2732792977821743}
+    810/810 [==============================] - 61s 76ms/step - loss: 0.4591 - accuracy: 0.6392 - val_loss: 0.5400 - val_accuracy: 0.6274
+    
+    Epoch 20/20
+    
+    candidates:
+    [0] that matchs time from men ' s time from the existence of the planet on this planet .
+    [1] where do you find these goldococks ?
+    [2] but , egypt , life is more than excites .
+    [3] each troll contains information .
+    [4] i was n ' t an activist .
+    [5] the fight for rights has not only seen with marriage homosexual .
+    [6] in fact , on the contrary , realizing them .
+    [7] this was not a bordel , proppy said .
+    [8] this is a family retrain .
+    [9] ` ` ` ` ' ' we do n ' t have freedom , ' ' ' ' they said . ' '
+    
+    references:
+    [0] ["that 's twice as long as humans have been on this planet ."]
+    [1] ['now , where do you find such goldilocks conditions ?']
+    [2] ['but of course , life is more than just exotic chemistry .']
+    [3] ['each rung contains information .']
+    [4] ['i was not an activist .']
+    [5] ['the fight for equal rights is not just about gay marriage .']
+    [6] ['in fact , on the contrary , it highlights them .']
+    [7] ["this was n't a brothel , per se ."]
+    [8] ['this is a family portrait .']
+    [9] ["`` `` '' we have no freedom , '' '' they said . ''"]
+    
+    bleu_score:{'1-garm': 0.6011287005595677, '2-garm': 0.4531585071794048, '3-garm': 0.35227887932391333, '4-garm': 0.2766905708811362}
+    810/810 [==============================] - 63s 77ms/step - loss: 0.4543 - accuracy: 0.6432 - val_loss: 0.5319 - val_accuracy: 0.6370
