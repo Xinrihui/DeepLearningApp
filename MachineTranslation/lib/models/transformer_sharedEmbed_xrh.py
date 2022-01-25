@@ -30,6 +30,7 @@ class TransformerSharedEmbed:
 
     1.编码器的 Embedding, 解码器的 Embedding , 和解码器的输出层共享权重矩阵 V
 
+    2. 使用 label smothing 加快模型收敛
 
     Author: xrh
     Date: 2022-1-5
@@ -436,6 +437,8 @@ class TrainModel(Model):
             self.loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction='none')
         else:
             self.loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction='none', label_smoothing=label_smoothing)
+            #  if 0.1, use 0.1 / num_classes for non-target labels
+            #  0.9 + 0.1 / num_classes for target labels.
 
         self.loss_tracker = tf.keras.metrics.Mean(name='train_loss')
         self.accuracy_metric = tf.keras.metrics.Mean(name='train_accuracy')

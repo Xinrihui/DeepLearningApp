@@ -130,8 +130,8 @@ test          | 57.9 | 43.2 | 33.4 | 26.1 |
 
 验证集/测试集  | Bleu1 | Bleu2 | Bleu3 | Bleu4 |
 --------------| ------|-------| ------| ------|
-newstest2013(dev)  | 55.5 | 40 | 30 | 23.4 | 
-newstest2014(test) | 53.9 | 38.8 | 29.2 | 22.5 | 
+newstest2013(dev)  | 55.7 | 40 | 30.3 | 23.4 | 
+newstest2014(test) | 55.1 | 39.9 | 30.2 | 23.3 | 
 
 详细实验结果: [logs/nmt/WMT14_transformer_6_512.md](logs/nmt/WMT14_transformer_6_512.md)
 
