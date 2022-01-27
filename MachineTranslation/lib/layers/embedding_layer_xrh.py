@@ -81,6 +81,8 @@ class SharedEmbedding(Layer):
 
         out = tf.nn.embedding_lookup(params=self.shared_weights, ids=inputs)
 
+        out = out * (self.n_h **0.5)
+
         return out
 
     def call_linear(self, inputs):
