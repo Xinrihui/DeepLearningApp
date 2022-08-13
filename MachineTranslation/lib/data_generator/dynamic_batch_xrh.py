@@ -15,7 +15,7 @@ Author: xrh
 Date: 2021-12-25
 
 ref:
-1.https://github.com/tensorflow/tensor2tensor
+1.https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils/data_reader.py
 2.https://www.tensorflow.org/api_docs/python/tf/data/Dataset#bucket_by_sequence_length
 3.https://www.jianshu.com/p/2e83d11c7ae6
 

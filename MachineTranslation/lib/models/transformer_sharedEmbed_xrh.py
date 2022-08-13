@@ -443,7 +443,7 @@ class TrainModel(Model):
         self.loss_tracker = tf.keras.metrics.Mean(name='train_loss')
         self.accuracy_metric = tf.keras.metrics.Mean(name='train_accuracy')
 
-        learning_rate = WarmupSchedule(d_model, warmup_steps)
+        learning_rate = LegacyWarmupSchedule(d_model, warmup_steps)  #  RsqrtDecayWarmupSchedule
         # learning_rate = 3e-4
         self.optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                              epsilon=1e-9)

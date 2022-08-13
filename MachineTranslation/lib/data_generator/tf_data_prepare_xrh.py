@@ -1014,12 +1014,12 @@ if __name__ == '__main__':
     #                                base_dir='../../dataset/TED-Portuguese-English',
     #                                tag='TEST-1')  # DEFAULT
 
-    test.test_DatasetGenerate(build_tokenizer=True,
+    test.test_DatasetGenerate(build_tokenizer=False,
                               config_path='../../config/transformer_seq2seq.ini',
-                              tag='TEST')  # DEFAULT
+                              tag='DEFAULT')  # DEFAULT
 
     test.test_WMT14_Eng_Ge_Dataset(config_path='../../config/transformer_seq2seq.ini',
-                                   tag='TEST')  # DEFAULT
+                                   tag='DEFAULT')  # DEFAULT
 
 
 
