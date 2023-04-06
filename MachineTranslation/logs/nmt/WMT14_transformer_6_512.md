@@ -1301,5 +1301,219 @@
     
     bleu_score:{'1-garm': 0.5414792685729293, '2-garm': 0.3914052946157209, '3-garm': 0.2954092339091706, '4-garm': 0.2280875321475785}
     
+### 实验 6 - 实验 7 训练出的模型的结构有 bug
+
+    lib\layers\embedding_layer_xrh.py 中的 embedding 层的输出结果 遗漏了 *sqrt(n_h), 详见论文 3.4 Embeddings and Softmax
+
+### 2.5 验证 调整训练集中句子的长度限制    
+
+#### 实验 8  过滤掉训练数据长度大于 256 的句子 
     
+    (0) 模型
+       1.编码器的 Embedding, 解码器的 Embedding , 和解码器的输出层共享权重矩阵
+       
+    (1) 数据集 
+    
+    训练数据:    
+    N_train =  ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 256 )
+    
+    seq length <=256 num: 4468840
+    
+    参考 transformer 源码(tensor2tensor)中配置为 256
+    
+    验证数据(newstest2013): 
+    N_valid = 3000 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 256 ) 
+
+    测试数据(newstest2014): 
+    N_test = 2737 
+    
+    
+    (2) 数据预处理
+    
+    未做 unicode 标准化
+    
+    使用 wordpiece subword 算法分词, 源语言和目标语言使用同个词表
+    词表大小:  n_vocab_target=37000 (实际 35282)
+    
+    
+    (3) 优化器参数
+    
+    epoch_num = 12
+    token_in_batch = 8192
+    
+    label_smoothing=0 (不开启 label smoothing)
+    
+    optimizer= Adam with warmup_steps
+    warmup_steps = 32000
+    
+    (5) 训练过程
+    
+    在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
+    
+    model architecture param:
+    num_layers:6, d_model:512, num_heads:8, dff:2048, n_vocab_source:35282, n_vocab_target:35282
+    -------------------------
+    valid source seq num :2995
+    
+    Epoch 1/12
+
+    bleu_score:{'1-garm': 0.30240283779789134, '2-garm': 0.13691220033192164, '3-garm': 0.06640747743703057, '4-garm': 0.03307597312818358}
+    23472/23472 [==============================] - 5752s 245ms/step - loss: 5.6378 - accuracy: 0.1934 - val_loss: 3.3171 - val_accuracy: 0.3923
+    
+    Epoch 2/12
+    
+    bleu_score:{'1-garm': 0.3949911880356944, '2-garm': 0.20155265756622218, '3-garm': 0.11161838260339722, '4-garm': 0.06485916044661477}
+    23472/23472 [==============================] - 5686s 242ms/step - loss: 2.9239 - accuracy: 0.4053 - val_loss: 2.4861 - val_accuracy: 0.4934
+    
+    Epoch 3/12
+    
+    bleu_score:{'1-garm': 0.44645119944069794, '2-garm': 0.25988673796995243, '3-garm': 0.16271462967876585, '4-garm': 0.10538262996675529}
+    23472/23472 [==============================] - 5792s 247ms/step - loss: 2.3685 - accuracy: 0.4841 - val_loss: 2.1730 - val_accuracy: 0.5464
+    
+    Epoch 4/12
+    
+    bleu_score:{'1-garm': 0.4797806294578898, '2-garm': 0.29592025430084945, '3-garm': 0.19647091707404554, '4-garm': 0.1349239563774463}
+    23472/23472 [==============================] - 5834s 248ms/step - loss: 2.1229 - accuracy: 0.5293 - val_loss: 1.9912 - val_accuracy: 0.5800
+    
+    Epoch 5/12
+    
+    bleu_score:{'1-garm': 0.5020441341771639, '2-garm': 0.3231025869507344, '3-garm': 0.22252454552508633, '4-garm': 0.15814632128670225}
+    23472/23472 [==============================] - 5793s 247ms/step - loss: 1.9800 - accuracy: 0.5559 - val_loss: 1.8717 - val_accuracy: 0.6019
+    
+    Epoch 6/12
+    bleu_score:{'1-garm': 0.5111733982423534, '2-garm': 0.33881239087370935, '3-garm': 0.23841606459618667, '4-garm': 0.1723950531311091}
+    23472/23472 [==============================] - 5763s 245ms/step - loss: 1.8890 - accuracy: 0.5733 - val_loss: 1.7947 - val_accuracy: 0.6149
+    
+    Epoch 7/12
+    bleu_score:{'1-garm': 0.5175940666336225, '2-garm': 0.34940555890851593, '3-garm': 0.25017441643547766, '4-garm': 0.1839298555155588}
+    23472/23472 [==============================] - 5776s 246ms/step - loss: 1.8272 - accuracy: 0.5851 - val_loss: 1.7359 - val_accuracy: 0.6258
+    
+    Epoch 8/12
+    bleu_score:{'1-garm': 0.527918198100953, '2-garm': 0.36106814498639644, '3-garm': 0.2603707309245969, '4-garm': 0.19235713744378433}
+    23472/23472 [==============================] - 5796s 247ms/step - loss: 1.7734 - accuracy: 0.5954 - val_loss: 1.6811 - val_accuracy: 0.6356
+    
+    Epoch 9/12
+    bleu_score:{'1-garm': 0.5311254555180157, '2-garm': 0.36667290488970633, '3-garm': 0.26681750049470504, '4-garm': 0.19879909265793808}
+    23472/23472 [==============================] - 5782s 246ms/step - loss: 1.7411 - accuracy: 0.6016 - val_loss: 1.6470 - val_accuracy: 0.6417
+    
+    Epoch 10/12
+    bleu_score:{'1-garm': 0.5336162599424457, '2-garm': 0.37026199924295444, '3-garm': 0.2711879631544183, '4-garm': 0.20329872298819326}
+    23472/23472 [==============================] - 5788s 246ms/step - loss: 1.7138 - accuracy: 0.6065 - val_loss: 1.6296 - val_accuracy: 0.6470
+    
+    Epoch 11/12
+    bleu_score:{'1-garm': 0.5354671477360787, '2-garm': 0.37227278567950917, '3-garm': 0.2727797902278031, '4-garm': 0.20419649111692406}
+    23472/23472 [==============================] - 5787s 246ms/step - loss: 1.6892 - accuracy: 0.6110 - val_loss: 1.6013 - val_accuracy: 0.6474
+    
+    Epoch 12/12
+    bleu_score:{'1-garm': 0.5417585048880663, '2-garm': 0.37966269032264865, '3-garm': 0.28029132845747573, '4-garm': 0.21186754544002312}
+    23472/23472 [==============================] - 5787s 246ms/step - loss: 1.6699 - accuracy: 0.6146 - val_loss: 1.5786 - val_accuracy: 0.6551
+    
+
+    (6) 模型评价
+    
+    在测试集上评价模型
+    
+    1.epoch=12 时的模型
+    
+    candidates:
+    [0] Orlando Bloom und Miranda Kerr lieben einander noch .
+    [1] Schauspieler Orlando Bloom und Miranda Modeler Kr wollen ihre Wege getrennt gehen .
+    [2] Doch Bloom hat in einem Interview gesagt , dass er und Kerr immer noch Liebe miteinander haben .
+    [3] Miranda Kerr Flynn und Orlando Bloom sind Eltern von zwei Jahren .
+    [4] Der Schauspieler Miranda Bloom kündigte seine Trennung von seiner Frau , Supermodel Orlando Kerr an .
+    [5] In einem Interview mit US # # AT # # - # # AT # # Journalist Katie Couric , der am Freitag ( lokale Zeit ) ausgestrahlt wird , sagte Bloom : & quot ; Manchmal geht das Leben nicht genau so , wie wir planen oder hoffen . & quot ;
+    [6] Er und Kerr liebten sich noch , betonten die 36 # # AT # # - # # AT # # jährige .
+    [7] & quot ; Wir werden uns gegenseitig unterstützen und einander als Eltern zu Flynn lieben & quot ; .
+    [8] Kerr Flynn und Bloom sind seit 2010 verheiratet und ihr Sohn wurde im Jahr 2011 geboren .
+    [9] Jet # # AT # # - # # AT # # Hersteller feuchte über den Sitzplatz mit großen Aufträgen
+    
+    references:
+    [0] ['Orlando Bloom und Miranda Kerr lieben sich noch immer']
+    [1] ['Schauspieler Orlando Bloom und Model Miranda Kerr wollen künftig getrennte Wege gehen .']
+    [2] ['In einem Interview sagte Bloom jedoch , dass er und Kerr sich noch immer lieben .']
+    [3] ['Miranda Kerr und Orlando Bloom sind Eltern des zweijährigen Flynn .']
+    [4] ['Schauspieler Orlando Bloom hat sich zur Trennung von seiner Frau , Topmodel Miranda Kerr , geäußert .']
+    [5] ['In einem Interview mit US ##AT##-##AT## Journalistin Katie Couric , das am Freitag ( Ortszeit ) ausgestrahlt werden sollte , sagte Bloom , &quot; das Leben verläuft manchmal nicht genau so , wie wir es planen oder erhoffen &quot; .']
+    [6] ['Kerr und er selbst liebten sich noch immer , betonte der 36 ##AT##-##AT## Jährige .']
+    [7] ['&quot; Wir werden uns gegenseitig unterstützen und lieben als Eltern von Flynn &quot; .']
+    [8] ['Kerr und Bloom sind seit 2010 verheiratet , im Jahr 2011 wurde ihr Söhnchen Flynn geboren .']
+    [9] ['Jumbo ##AT##-##AT## Hersteller streiten im Angesicht großer Bestellungen über Sitzbreite']
+    
+    bleu_score:{'1-garm': 0.5284628099173554, '2-garm': 0.3662729203311738, '3-garm': 0.266520470137184, '4-garm': 0.19832193715994678}
+        
+        
+#### 实验 9  过滤掉训练数据长度大于 256 的句子, 并且开启 label smoothing
+    
+    (0) 模型
+       1.编码器的 Embedding, 解码器的 Embedding , 和解码器的输出层共享权重矩阵
+       
+    (1) 数据集 
+    
+    训练数据:    
+    N_train =  ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 256 )
+    
+    seq length <=256 num: 4468840
+    
+    参考 transformer 源码(tensor2tensor)中配置为 256
+    
+    验证数据(newstest2013): 
+    N_valid = 3000 ( 源句子-目标句子 pair 的数目, 过滤掉长度大于 256 ) 
+
+    测试数据(newstest2014): 
+    N_test = 2737 
+    
+    
+    (2) 数据预处理
+    
+    未做 unicode 标准化
+    
+    使用 wordpiece subword 算法分词, 源语言和目标语言使用同个词表
+    词表大小:  n_vocab_target=37000 (实际 35282)
+    
+    
+    (3) 优化器参数
+    
+    epoch_num = 12
+    token_in_batch = 8192
+    
+    label_smoothing=0.1 (开启 label smoothing)
+    
+    optimizer= Adam with warmup_steps
+    warmup_steps = 48000
+    
+    (5) 训练过程
+    
+    在每一个 epoch 结束时都对模型进行持久化(checkpoint), 并计算在验证集上的 bleu 得分
+    
+
+    (6) 模型评价
+    
+    在测试集上评价模型
+    
+    1.epoch=12 时的模型
+    
+    candidates:
+    [0] Orlando Bloom und Miranda Kerr lieben sich noch immer .
+    [1] Schauspieler Orlando Bloom und Miranda Model Kerr wollen , dass sie ihre eigenen Wege gehen .
+    [2] In einem Interview hat Bloom jedoch gesagt , dass er und Kerr einander immer noch lieben .
+    [3] Miranda Kerr und Orlando Bloom sind Eltern von zwei Jahren Flynn .
+    [4] Er hat seine Trennung von seiner Frau , Miranda Kerr , angekündigt .
+    [5] In einem Interview mit US # # AT # # - # # AT # # Journalist Katie Couric , das am Freitag ( lokale Zeit ) gesendet werden soll , sagte Bloom : & quot ; Manchmal geht das Leben nicht genau so , wie wir planen oder hoffen & quot ; .
+    [6] Er und Kerr lieben sich noch immer , betonten den 36 # # AT # # - # # AT # # jährigen .
+    [7] & quot ; Wir werden uns gegenseitig unterstützen und uns als Eltern zu Flynn lieben & quot ; .
+    [8] Kerr und Bloom sind seit 2010 verheiratet und ihr Sohn Flynn wurde 2011 geboren .
+    [9] Jet # # AT # # - # # AT # # Hersteller feuchten über Sitzbreite mit großen Auftragsbeständen auf dem Spiel
+    
+    references:
+    [0] ['Orlando Bloom und Miranda Kerr lieben sich noch immer']
+    [1] ['Schauspieler Orlando Bloom und Model Miranda Kerr wollen künftig getrennte Wege gehen .']
+    [2] ['In einem Interview sagte Bloom jedoch , dass er und Kerr sich noch immer lieben .']
+    [3] ['Miranda Kerr und Orlando Bloom sind Eltern des zweijährigen Flynn .']
+    [4] ['Schauspieler Orlando Bloom hat sich zur Trennung von seiner Frau , Topmodel Miranda Kerr , geäußert .']
+    [5] ['In einem Interview mit US ##AT##-##AT## Journalistin Katie Couric , das am Freitag ( Ortszeit ) ausgestrahlt werden sollte , sagte Bloom , &quot; das Leben verläuft manchmal nicht genau so , wie wir es planen oder erhoffen &quot; .']
+    [6] ['Kerr und er selbst liebten sich noch immer , betonte der 36 ##AT##-##AT## Jährige .']
+    [7] ['&quot; Wir werden uns gegenseitig unterstützen und lieben als Eltern von Flynn &quot; .']
+    [8] ['Kerr und Bloom sind seit 2010 verheiratet , im Jahr 2011 wurde ihr Söhnchen Flynn geboren .']
+    [9] ['Jumbo ##AT##-##AT## Hersteller streiten im Angesicht großer Bestellungen über Sitzbreite']
+    bleu_score:{'1-garm': 0.539172338417209, '2-garm': 0.38213888603861373, '3-garm': 0.2832620502111256, '4-garm': 0.21511854175510492}
     

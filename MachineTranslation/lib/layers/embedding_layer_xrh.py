@@ -81,7 +81,7 @@ class SharedEmbedding(Layer):
 
         out = tf.nn.embedding_lookup(params=self.shared_weights, ids=inputs)
 
-        out = out * (self.n_h **0.5)
+        out = out * (self.n_h **0.5) # TODO：若放开注释则 models/prev/transformer/1-7 中的预训练模型皆不可用
 
         return out
 

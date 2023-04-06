@@ -537,6 +537,6 @@ if __name__ == '__main__':
 
     # test.test_evaluating(config_path='config/attention_seq2seq.ini', tag='TEST-1') # DEFAULT
 
-    test.test_training(config_path='config/transformer_seq2seq.ini', tag='DEFAULT')  # DEFAULT
+    # test.test_training(config_path='config/transformer_seq2seq.ini', tag='DEFAULT')  # DEFAULT
 
-    # test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='DEFAULT') # DEFAULT
+    test.test_evaluating(config_path='config/transformer_seq2seq.ini', tag='DEFAULT') # DEFAULT
